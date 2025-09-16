@@ -6,6 +6,7 @@ Handles user login, logout, registration, and token management.
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from typing import Annotated
 from typing import Dict, Any
 import time
 from datetime import datetime, timezone
@@ -30,8 +31,8 @@ router = APIRouter()
 async def login(
     login_data: LoginRequest,
     request: Request,
-    db: Session = Depends(get_db),
-    auth_service: AuthenticationService = Depends(get_auth_service),
+    db: Annotated[Session, Depends(get_db)],
+    auth_service: Annotated[AuthenticationService, Depends(get_auth_service)],
     _: None = Depends(rate_limit_check)
 ):
     """
@@ -197,7 +198,7 @@ async def validate_token(
 async def register_user(
     user_data: UserCreate,
     request: Request,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
     current_user_token: Dict[str, Any] = Depends(require_role("admin")),
     auth_service: AuthenticationService = Depends(get_auth_service)
 ):

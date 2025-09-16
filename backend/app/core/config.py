@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Intelligent EMR System"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
-    ENVIRONMENT: str = Field(default="development", regex="^(development|staging|production)$")
+    ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production)$")
     
     # Database
     DATABASE_URL: str = Field(..., min_length=1)

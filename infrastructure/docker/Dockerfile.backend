@@ -29,6 +29,8 @@ RUN pip install --upgrade pip \
 
 # Copy application code
 COPY . .
+COPY startup.sh /startup.sh
+RUN chmod +x /startup.sh
 
 # Create directories for logs and uploads
 RUN mkdir -p /app/logs /app/uploads
