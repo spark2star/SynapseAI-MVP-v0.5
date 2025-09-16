@@ -1,0 +1,296 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Base styles */
+@layer base {
+    html {
+        font-family: 'Inter', system-ui, sans-serif;
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply antialiased text-neutral-900 bg-neutral-50;
+        font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    }
+
+    /* Form inputs styling */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="tel"],
+    input[type="date"],
+    textarea,
+    select {
+        @apply border-neutral-300 rounded-lg shadow-sm focus:border-primary-500 focus:ring-primary-500;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    /* Button base styles */
+    button {
+        @apply transition-all duration-200 ease-in-out;
+    }
+}
+
+/* Component styles */
+@layer components {
+
+    /* Medical card styling */
+    .medical-card {
+        @apply bg-white rounded-xl shadow-soft border border-neutral-200 p-6;
+        backdrop-filter: blur(10px);
+    }
+
+    /* Primary button */
+    .btn-primary {
+        @apply bg-primary-600 hover:bg-primary-700 focus:bg-primary-700 text-white font-medium px-4 py-2 rounded-lg;
+        @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+        @apply disabled:opacity-50 disabled:cursor-not-allowed;
+        box-shadow: 0 1px 2px 0 rgba(14, 165, 233, 0.05);
+    }
+
+    /* Secondary button */
+    .btn-secondary {
+        @apply bg-white hover:bg-neutral-50 focus:bg-neutral-50 text-neutral-700 font-medium px-4 py-2 rounded-lg;
+        @apply border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+        @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+
+    /* Danger button */
+    .btn-danger {
+        @apply bg-medical-error hover:bg-red-600 focus:bg-red-600 text-white font-medium px-4 py-2 rounded-lg;
+        @apply focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+        @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+
+    /* Success button */
+    .btn-success {
+        @apply bg-medical-success hover:bg-green-600 focus:bg-green-600 text-white font-medium px-4 py-2 rounded-lg;
+        @apply focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+        @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+
+    /* Input field */
+    .input-field {
+        @apply w-full px-3 py-2 border border-neutral-300 rounded-lg shadow-sm placeholder-neutral-400;
+        @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+        @apply disabled:bg-neutral-100 disabled:cursor-not-allowed;
+    }
+
+    /* Label */
+    .input-label {
+        @apply block text-sm font-medium text-neutral-700 mb-1;
+    }
+
+    /* Error message */
+    .error-message {
+        @apply text-sm text-medical-error mt-1;
+    }
+
+    /* Success message */
+    .success-message {
+        @apply text-sm text-medical-success mt-1;
+    }
+
+    /* Loading spinner */
+    .spinner {
+        @apply animate-spin rounded-full h-4 w-4 border-2 border-neutral-300 border-t-primary-600;
+    }
+
+    /* Navigation item */
+    .nav-item {
+        @apply flex items-center px-3 py-2 text-sm font-medium rounded-lg;
+        @apply hover:bg-primary-50 hover:text-primary-700 transition-colors duration-150;
+    }
+
+    .nav-item-active {
+        @apply bg-primary-100 text-primary-800 border-r-2 border-primary-600;
+    }
+
+    /* Medical status badges */
+    .status-badge {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    }
+
+    .status-active {
+        @apply bg-medical-success bg-opacity-10 text-green-800;
+    }
+
+    .status-pending {
+        @apply bg-medical-warning bg-opacity-10 text-amber-800;
+    }
+
+    .status-inactive {
+        @apply bg-neutral-100 text-neutral-800;
+    }
+
+    .status-error {
+        @apply bg-medical-error bg-opacity-10 text-red-800;
+    }
+
+    /* Medical form sections */
+    .form-section {
+        @apply space-y-4 p-6 bg-white rounded-lg border border-neutral-200;
+    }
+
+    .form-section-title {
+        @apply text-lg font-semibold text-neutral-900 mb-4 pb-2 border-b border-neutral-200;
+    }
+
+    /* Patient card */
+    .patient-card {
+        @apply medical-card hover:shadow-medical transition-shadow duration-200 cursor-pointer;
+    }
+
+    .patient-card:hover {
+        transform: translateY(-1px);
+    }
+}
+
+/* Utility classes */
+@layer utilities {
+
+    /* Text gradients */
+    .text-gradient-primary {
+        @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
+    }
+
+    /* Custom scrollbar */
+    .scrollbar-thin {
+        scrollbar-width: thin;
+        scrollbar-color: rgb(203 213 225) transparent;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background-color: rgb(203 213 225);
+        border-radius: 3px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+        background-color: rgb(148 163 184);
+    }
+
+    /* Focus visible only */
+    .focus-visible-only {
+        @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2;
+    }
+
+    /* Medical priority indicators */
+    .priority-low {
+        @apply bg-blue-100 text-blue-800;
+    }
+
+    .priority-normal {
+        @apply bg-neutral-100 text-neutral-800;
+    }
+
+    .priority-high {
+        @apply bg-amber-100 text-amber-800;
+    }
+
+    .priority-urgent {
+        @apply bg-red-100 text-red-800;
+    }
+}
+
+/* Animation utilities */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Print styles for medical reports */
+@media print {
+    body {
+        @apply text-black bg-white;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    .medical-card {
+        @apply border border-neutral-400 shadow-none;
+    }
+
+    button {
+        display: none !important;
+    }
+
+    .print-page-break {
+        page-break-before: always;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .btn-primary {
+        @apply border-2 border-primary-800;
+    }
+
+    .input-field {
+        @apply border-2 border-neutral-600;
+    }
+
+    .medical-card {
+        @apply border-2 border-neutral-400;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Dark mode support (for future implementation) */
+@media (prefers-color-scheme: dark) {
+    /* Will be implemented when dark mode is added */
+}
