@@ -1,0 +1,20 @@
+{
+  "name": "Intelligent EMR System",
+  "short_name": "EMR System",
+  "description": "Next-generation Electronic Medical Records system with AI-powered transcription and reporting",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["medical", "healthcare", "productivity"],
+  "lang": "en",
+  "dir": "ltr"
+}
