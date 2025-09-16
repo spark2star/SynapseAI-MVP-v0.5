@@ -29,7 +29,7 @@ async def create_patient(
     patient_data: PatientCreate,
     request: Request,
     db: Annotated[Session, Depends(get_db)],
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
     patient_service: Annotated[PatientService, Depends(get_patient_service)],
     __: None = Depends(rate_limit_check)
@@ -82,7 +82,7 @@ async def get_patient(
     patient_id: str,
     request: Request,
     db: Annotated[Session, Depends(get_db)],
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
     patient_service: Annotated[PatientService, Depends(get_patient_service)]
 ):
@@ -157,7 +157,7 @@ async def update_patient(
     patient_data: PatientUpdate,
     request: Request,
     db: Annotated[Session, Depends(get_db)],
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
     patient_service: Annotated[PatientService, Depends(get_patient_service)]
 ):
@@ -212,7 +212,7 @@ async def search_patients(
     limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     db: Annotated[Session, Depends(get_db)],
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
     patient_service: Annotated[PatientService, Depends(get_patient_service)]
 ):
@@ -291,7 +291,7 @@ async def list_patients(
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     created_by: Optional[str] = Query(None, description="Filter by creator user ID"),
     db: Annotated[Session, Depends(get_db)],
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
     patient_service: Annotated[PatientService, Depends(get_patient_service)]
 ):
@@ -361,7 +361,7 @@ async def get_patient_history(
     request: Request,
     limit: int = Query(20, ge=1, le=50, description="Maximum number of sessions"),
     db: Annotated[Session, Depends(get_db)],
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor"])),
     patient_service: Annotated[PatientService, Depends(get_patient_service)]
 ):

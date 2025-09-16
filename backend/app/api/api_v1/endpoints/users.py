@@ -26,7 +26,7 @@ router = APIRouter()
 
 @router.get("/profile", response_model=Dict[str, Any])
 async def get_user_profile(
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     db: Session = Depends(get_db)
 ):
     """
@@ -99,7 +99,7 @@ async def get_user_profile(
 async def update_user_profile(
     profile_data: UserUpdate,
     request: Request,
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     db: Session = Depends(get_db)
 ):
     """

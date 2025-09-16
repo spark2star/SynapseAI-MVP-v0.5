@@ -33,7 +33,7 @@ async def login(
     request: Request,
     db: Annotated[Session, Depends(get_db)],
     auth_service: Annotated[AuthenticationService, Depends(get_auth_service)],
-    _: None = Depends(rate_limit_check)
+    _: Annotated[None, Depends(rate_limit_check)] = None
 ):
     """
     User login endpoint.
@@ -94,7 +94,7 @@ async def login(
 @router.post("/logout", response_model=Dict[str, Any])
 async def logout(
     request: Request,
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     auth_service: AuthenticationService = Depends(get_auth_service)
 ):
     """
@@ -251,7 +251,7 @@ async def register_user(
 async def change_password(
     password_data: PasswordChange,
     request: Request,
-    current_user_id: str = Depends(get_current_user_id),
+    current_user_id: Annotated[str, Depends(get_current_user_id)],
     auth_service: AuthenticationService = Depends(get_auth_service)
 ):
     """
@@ -296,8 +296,8 @@ async def change_password(
 async def request_password_reset(
     reset_data: PasswordResetRequest,
     request: Request,
-    auth_service: AuthenticationService = Depends(get_auth_service),
-    _: None = Depends(rate_limit_check)
+    auth_service: Annotated[AuthenticationService, Depends(get_auth_service)],
+    _: Annotated[None, Depends(rate_limit_check)] = None
 ):
     """
     Request password reset.

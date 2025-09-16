@@ -1,9 +1,10 @@
 """
-Simple FastAPI app for testing Docker setup.
+Simple FastAPI app with basic authentication for testing.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 app = FastAPI(
     title="Intelligent EMR System",
@@ -20,6 +21,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: dict
+
 @app.get("/")
 async def root():
     return {"message": "Intelligent EMR System is running!", "status": "healthy"}
@@ -31,3 +41,44 @@ async def health_check():
 @app.get("/api/v1/health")
 async def api_health_check():
     return {"status": "healthy", "service": "EMR API v1"}
+
+@app.post("/api/v1/auth/login")
+async def login(login_data: LoginRequest):
+    """
+    Temporary login endpoint for testing.
+    Accepts demo credentials and returns mock tokens.
+    """
+    # Demo credentials
+    demo_users = {
+        "doctor@demo.com": {"password": "password123", "role": "doctor", "name": "Dr. Smith"},
+        "admin@demo.com": {"password": "password123", "role": "admin", "name": "Admin User"},
+        "reception@demo.com": {"password": "password123", "role": "receptionist", "name": "Reception"}
+    }
+    
+    if login_data.email not in demo_users:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    user_data = demo_users[login_data.email]
+    if user_data["password"] != login_data.password:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    return LoginResponse(
+        access_token="demo-jwt-token-12345",
+        token_type="bearer",
+        user={
+            "id": "demo-user-id",
+            "email": login_data.email,
+            "role": user_data["role"],
+            "name": user_data["name"]
+        }
+    )
+
+@app.get("/api/v1/users/me")
+async def get_current_user():
+    """Mock current user endpoint."""
+    return {
+        "id": "demo-user-id",
+        "email": "doctor@demo.com", 
+        "role": "doctor",
+        "name": "Dr. Smith"
+    }
