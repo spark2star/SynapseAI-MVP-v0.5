@@ -2,7 +2,9 @@
 Simple FastAPI app with basic authentication for testing.
 """
 
-from fastapi import FastAPI, HTTPException
+import asyncio
+import json
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -387,3 +389,107 @@ async def reports_health_check():
             "version": "1.0.0"
         }
     }
+
+@app.websocket("/ws/consultation/{session_id}")
+async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str):
+    """
+    Mock WebSocket endpoint for consultation audio streaming and transcription.
+    Simulates real-time transcription for demo purposes.
+    """
+    await websocket.accept()
+    print(f"WebSocket connected for session: {session_id}")
+    
+    try:
+        # Send welcome message
+        await websocket.send_json({
+            "type": "connection", 
+            "message": "Connected to SynapseAI transcription service",
+            "session_id": session_id
+        })
+        
+        # Counter for demo transcriptions
+        transcription_count = 0
+        
+        while True:
+            try:
+                # Wait for audio data or timeout after 5 seconds
+                data = await asyncio.wait_for(websocket.receive_bytes(), timeout=5.0)
+                
+                # Simulate processing delay
+                await asyncio.sleep(0.5)
+                
+                # Send mock transcription responses
+                transcription_count += 1
+                
+                if transcription_count <= 3:
+                    # Send interim results
+                    interim_text = [
+                        "Patient presents with...",
+                        "Patient presents with chest pain and...", 
+                        "Patient presents with chest pain and shortness of breath..."
+                    ][transcription_count - 1]
+                    
+                    await websocket.send_json({
+                        "type": "transcription",
+                        "transcript": interim_text,
+                        "is_final": False
+                    })
+                
+                elif transcription_count == 4:
+                    # Send final result
+                    final_text = "Patient presents with chest pain and shortness of breath. No family history of cardiac disease. Blood pressure 140/90."
+                    
+                    await websocket.send_json({
+                        "type": "transcription", 
+                        "transcript": final_text,
+                        "is_final": True
+                    })
+                
+                elif transcription_count <= 7:
+                    # Continue with more interim results
+                    interim_text = [
+                        "Physical examination reveals...",
+                        "Physical examination reveals normal heart sounds and...",
+                        "Physical examination reveals normal heart sounds and clear lung fields..."
+                    ][transcription_count - 5]
+                    
+                    await websocket.send_json({
+                        "type": "transcription",
+                        "transcript": interim_text, 
+                        "is_final": False
+                    })
+                
+                elif transcription_count == 8:
+                    # Send another final result
+                    final_text = "Physical examination reveals normal heart sounds and clear lung fields. No signs of respiratory distress. Recommend ECG and chest X-ray."
+                    
+                    await websocket.send_json({
+                        "type": "transcription",
+                        "transcript": final_text,
+                        "is_final": True
+                    })
+                    
+                    # Reset counter for continuous demo
+                    transcription_count = 0
+                    
+            except asyncio.TimeoutError:
+                # Send heartbeat to keep connection alive
+                await websocket.send_json({
+                    "type": "heartbeat",
+                    "timestamp": "2024-01-01T00:00:00Z"
+                })
+                continue
+                
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for session: {session_id}")
+    except Exception as e:
+        print(f"WebSocket error for session {session_id}: {str(e)}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Transcription service error"
+            })
+        except:
+            pass
+    finally:
+        print(f"WebSocket connection closed for session: {session_id}")
