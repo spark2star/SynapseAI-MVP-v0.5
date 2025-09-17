@@ -330,6 +330,11 @@ export default function AudioRecorder({
                 toast.error(`Transcription error: ${data.message}`)
                 break
 
+            case 'heartbeat':
+                // Handle heartbeat messages - just acknowledge
+                console.log('WebSocket heartbeat received')
+                break
+
             default:
                 console.log('Unknown WebSocket message type:', data.type)
         }

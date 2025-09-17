@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { 
+import {
     UserGroupIcon,
     PlusIcon,
     MagnifyingGlassIcon,
@@ -41,7 +41,7 @@ export default function PatientsPage() {
         try {
             setLoading(true)
             const response = await apiService.get('/patients/list/')
-            
+
             if (response.status === 'success') {
                 setPatients(response.data.patients)
             } else {
@@ -93,12 +93,18 @@ export default function PatientsPage() {
                     <h1 className="text-2xl font-bold text-neutral-900">Patients</h1>
                     <p className="text-neutral-600">Manage patient records and information</p>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                     <Button
                         variant="primary"
                         size="sm"
-                        onClick={() => toast.info('Patient registration coming soon!')}
+                        onClick={() => toast('Patient registration coming soon!', {
+                            icon: 'ℹ️',
+                            style: {
+                                background: '#3b82f6',
+                                color: '#ffffff',
+                            }
+                        })}
                         className="flex items-center gap-2"
                     >
                         <PlusIcon className="h-4 w-4" />
@@ -133,7 +139,7 @@ export default function PatientsPage() {
                         </div>
                     </div>
                 </div>
-                
+
                 <div className="medical-card p-4">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-green-100 rounded-lg">
@@ -156,7 +162,7 @@ export default function PatientsPage() {
                         <div>
                             <p className="text-sm text-neutral-600">New This Month</p>
                             <p className="text-2xl font-bold text-neutral-900">
-                                {patients.filter(p => 
+                                {patients.filter(p =>
                                     new Date(p.created_at).getMonth() === new Date().getMonth()
                                 ).length}
                             </p>
@@ -172,7 +178,7 @@ export default function PatientsPage() {
                         Patient Records ({filteredPatients.length})
                     </h2>
                 </div>
-                
+
                 {filteredPatients.length === 0 ? (
                     <div className="px-6 py-12 text-center">
                         <UserGroupIcon className="mx-auto h-12 w-12 text-neutral-400" />
@@ -186,38 +192,38 @@ export default function PatientsPage() {
                         {filteredPatients.map((patient) => (
                             <div key={patient.id} className="px-6 py-4 hover:bg-neutral-50 transition-colors">
                                 <div className="flex items-center justify-between">
-                                    <Link 
-                                    href={`/dashboard/patients/${patient.id}`}
-                                    className="flex items-center gap-4 w-full"
-                                >
-                                    <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center">
-                                        <span className="text-primary-700 font-semibold">
-                                            {getInitials(patient.full_name)}
-                                        </span>
-                                    </div>
-                                    
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="text-sm font-medium text-neutral-900 hover:text-primary-700 transition-colors">
-                                                {patient.full_name}
-                                            </h3>
-                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-neutral-100 text-neutral-700">
-                                                {patient.patient_id}
+                                    <Link
+                                        href={`/dashboard/patients/${patient.id}`}
+                                        className="flex items-center gap-4 w-full"
+                                    >
+                                        <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center">
+                                            <span className="text-primary-700 font-semibold">
+                                                {getInitials(patient.full_name)}
                                             </span>
                                         </div>
-                                        
-                                        <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
-                                            <span>{patient.age} years • {patient.gender}</span>
-                                            {patient.phone_primary && (
-                                                <div className="flex items-center gap-1">
-                                                    <PhoneIcon className="h-4 w-4" />
-                                                    {patient.phone_primary}
-                                                </div>
-                                            )}
+
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-sm font-medium text-neutral-900 hover:text-primary-700 transition-colors">
+                                                    {patient.full_name}
+                                                </h3>
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-neutral-100 text-neutral-700">
+                                                    {patient.patient_id}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
+                                                <span>{patient.age} years • {patient.gender}</span>
+                                                {patient.phone_primary && (
+                                                    <div className="flex items-center gap-1">
+                                                        <PhoneIcon className="h-4 w-4" />
+                                                        {patient.phone_primary}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </Link>
-                                    
+                                    </Link>
+
                                     <div className="text-right">
                                         <p className="text-sm text-neutral-600">Last Visit</p>
                                         <p className="text-sm font-medium text-neutral-900">

@@ -11,10 +11,14 @@ import {
     CurrencyDollarIcon,
     CogIcon,
     HeartIcon,
+    ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline'
 
 import { useAuthStore } from '@/store/authStore'
 import type { NavItem } from '@/types'
+import Logo from '@/components/ui/Logo'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+import { Button } from '@/components/ui/Button'
 
 export default function DashboardSidebar() {
     const pathname = usePathname()
@@ -61,21 +65,17 @@ export default function DashboardSidebar() {
         current: pathname.startsWith('/dashboard/settings'),
     })
 
+    const { logout } = useAuthStore()
+
+    const handleLogout = () => {
+        logout()
+    }
+
     return (
-        <div className="flex h-full flex-col bg-white shadow-soft">
+        <div className="flex h-full flex-col bg-white dark:bg-neutral-900 shadow-soft transition-colors duration-200">
             {/* Logo */}
-            <div className="flex h-16 items-center px-6 border-b border-neutral-200">
-                <div className="flex items-center space-x-2">
-                    <HeartIcon className="h-8 w-8 text-primary-600" />
-                    <div>
-                        <h1 className="text-xl font-bold text-gradient-primary">
-                            SynapseAI
-                        </h1>
-                        <p className="text-xs text-neutral-500">
-                            AI-Powered Healthcare
-                        </p>
-                    </div>
-                </div>
+            <div className="flex h-16 items-center px-6 border-b border-neutral-200 dark:border-neutral-800">
+                <Logo size="md" showText={true} />
             </div>
 
             {/* Navigation */}
@@ -85,16 +85,16 @@ export default function DashboardSidebar() {
                         key={item.name}
                         href={item.href}
                         className={clsx(
-                            'nav-item',
+                            'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors',
                             item.current
-                                ? 'nav-item-active'
-                                : 'text-neutral-700 hover:text-primary-700 hover:bg-primary-50'
+                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                                : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                         )}
                     >
                         <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                         {item.name}
                         {item.badge && (
-                            <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-primary-100 text-primary-800">
+                            <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-400">
                                 {item.badge}
                             </span>
                         )}
@@ -102,23 +102,40 @@ export default function DashboardSidebar() {
                 ))}
             </nav>
 
-            {/* User info */}
-            <div className="border-t border-neutral-200 p-4">
+            {/* Footer with theme toggle and user info */}
+            <div className="border-t border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
+                {/* Theme Toggle */}
+                <div className="flex justify-center">
+                    <ThemeToggle />
+                </div>
+                
+                {/* User info */}
                 <div className="flex items-center space-x-3">
-                    <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                        <span className="text-sm font-medium text-primary-700">
+                    <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
                             {user?.email?.charAt(0).toUpperCase()}
                         </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-neutral-900 truncate">
+                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
                             {user?.email}
                         </p>
-                        <p className="text-xs text-neutral-500 capitalize">
-                            {user?.role}
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">
+                            Mental Health Practitioner
                         </p>
                     </div>
                 </div>
+                
+                {/* Logout Button */}
+                <Button
+                    onClick={handleLogout}
+                    variant="secondary"
+                    size="sm"
+                    className="w-full flex items-center gap-2"
+                >
+                    <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                    Logout
+                </Button>
             </div>
         </div>
     )
