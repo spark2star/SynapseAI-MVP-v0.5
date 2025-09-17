@@ -293,7 +293,7 @@ export default function PatientDetailPage() {
                         className="flex items-center gap-2"
                     >
                         <PlusIcon className="h-4 w-4" />
-                        New Consultation
+                        Follow Up
                     </Button>
                 )}
             </div>
@@ -344,44 +344,161 @@ export default function PatientDetailPage() {
                 />
             )}
 
-            {/* New Consultation Modal */}
+            {/* Mental Health Follow-Up Interface */}
             {showNewConsultation && (
-                <div className="medical-card bg-blue-50 border-blue-200">
-                    <div className="p-4">
-                        <h3 className="text-lg font-semibold text-blue-900 mb-4">Start New Consultation</h3>
-                        
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-blue-800 mb-2">
-                                    Chief Complaint
-                                </label>
-                                <Input
-                                    placeholder="What is the main reason for today's visit?"
-                                    value={chiefComplaint}
-                                    onChange={(e) => setChiefComplaint(e.target.value)}
-                                    className="w-full"
-                                />
-                            </div>
-                            
-                            <div className="flex gap-3">
+                <div className="space-y-6">
+                    {/* Session Setup */}
+                    <div className="medical-card bg-blue-50 border-blue-200">
+                        <div className="p-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-blue-900">Mental Health Follow-Up Session</h3>
                                 <Button
-                                    variant="primary"
-                                    onClick={startConsultation}
-                                    disabled={!chiefComplaint.trim()}
-                                    className="flex items-center gap-2"
-                                >
-                                    <MicrophoneIcon className="h-4 w-4" />
-                                    Start Recording
-                                </Button>
-                                <Button
-                                    variant="secondary"
+                                    variant="secondary" 
+                                    size="sm"
                                     onClick={() => setShowNewConsultation(false)}
                                 >
                                     Cancel
                                 </Button>
                             </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-blue-800 mb-2">
+                                        Session Focus
+                                    </label>
+                                    <Input
+                                        placeholder="Primary focus for today's session (e.g., anxiety management, mood assessment)..."
+                                        value={chiefComplaint}
+                                        onChange={(e) => setChiefComplaint(e.target.value)}
+                                        className="w-full"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-blue-800 mb-2">
+                                        Session Type
+                                    </label>
+                                    <select
+                                        className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                        defaultValue="follow-up"
+                                    >
+                                        <option value="follow-up">Follow-up Session</option>
+                                        <option value="therapy">Therapy Session</option>
+                                        <option value="assessment">Mental Health Assessment</option>
+                                        <option value="counseling">Counseling Session</option>
+                                        <option value="crisis">Crisis Intervention</option>
+                                    </select>
+                                </div>
+                                
+                                <div className="flex gap-3">
+                                    <Button
+                                        variant="primary"
+                                        onClick={startConsultation}
+                                        disabled={!chiefComplaint.trim()}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <MicrophoneIcon className="h-4 w-4" />
+                                        Start Session
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => setShowNewConsultation(false)}
+                                    >
+                                        Cancel
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Recording Interface - Only show if session is active */}
+                    {currentSession && (
+                        <div className="space-y-4">
+                            {/* Multi-language Recording Controls */}
+                            <div className="medical-card">
+                                <div className="p-4">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-semibold text-neutral-900">Session Recording</h3>
+                                        <div className="flex items-center gap-2 text-sm text-neutral-600">
+                                            <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                                            <span>मराठी • English • हिंदी</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <AudioRecorder
+                                        sessionId={currentSession}
+                                        isRecording={isRecording}
+                                        onStart={() => {
+                                            setIsRecording(true)
+                                            toast.success('Recording started - Multi-language support active')
+                                        }}
+                                        onStop={() => {
+                                            setIsRecording(false)
+                                            toast.success('Recording stopped')
+                                        }}
+                                        onPause={() => {
+                                            toast('Recording paused', {
+                                                icon: '⏸️',
+                                                style: {
+                                                    background: '#f59e0b',
+                                                    color: '#ffffff',
+                                                }
+                                            })
+                                        }}
+                                        onResume={() => {
+                                            toast('Recording resumed', {
+                                                icon: '▶️',
+                                                style: {
+                                                    background: '#10b981',
+                                                    color: '#ffffff',
+                                                }
+                                            })
+                                        }}
+                                        onTranscriptionUpdate={handleTranscriptionUpdate}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Live Transcription Display */}
+                            <div className="medical-card">
+                                <div className="p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-lg font-semibold text-neutral-900">Live Transcription</h3>
+                                        <div className="text-xs text-neutral-500 bg-neutral-100 px-2 py-1 rounded">
+                                            Mental Health Optimized
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-neutral-50 rounded-lg p-4 min-h-[250px] max-h-[400px] overflow-y-auto border">
+                                        {finalTranscription || liveTranscription ? (
+                                            <div className="space-y-3">
+                                                {finalTranscription && (
+                                                    <div className="text-sm text-neutral-800 whitespace-pre-wrap leading-relaxed">
+                                                        {finalTranscription}
+                                                    </div>
+                                                )}
+                                                {liveTranscription && (
+                                                    <div className="text-sm text-blue-600 italic font-medium">
+                                                        {liveTranscription}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center text-neutral-500 py-12">
+                                                <div className="h-8 w-8 bg-neutral-300 rounded-full mx-auto mb-3 flex items-center justify-center">
+                                                    <MicrophoneIcon className="h-4 w-4" />
+                                                </div>
+                                                <p className="text-sm">Start recording to see live transcription</p>
+                                                <p className="text-xs mt-1 text-neutral-400">
+                                                    Supports Marathi, English, and Hindi with mental health terminology
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

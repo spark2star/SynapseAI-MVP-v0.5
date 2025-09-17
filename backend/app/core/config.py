@@ -43,9 +43,10 @@ class Settings(BaseSettings):
     # Google Cloud Service Account
     GCP_CREDENTIALS_PATH: str = "gcp-credentials.json"
     
-    # Google STT
-    GOOGLE_STT_MODEL: str = "medical_conversation"
-    GOOGLE_STT_LANGUAGE: str = "en-IN"
+    # Google STT for Mental Health (Multi-language)
+    GOOGLE_STT_MODEL: str = "latest_long"
+    GOOGLE_STT_PRIMARY_LANGUAGE: str = "mr-IN"  # Marathi (India)
+    GOOGLE_STT_ALTERNATE_LANGUAGES: list = ["en-IN", "hi-IN"]  # English (India), Hindi (India)
     
     # Gemini AI (Vertex AI)
     GOOGLE_CLOUD_PROJECT: str = "synapse-product-1"

@@ -422,11 +422,11 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                 transcription_count += 1
                 
                 if transcription_count <= 3:
-                    # Send interim results
+                    # Send interim results with mental health focus
                     interim_text = [
-                        "Patient presents with...",
-                        "Patient presents with chest pain and...", 
-                        "Patient presents with chest pain and shortness of breath..."
+                        "Patient reports feeling anxious and...",
+                        "Patient reports feeling anxious and having difficulty sleeping...", 
+                        "Patient reports feeling anxious and having difficulty sleeping since last session..."
                     ][transcription_count - 1]
                     
                     await websocket.send_json({
@@ -436,8 +436,8 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                     })
                 
                 elif transcription_count == 4:
-                    # Send final result
-                    final_text = "Patient presents with chest pain and shortness of breath. No family history of cardiac disease. Blood pressure 140/90."
+                    # Send final result with mental health content
+                    final_text = "Patient reports feeling anxious and having difficulty sleeping since last session. Mentions increased stress at work and family concerns. No suicidal ideation expressed."
                     
                     await websocket.send_json({
                         "type": "transcription", 
@@ -446,11 +446,11 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                     })
                 
                 elif transcription_count <= 7:
-                    # Continue with more interim results
+                    # Continue with more interim results - mental health focused
                     interim_text = [
-                        "Physical examination reveals...",
-                        "Physical examination reveals normal heart sounds and...",
-                        "Physical examination reveals normal heart sounds and clear lung fields..."
+                        "Patient discusses coping strategies and...",
+                        "Patient discusses coping strategies and mentions using mindfulness techniques...",
+                        "Patient discusses coping strategies and mentions using mindfulness techniques with some success..."
                     ][transcription_count - 5]
                     
                     await websocket.send_json({
@@ -460,8 +460,8 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                     })
                 
                 elif transcription_count == 8:
-                    # Send another final result
-                    final_text = "Physical examination reveals normal heart sounds and clear lung fields. No signs of respiratory distress. Recommend ECG and chest X-ray."
+                    # Send another final result - mental health focused
+                    final_text = "Patient discusses coping strategies and mentions using mindfulness techniques with some success. Continue CBT sessions and consider adjusting medication dosage. Schedule follow-up in two weeks."
                     
                     await websocket.send_json({
                         "type": "transcription",
