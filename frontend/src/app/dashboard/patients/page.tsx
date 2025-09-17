@@ -2,323 +2,231 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { toast } from 'react-hot-toast'
-import {
+import { 
+    UserGroupIcon,
     PlusIcon,
     MagnifyingGlassIcon,
-    UserGroupIcon,
     PhoneIcon,
-    EnvelopeIcon,
+    EnvelopeIcon
 } from '@heroicons/react/24/outline'
+import { toast } from 'react-hot-toast'
 
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import Select from '@/components/ui/Select'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { useAuthStore } from '@/store/authStore'
 import apiService from '@/services/api'
-import type { Patient, PaginatedResponse } from '@/types'
 
-const searchTypeOptions = [
-    { value: 'name', label: 'Name' },
-    { value: 'phone', label: 'Phone' },
-    { value: 'email', label: 'Email' },
-]
+interface Patient {
+    id: string
+    patient_id: string
+    full_name: string
+    age: number
+    gender: string
+    phone_primary: string
+    last_visit: string | null
+    created_at: string
+}
 
 export default function PatientsPage() {
+    const { user } = useAuthStore()
     const [patients, setPatients] = useState<Patient[]>([])
     const [loading, setLoading] = useState(true)
-    const [searchQuery, setSearchQuery] = useState('')
-    const [searchType, setSearchType] = useState('name')
-    const [totalCount, setTotalCount] = useState(0)
-    const [currentPage, setCurrentPage] = useState(1)
-    const [isSearching, setIsSearching] = useState(false)
-
-    const itemsPerPage = 20
+    const [searchTerm, setSearchTerm] = useState('')
 
     useEffect(() => {
-        loadPatients()
-    }, [currentPage])
+        fetchPatients()
+    }, [])
 
-    const loadPatients = async () => {
+    const fetchPatients = async () => {
         try {
             setLoading(true)
-            const offset = (currentPage - 1) * itemsPerPage
-
-            const response = await apiService.get('/patients/list/', {
-                limit: itemsPerPage,
-                offset: offset
-            })
-
-            if (response.status === 'success' && response.data) {
-                setPatients(response.data.patients || [])
-                setTotalCount(response.data.total_count || 0)
+            const response = await apiService.get('/patients/list/')
+            
+            if (response.status === 'success') {
+                setPatients(response.data.patients)
+            } else {
+                toast.error('Failed to load patients')
             }
         } catch (error) {
-            console.error('Failed to load patients:', error)
+            console.error('Error fetching patients:', error)
             toast.error('Failed to load patients')
         } finally {
             setLoading(false)
         }
     }
 
-    const handleSearch = async () => {
-        if (!searchQuery.trim()) {
-            loadPatients()
-            return
-        }
+    const filteredPatients = patients.filter(patient =>
+        patient.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.phone_primary.includes(searchTerm)
+    )
 
-        try {
-            setIsSearching(true)
-
-            const response = await apiService.get('/patients/search/', {
-                query: searchQuery,
-                search_type: searchType,
-                limit: itemsPerPage,
-                offset: 0
-            })
-
-            if (response.status === 'success' && response.data) {
-                setPatients(response.data.patients || [])
-                setTotalCount(response.data.total_count || 0)
-                setCurrentPage(1)
-            }
-        } catch (error) {
-            console.error('Search failed:', error)
-            toast.error('Search failed')
-        } finally {
-            setIsSearching(false)
-        }
+    const getInitials = (fullName: string) => {
+        return fullName.split(' ').map(name => name[0]).join('').toUpperCase()
     }
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            handleSearch()
-        }
+    const formatDate = (dateString: string | null) => {
+        if (!dateString) return 'Never'
+        return new Date(dateString).toLocaleDateString()
     }
 
-    const clearSearch = () => {
-        setSearchQuery('')
-        loadPatients()
-    }
-
-    const formatAge = (age: number | undefined) => {
-        if (!age) return 'Unknown'
-        return `${age} years`
-    }
-
-    const formatPhone = (phone: string | undefined) => {
-        if (!phone) return 'Not provided'
-        // Simple phone formatting - in production, use a proper library
-        return phone
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <div className="animate-pulse">
+                    <div className="h-8 bg-neutral-200 rounded mb-4"></div>
+                    <div className="space-y-3">
+                        {[...Array(5)].map((_, i) => (
+                            <div key={i} className="h-16 bg-neutral-200 rounded"></div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-neutral-900">Patients</h1>
-                    <p className="mt-1 text-sm text-neutral-600">
-                        Manage patient records securely and efficiently
-                    </p>
+                    <p className="text-neutral-600">Manage patient records and information</p>
                 </div>
-                <div className="mt-4 sm:mt-0">
-                    <Link href="/dashboard/patients/new">
-                        <Button variant="primary">
-                            <PlusIcon className="mr-2 h-4 w-4" />
-                            New Patient
-                        </Button>
-                    </Link>
+                
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => toast.info('Patient registration coming soon!')}
+                        className="flex items-center gap-2"
+                    >
+                        <PlusIcon className="h-4 w-4" />
+                        New Patient
+                    </Button>
                 </div>
             </div>
 
             {/* Search */}
-            <div className="medical-card">
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="flex-1">
-                        <Input
-                            placeholder={`Search by ${searchType}...`}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                        />
+            <div className="flex items-center gap-4">
+                <div className="flex-1 relative">
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400" />
+                    <Input
+                        placeholder="Search patients by name, ID, or phone..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="medical-card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                            <UserGroupIcon className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-neutral-600">Total Patients</p>
+                            <p className="text-2xl font-bold text-neutral-900">{patients.length}</p>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <Select
-                            options={searchTypeOptions}
-                            value={searchType}
-                            onChange={(e) => setSearchType(e.target.value)}
-                            className="w-32"
-                        />
-                        <Button
-                            variant="primary"
-                            onClick={handleSearch}
-                            loading={isSearching}
-                            disabled={isSearching}
-                        >
-                            <MagnifyingGlassIcon className="mr-2 h-4 w-4" />
-                            Search
-                        </Button>
-                        {searchQuery && (
-                            <Button
-                                variant="secondary"
-                                onClick={clearSearch}
-                            >
-                                Clear
-                            </Button>
-                        )}
+                </div>
+                
+                <div className="medical-card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                            <UserGroupIcon className="h-6 w-6 text-green-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-neutral-600">Recent Visits</p>
+                            <p className="text-2xl font-bold text-neutral-900">
+                                {patients.filter(p => p.last_visit).length}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="medical-card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-100 rounded-lg">
+                            <UserGroupIcon className="h-6 w-6 text-amber-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-neutral-600">New This Month</p>
+                            <p className="text-2xl font-bold text-neutral-900">
+                                {patients.filter(p => 
+                                    new Date(p.created_at).getMonth() === new Date().getMonth()
+                                ).length}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Results summary */}
-            {!loading && (
-                <div className="flex items-center justify-between">
-                    <p className="text-sm text-neutral-600">
-                        {searchQuery
-                            ? `Found ${totalCount} patient${totalCount !== 1 ? 's' : ''} matching "${searchQuery}"`
-                            : `Showing ${patients.length} of ${totalCount} patient${totalCount !== 1 ? 's' : ''}`
-                        }
-                    </p>
-                    {totalCount > itemsPerPage && (
-                        <div className="text-sm text-neutral-600">
-                            Page {currentPage} of {Math.ceil(totalCount / itemsPerPage)}
-                        </div>
-                    )}
+            {/* Patient List */}
+            <div className="medical-card">
+                <div className="px-6 py-4 border-b border-neutral-200">
+                    <h2 className="text-lg font-semibold text-neutral-900">
+                        Patient Records ({filteredPatients.length})
+                    </h2>
                 </div>
-            )}
-
-            {/* Patient list */}
-            <div className="space-y-4">
-                {loading ? (
-                    <div className="medical-card">
-                        <div className="flex items-center justify-center py-12">
-                            <div className="text-center">
-                                <LoadingSpinner size="lg" />
-                                <p className="mt-4 text-neutral-600">Loading patients...</p>
-                            </div>
-                        </div>
-                    </div>
-                ) : patients.length === 0 ? (
-                    <div className="medical-card">
-                        <div className="text-center py-12">
-                            <UserGroupIcon className="mx-auto h-12 w-12 text-neutral-400" />
-                            <h3 className="mt-2 text-sm font-medium text-neutral-900">
-                                {searchQuery ? 'No patients found' : 'No patients yet'}
-                            </h3>
-                            <p className="mt-1 text-sm text-neutral-500">
-                                {searchQuery
-                                    ? 'Try adjusting your search criteria'
-                                    : 'Get started by registering your first patient'
-                                }
-                            </p>
-                            {!searchQuery && (
-                                <div className="mt-6">
-                                    <Link href="/dashboard/patients/new">
-                                        <Button variant="primary">
-                                            <PlusIcon className="mr-2 h-4 w-4" />
-                                            Register First Patient
-                                        </Button>
-                                    </Link>
-                                </div>
-                            )}
-                        </div>
+                
+                {filteredPatients.length === 0 ? (
+                    <div className="px-6 py-12 text-center">
+                        <UserGroupIcon className="mx-auto h-12 w-12 text-neutral-400" />
+                        <h3 className="mt-2 text-sm font-medium text-neutral-900">No patients found</h3>
+                        <p className="mt-1 text-sm text-neutral-500">
+                            {searchTerm ? 'Try adjusting your search terms.' : 'Get started by registering a new patient.'}
+                        </p>
                     </div>
                 ) : (
-                    patients.map((patient) => (
-                        <Link
-                            key={patient.id}
-                            href={`/dashboard/patients/${patient.id}`}
-                            className="block"
-                        >
-                            <div className="patient-card">
+                    <div className="divide-y divide-neutral-200">
+                        {filteredPatients.map((patient) => (
+                            <div key={patient.id} className="px-6 py-4 hover:bg-neutral-50 transition-colors">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center">
-                                            <span className="text-lg font-semibold text-primary-700">
-                                                {patient.first_name?.charAt(0)}{patient.last_name?.charAt(0)}
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center">
+                                            <span className="text-primary-700 font-semibold">
+                                                {getInitials(patient.full_name)}
                                             </span>
                                         </div>
-                                        <div>
-                                            <h3 className="text-lg font-medium text-neutral-900">
-                                                {patient.full_name}
-                                            </h3>
-                                            <div className="flex items-center space-x-4 text-sm text-neutral-600 mt-1">
-                                                <span>ID: {patient.patient_id}</span>
-                                                <span>Age: {formatAge(patient.age)}</span>
-                                                <span className="capitalize">{patient.gender}</span>
+                                        
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-sm font-medium text-neutral-900">
+                                                    {patient.full_name}
+                                                </h3>
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-neutral-100 text-neutral-700">
+                                                    {patient.patient_id}
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
+                                                <span>{patient.age} years • {patient.gender}</span>
+                                                {patient.phone_primary && (
+                                                    <div className="flex items-center gap-1">
+                                                        <PhoneIcon className="h-4 w-4" />
+                                                        {patient.phone_primary}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="flex flex-col items-end space-y-1 text-sm text-neutral-600">
-                                        {patient.phone_primary && (
-                                            <div className="flex items-center space-x-1">
-                                                <PhoneIcon className="h-4 w-4" />
-                                                <span>{formatPhone(patient.phone_primary)}</span>
-                                            </div>
-                                        )}
-                                        {patient.email && (
-                                            <div className="flex items-center space-x-1">
-                                                <EnvelopeIcon className="h-4 w-4" />
-                                                <span>{patient.email}</span>
-                                            </div>
-                                        )}
-                                        <div className="text-xs text-neutral-500">
-                                            Registered: {new Date(patient.created_at).toLocaleDateString()}
-                                        </div>
+                                    
+                                    <div className="text-right">
+                                        <p className="text-sm text-neutral-600">Last Visit</p>
+                                        <p className="text-sm font-medium text-neutral-900">
+                                            {formatDate(patient.last_visit)}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
-                        </Link>
-                    ))
+                        ))}
+                    </div>
                 )}
             </div>
-
-            {/* Pagination */}
-            {totalCount > itemsPerPage && !loading && (
-                <div className="flex justify-center space-x-2">
-                    <Button
-                        variant="secondary"
-                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                        disabled={currentPage === 1}
-                    >
-                        Previous
-                    </Button>
-
-                    <div className="flex items-center space-x-2">
-                        {Array.from({ length: Math.ceil(totalCount / itemsPerPage) }, (_, i) => i + 1)
-                            .filter(page =>
-                                page === 1 ||
-                                page === Math.ceil(totalCount / itemsPerPage) ||
-                                Math.abs(page - currentPage) <= 1
-                            )
-                            .map((page, index, array) => (
-                                <div key={page} className="flex items-center">
-                                    {index > 0 && array[index - 1] !== page - 1 && (
-                                        <span className="text-neutral-400 px-2">...</span>
-                                    )}
-                                    <Button
-                                        variant={currentPage === page ? "primary" : "secondary"}
-                                        onClick={() => setCurrentPage(page)}
-                                        className="min-w-[40px]"
-                                    >
-                                        {page}
-                                    </Button>
-                                </div>
-                            ))
-                        }
-                    </div>
-
-                    <Button
-                        variant="secondary"
-                        onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / itemsPerPage), currentPage + 1))}
-                        disabled={currentPage === Math.ceil(totalCount / itemsPerPage)}
-                    >
-                        Next
-                    </Button>
-                </div>
-            )}
         </div>
     )
 }

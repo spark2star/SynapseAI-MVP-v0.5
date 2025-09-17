@@ -7,5 +7,5 @@ sleep 5
 
 echo "Database is ready!"
 
-echo "Starting FastAPI application with FULL EMR SYSTEM..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+echo "Starting FastAPI application with PATIENT MANAGEMENT DEMO..."
+exec uvicorn simple_main:app --host 0.0.0.0 --port 8000 --reload

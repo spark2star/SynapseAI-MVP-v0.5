@@ -119,3 +119,54 @@ async def validate_token():
             "email": "doctor@demo.com"
         }
     }
+
+@app.post("/api/v1/patients/create")
+async def create_patient(patient_data: dict):
+    """Mock patient creation endpoint."""
+    return {
+        "status": "success",
+        "data": {
+            "id": f"patient-{len(str(patient_data))}",
+            "patient_id": f"PAT-{hash(str(patient_data)) % 10000:04d}",
+            "first_name": patient_data.get("first_name"),
+            "last_name": patient_data.get("last_name"),
+            "email": patient_data.get("email"),
+            "phone_primary": patient_data.get("phone_primary"),
+            "created_at": "2024-01-01T00:00:00Z"
+        },
+        "message": "Patient registered successfully"
+    }
+
+@app.get("/api/v1/patients/list/")  
+async def list_patients():
+    """Mock patient list endpoint."""
+    return {
+        "status": "success",
+        "data": {
+            "patients": [
+                {
+                    "id": "patient-1",
+                    "patient_id": "PAT-0001",
+                    "full_name": "John Doe",
+                    "age": 35,
+                    "gender": "male",
+                    "phone_primary": "+1-555-1234",
+                    "last_visit": None,
+                    "created_at": "2024-01-01T00:00:00Z"
+                },
+                {
+                    "id": "patient-2", 
+                    "patient_id": "PAT-0002",
+                    "full_name": "Jane Smith",
+                    "age": 28,
+                    "gender": "female", 
+                    "phone_primary": "+1-555-5678",
+                    "last_visit": "2024-01-15T10:00:00Z",
+                    "created_at": "2023-12-15T00:00:00Z"
+                }
+            ],
+            "total_count": 2,
+            "limit": 50,
+            "offset": 0
+        }
+    }
