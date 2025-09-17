@@ -12,7 +12,7 @@ export default function HomePage() {
     useEffect(() => {
         // Check authentication status on page load
         checkAuth()
-    }, [checkAuth])
+    }, []) // Remove checkAuth from dependency array to prevent infinite loop
 
     useEffect(() => {
         if (!isLoading) {

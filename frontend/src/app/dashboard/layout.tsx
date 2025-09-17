@@ -17,7 +17,7 @@ export default function DashboardLayout({
 
     useEffect(() => {
         checkAuth()
-    }, [checkAuth])
+    }, []) // Remove checkAuth from dependency array to prevent infinite loop
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
