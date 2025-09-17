@@ -53,15 +53,13 @@ export default function DashboardSidebar() {
         },
     ]
 
-    // Add admin-only items
-    if (hasAnyRole(['admin'])) {
-        navigation.push({
-            name: 'Settings',
-            href: '/dashboard/settings',
-            icon: CogIcon,
-            current: pathname.startsWith('/dashboard/settings'),
-        })
-    }
+    // Add settings for all users (MFA setup)
+    navigation.push({
+        name: 'Settings',
+        href: '/dashboard/settings',
+        icon: CogIcon,
+        current: pathname.startsWith('/dashboard/settings'),
+    })
 
     return (
         <div className="flex h-full flex-col bg-white shadow-soft">

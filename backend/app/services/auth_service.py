@@ -14,7 +14,7 @@ import io
 import base64
 
 from app.models.user import User, UserProfile, UserRole
-from app.schemas.user import UserCreate, UserLogin, PasswordChange, PasswordResetRequest
+from app.schemas.user import UserCreate, UserLogin, PasswordChange, PasswordResetRequest, MFASetup, MFAVerification
 from app.schemas.auth import LoginResponse, SessionInfo
 from app.core.security import JWTManager, SecurityValidator
 from app.core.encryption import HashingUtility
@@ -394,6 +394,113 @@ class AuthenticationService:
         # TODO: Send email with reset token
         
         return {"message": "If the email exists, password reset instructions have been sent"}
+    
+    async def setup_mfa(
+        self,
+        user_id: str,
+        ip_address: str
+    ) -> Dict[str, Any]:
+        """
+        Set up MFA for user.
+        Returns QR code and backup codes.
+        """
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        if user.mfa_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MFA is already enabled for this user"
+            )
+        
+        # Generate MFA secret
+        secret = pyotp.random_base32()
+        
+        # Create TOTP object
+        totp = pyotp.TOTP(secret)
+        
+        # Generate QR code
+        qr_uri = totp.provisioning_uri(
+            name=user.email,
+            issuer_name=settings.MFA_ISSUER
+        )
+        
+        # Create QR code image
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(qr_uri)
+        qr.make(fit=True)
+        
+        # Convert to base64 string
+        img = qr.make_image(fill_color="black", back_color="white")
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        qr_code_base64 = base64.b64encode(img_buffer.getvalue()).decode()
+        
+        # Generate backup codes
+        backup_codes = [self.hash_util.generate_secure_token()[:8].upper() for _ in range(10)]
+        
+        # Store MFA secret (encrypted)
+        user.mfa_secret = secret
+        self.db.commit()
+        
+        # Log MFA setup
+        await audit_logger.log_event(
+            event_type=AuditEventType.USER_MFA_ENABLED,
+            user_id=user_id,
+            ip_address=ip_address,
+            details={"mfa_setup": True}
+        )
+        
+        return {
+            "secret": secret,
+            "qr_code": f"data:image/png;base64,{qr_code_base64}",
+            "backup_codes": backup_codes
+        }
+    
+    async def verify_mfa_setup(
+        self,
+        user_id: str,
+        token: str,
+        ip_address: str
+    ) -> bool:
+        """
+        Verify MFA setup with TOTP token.
+        Enables MFA if verification succeeds.
+        """
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user or not user.mfa_secret:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MFA setup not initiated"
+            )
+        
+        # Verify TOTP token
+        totp = pyotp.TOTP(user.mfa_secret)
+        
+        if not totp.verify(token):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid MFA token"
+            )
+        
+        # Enable MFA
+        user.mfa_enabled = True
+        self.db.commit()
+        
+        # Log MFA verification
+        await audit_logger.log_event(
+            event_type=AuditEventType.USER_MFA_ENABLED,
+            user_id=user_id,
+            ip_address=ip_address,
+            details={"mfa_verified": True}
+        )
+        
+        return True
     
     async def _handle_failed_login(
         self,

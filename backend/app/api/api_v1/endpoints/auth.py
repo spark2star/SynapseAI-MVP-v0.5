@@ -18,7 +18,7 @@ from app.core.security import (
 )
 from app.core.audit import audit_logger, AuditEventType
 from app.services.auth_service import get_auth_service, AuthenticationService
-from app.schemas.user import UserCreate, UserLogin, PasswordChange, PasswordResetRequest
+from app.schemas.user import UserCreate, UserLogin, PasswordChange, PasswordResetRequest, MFASetup, MFAVerification
 from app.schemas.auth import (
     LoginRequest, LoginResponse, RefreshTokenRequest, 
     TokenValidationResponse, LogoutResponse
