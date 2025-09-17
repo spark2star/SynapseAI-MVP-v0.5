@@ -170,3 +170,63 @@ async def list_patients():
             "offset": 0
         }
     }
+
+@app.post("/api/v1/auth/mfa/setup")
+async def setup_mfa():
+    """Mock MFA setup endpoint."""
+    import base64
+    
+    # Create a real QR code for demo
+    try:
+        import qrcode
+        import io
+        
+        # Generate a mock QR code
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data("otpauth://totp/EMR-System:doctor@demo.com?secret=JBSWY3DPEHPK3PXP&issuer=EMR-System")
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        qr_code_base64 = base64.b64encode(img_buffer.getvalue()).decode()
+        qr_data_url = f"data:image/png;base64,{qr_code_base64}"
+    except ImportError:
+        # Fallback if qrcode not available
+        qr_data_url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    
+    return {
+        "status": "success",
+        "data": {
+            "qr_code": qr_data_url,
+            "secret": "JBSWY3DPEHPK3PXP",
+            "backup_codes": [
+                "BACKUP01", "BACKUP02", "BACKUP03", "BACKUP04", "BACKUP05",
+                "BACKUP06", "BACKUP07", "BACKUP08", "BACKUP09", "BACKUP10"
+            ],
+            "instructions": "Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.) and verify with a 6-digit code."
+        }
+    }
+
+@app.post("/api/v1/auth/mfa/verify-setup")
+async def verify_mfa_setup(request_data: dict):
+    """Mock MFA verification endpoint."""
+    return {
+        "status": "success", 
+        "data": {
+            "mfa_enabled": True,
+            "message": "MFA has been successfully enabled for your account"
+        }
+    }
+
+@app.post("/api/v1/auth/mfa/disable")
+async def disable_mfa():
+    """Mock MFA disable endpoint."""
+    return {
+        "status": "success",
+        "data": {
+            "mfa_disabled": True,
+            "message": "MFA has been disabled for your account"
+        }
+    }
