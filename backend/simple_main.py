@@ -84,3 +84,38 @@ async def get_current_user():
         "role": "doctor",
         "name": "Dr. Smith"
     }
+
+@app.get("/api/v1/users/profile")
+async def get_user_profile():
+    """Mock user profile endpoint that frontend calls after login."""
+    return {
+        "status": "success",
+        "data": {
+            "id": "demo-user-id",
+            "first_name": "Dr.",
+            "last_name": "Smith",
+            "email": "doctor@demo.com",
+            "phone": "+1-555-0123",
+            "specialization": "General Medicine",
+            "license_number": "MD123456",
+            "department": "Internal Medicine",
+            "role": "doctor",
+            "is_verified": True,
+            "is_active": True,
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    }
+
+@app.get("/api/v1/auth/validate-token")
+async def validate_token():
+    """Mock token validation endpoint."""
+    return {
+        "status": "success",
+        "data": {
+            "valid": True,
+            "user_id": "demo-user-id",
+            "role": "doctor",
+            "email": "doctor@demo.com"
+        }
+    }
