@@ -62,16 +62,18 @@ async def login(login_data: LoginRequest):
     if user_data["password"] != login_data.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    return LoginResponse(
-        access_token="demo-jwt-token-12345",
-        token_type="bearer",
-        user={
-            "id": "demo-user-id",
-            "email": login_data.email,
+    return {
+        "status": "success", 
+        "data": {
+            "access_token": "demo-jwt-token-12345",
+            "refresh_token": "demo-refresh-token-67890",
+            "token_type": "bearer",
+            "user_id": f"demo-user-{user_data['role']}",
             "role": user_data["role"],
+            "email": login_data.email,
             "name": user_data["name"]
         }
-    )
+    }
 
 @app.get("/api/v1/users/me")
 async def get_current_user():
