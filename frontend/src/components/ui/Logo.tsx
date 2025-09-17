@@ -9,10 +9,10 @@ interface LogoProps {
 }
 
 const sizeClasses = {
-  sm: 'h-6 w-6',
-  md: 'h-8 w-8',
-  lg: 'h-10 w-10',
-  xl: 'h-12 w-12'
+  sm: 'h-5 w-5',
+  md: 'h-6 w-6', 
+  lg: 'h-8 w-8',
+  xl: 'h-10 w-10'
 }
 
 const textSizes = {
@@ -41,11 +41,11 @@ export default function Logo({ size = 'md', className = '', showText = true }: L
         />
       </div>
 
-      {/* Brand Text - Bigger, no subtitle */}
+      {/* Brand Text - Bigger, no subtitle, with blue "AI" */}
       {showText && (
         <div>
           <h1 className={`font-bold ${textSizes[size]} text-neutral-900 dark:text-white leading-none`}>
-            SynapseAI
+            Synapse<span className="text-sky-500">AI</span>
           </h1>
         </div>
       )}

@@ -49,7 +49,7 @@ export default function DashboardPage() {
     })
 
     return (
-        <div className="min-h-full bg-neutral-50 dark:bg-neutral-900 transition-colors duration-200">
+        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-all duration-300">
             <div className="p-6">
                 {/* Header */}
                 <div className="mb-8">

@@ -86,13 +86,14 @@ export default function PatientsPage() {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-neutral-900">Patients</h1>
-                    <p className="text-neutral-600">Manage patient records and information</p>
-                </div>
+        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-all duration-300">
+            <div className="p-6 space-y-6">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Patients</h1>
+                        <p className="text-neutral-600 dark:text-neutral-400">Manage patient records and information</p>
+                    </div>
 
                 <div className="flex items-center gap-3">
                     <Button
