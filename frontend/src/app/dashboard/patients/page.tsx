@@ -186,34 +186,37 @@ export default function PatientsPage() {
                         {filteredPatients.map((patient) => (
                             <div key={patient.id} className="px-6 py-4 hover:bg-neutral-50 transition-colors">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center">
-                                            <span className="text-primary-700 font-semibold">
-                                                {getInitials(patient.full_name)}
+                                    <Link 
+                                    href={`/dashboard/patients/${patient.id}`}
+                                    className="flex items-center gap-4 w-full"
+                                >
+                                    <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center">
+                                        <span className="text-primary-700 font-semibold">
+                                            {getInitials(patient.full_name)}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-medium text-neutral-900 hover:text-primary-700 transition-colors">
+                                                {patient.full_name}
+                                            </h3>
+                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-neutral-100 text-neutral-700">
+                                                {patient.patient_id}
                                             </span>
                                         </div>
                                         
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-sm font-medium text-neutral-900">
-                                                    {patient.full_name}
-                                                </h3>
-                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-neutral-100 text-neutral-700">
-                                                    {patient.patient_id}
-                                                </span>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
-                                                <span>{patient.age} years • {patient.gender}</span>
-                                                {patient.phone_primary && (
-                                                    <div className="flex items-center gap-1">
-                                                        <PhoneIcon className="h-4 w-4" />
-                                                        {patient.phone_primary}
-                                                    </div>
-                                                )}
-                                            </div>
+                                        <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
+                                            <span>{patient.age} years • {patient.gender}</span>
+                                            {patient.phone_primary && (
+                                                <div className="flex items-center gap-1">
+                                                    <PhoneIcon className="h-4 w-4" />
+                                                    {patient.phone_primary}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
+                                </Link>
                                     
                                     <div className="text-right">
                                         <p className="text-sm text-neutral-600">Last Visit</p>

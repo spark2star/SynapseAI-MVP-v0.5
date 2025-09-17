@@ -230,3 +230,78 @@ async def disable_mfa():
             "message": "MFA has been disabled for your account"
         }
     }
+
+@app.get("/api/v1/patients/{patient_id}")
+async def get_patient_details(patient_id: str):
+    """Mock patient details endpoint."""
+    if patient_id == "patient-1":
+        return {
+            "status": "success",
+            "data": {
+                "id": "patient-1",
+                "patient_id": "PAT-0001",
+                "full_name": "John Doe",
+                "age": 35,
+                "gender": "male",
+                "phone_primary": "+1-555-1234",
+                "email": "john.doe@email.com",
+                "address": "123 Main St, City, State 12345",
+                "emergency_contact": "Mary Doe (+1-555-9999)",
+                "blood_group": "O+",
+                "allergies": "Penicillin, Peanuts",
+                "medical_history": "Hypertension, Diabetes Type 2",
+                "created_at": "2024-01-01T00:00:00Z",
+                "last_visit": None
+            }
+        }
+    else:
+        return {
+            "status": "success", 
+            "data": {
+                "id": "patient-2",
+                "patient_id": "PAT-0002",
+                "full_name": "Jane Smith",
+                "age": 28,
+                "gender": "female",
+                "phone_primary": "+1-555-5678",
+                "email": "jane.smith@email.com",
+                "address": "456 Oak Ave, City, State 67890",
+                "emergency_contact": "Bob Smith (+1-555-8888)",
+                "blood_group": "A+",
+                "allergies": "None known",
+                "medical_history": "Asthma",
+                "created_at": "2023-12-15T00:00:00Z",
+                "last_visit": "2024-01-15T10:00:00Z"
+            }
+        }
+
+@app.post("/api/v1/consultation/start")
+async def start_consultation_session(session_data: dict):
+    """Mock consultation session start endpoint."""
+    return {
+        "status": "success",
+        "data": {
+            "session_id": "CS-2024-NEW",
+            "patient_id": session_data.get("patient_id"),
+            "doctor_id": session_data.get("doctor_id"), 
+            "status": "in_progress",
+            "started_at": "2024-01-01T00:00:00Z",
+            "chief_complaint": session_data.get("chief_complaint"),
+            "recording_url": "ws://localhost:8000/ws/consultation/CS-2024-NEW"
+        }
+    }
+
+@app.post("/api/v1/consultation/{session_id}/stop")
+async def stop_consultation_session(session_id: str):
+    """Mock consultation session stop endpoint."""
+    return {
+        "status": "success",
+        "data": {
+            "session_id": session_id,
+            "status": "completed",
+            "ended_at": "2024-01-01T00:30:00Z",
+            "duration_minutes": 30,
+            "transcription_status": "completed",
+            "has_recording": True
+        }
+    }
