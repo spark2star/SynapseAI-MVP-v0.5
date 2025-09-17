@@ -72,9 +72,9 @@ export default function DashboardSidebar() {
     }
 
     return (
-        <div className="flex h-full flex-col bg-white dark:bg-neutral-900 shadow-soft transition-colors duration-200">
+        <div className="flex h-full flex-col bg-white dark:bg-neutral-900 transition-colors duration-200">
             {/* Logo */}
-            <div className="flex h-16 items-center px-6 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex h-16 items-center px-6 border-b border-neutral-100 dark:border-neutral-800/50">
                 <Logo size="md" showText={true} />
             </div>
 
@@ -85,11 +85,12 @@ export default function DashboardSidebar() {
                         key={item.name}
                         href={item.href}
                         className={clsx(
-                            'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                            'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200',
                             item.current
-                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
                                 : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                         )}
+                        style={item.current ? { boxShadow: 'inset 3px 0 0 rgb(59 130 246)' } : {}}
                     >
                         <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                         {item.name}
@@ -103,12 +104,12 @@ export default function DashboardSidebar() {
             </nav>
 
             {/* Footer with theme toggle and user info */}
-            <div className="border-t border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
+            <div className="border-t border-neutral-100 dark:border-neutral-800/50 p-4 space-y-4">
                 {/* Theme Toggle */}
                 <div className="flex justify-center">
                     <ThemeToggle />
                 </div>
-                
+
                 {/* User info */}
                 <div className="flex items-center space-x-3">
                     <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
@@ -125,7 +126,7 @@ export default function DashboardSidebar() {
                         </p>
                     </div>
                 </div>
-                
+
                 {/* Logout Button */}
                 <Button
                     onClick={handleLogout}

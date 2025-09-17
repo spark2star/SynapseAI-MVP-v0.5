@@ -272,19 +272,20 @@ export default function PatientDetailPage() {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <Link 
-                    href="/dashboard/patients"
-                    className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
-                >
-                    <ArrowLeftIcon className="h-5 w-5" />
-                </Link>
-                <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-neutral-900">{patient.full_name}</h1>
-                    <p className="text-neutral-600">Patient ID: {patient.patient_id}</p>
-                </div>
+        <div className="min-h-full bg-neutral-50 dark:bg-neutral-900 transition-colors duration-200">
+            <div className="p-6 space-y-6">
+                {/* Header */}
+                <div className="flex items-center gap-4">
+                    <Link 
+                        href="/dashboard/patients"
+                        className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                    >
+                        <ArrowLeftIcon className="h-5 w-5" />
+                    </Link>
+                    <div className="flex-1">
+                        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{patient.full_name}</h1>
+                        <p className="text-neutral-600 dark:text-neutral-400">Patient ID: {patient.patient_id}</p>
+                    </div>
                 
                 {!isRecording && (
                     <Button

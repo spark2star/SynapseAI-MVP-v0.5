@@ -1,203 +1,179 @@
 'use client'
 
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
+import { useAuthStore } from '@/store/authStore'
 import {
     UserGroupIcon,
     CalendarIcon,
     DocumentTextIcon,
     CurrencyDollarIcon,
     PlusIcon,
+    UserIcon,
+    ClockIcon
 } from '@heroicons/react/24/outline'
-import {
-    UserGroupIcon as UserGroupSolidIcon,
-    CalendarIcon as CalendarSolidIcon,
-    DocumentTextIcon as DocumentSolidIcon,
-    CurrencyDollarIcon as CurrencySolidIcon,
-} from '@heroicons/react/24/solid'
+import { Button } from '@/components/ui/Button'
 
-import { useAuthStore } from '@/store/authStore'
-import Button from '@/components/ui/Button'
+interface DashboardStats {
+    totalPatients: number
+    todayAppointments: number
+    reportsGenerated: number
+    pendingInvoices: number
+}
 
 export default function DashboardPage() {
-    const { user, profile, hasAnyRole } = useAuthStore()
+    const { user } = useAuthStore()
+    const [stats, setStats] = useState<DashboardStats>({
+        totalPatients: 0,
+        todayAppointments: 0,
+        reportsGenerated: 0,
+        pendingInvoices: 0
+    })
 
-    const displayName = profile
-        ? `Dr. ${profile.first_name} ${profile.last_name}`
-        : user?.email
+    useEffect(() => {
+        // Simulate loading stats
+        setTimeout(() => {
+            setStats({
+                totalPatients: 42,
+                todayAppointments: 8,
+                reportsGenerated: 156,
+                pendingInvoices: 3
+            })
+        }, 500)
+    }, [])
 
-    const stats = [
-        {
-            name: 'Total Patients',
-            value: '0',
-            icon: UserGroupSolidIcon,
-            iconColor: 'text-blue-600',
-            bgColor: 'bg-blue-100',
-            href: '/dashboard/patients',
-        },
-        {
-            name: 'Today\'s Appointments',
-            value: '0',
-            icon: CalendarSolidIcon,
-            iconColor: 'text-green-600',
-            bgColor: 'bg-green-100',
-            href: '/dashboard/appointments',
-        },
-        {
-            name: 'Reports Generated',
-            value: '0',
-            icon: DocumentSolidIcon,
-            iconColor: 'text-purple-600',
-            bgColor: 'bg-purple-100',
-            href: '/dashboard/reports',
-        },
-        {
-            name: 'Pending Invoices',
-            value: '0',
-            icon: CurrencySolidIcon,
-            iconColor: 'text-amber-600',
-            bgColor: 'bg-amber-100',
-            href: '/dashboard/billing',
-        },
-    ]
-
-    const quickActions = [
-        {
-            name: 'New Patient',
-            description: 'Register a new patient',
-            href: '/dashboard/patients/new',
-            icon: UserGroupIcon,
-            color: 'bg-primary-600 hover:bg-primary-700',
-        },
-        {
-            name: 'Schedule Appointment',
-            description: 'Book a new appointment',
-            href: '/dashboard/appointments/new',
-            icon: CalendarIcon,
-            color: 'bg-green-600 hover:bg-green-700',
-        },
-        {
-            name: 'Generate Report',
-            description: 'Create a new medical report',
-            href: '/dashboard/reports/new',
-            icon: DocumentTextIcon,
-            color: 'bg-purple-600 hover:bg-purple-700',
-        },
-    ]
+    const currentDate = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    })
 
     return (
-        <div className="space-y-8">
-            {/* Welcome header */}
-            <div className="medical-card">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-neutral-900">
-                            Welcome back, {displayName}
-                        </h1>
-                        <p className="mt-1 text-neutral-600">
-                            Here's what's happening with your EMR system today.
-                        </p>
+        <div className="min-h-full bg-neutral-50 dark:bg-neutral-900 transition-colors duration-200">
+            <div className="p-6">
+                {/* Header */}
+                <div className="mb-8">
+                    <div className="medical-card p-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+                                <p className="text-blue-100">Here's what's happening with your EMR system today.</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-blue-100 text-sm">{currentDate}</p>
+                                <p className="text-white font-semibold">Role: {user?.role || 'Doctor'}</p>
+                            </div>
+                        </div>
                     </div>
-                    <div className="hidden sm:block">
-                        <div className="text-right">
-                            <p className="text-sm text-neutral-500">
-                                {new Date().toLocaleDateString('en-US', {
-                                    weekday: 'long',
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                })}
-                            </p>
-                            <p className="text-xs text-neutral-400 capitalize">
-                                Role: {user?.role}
-                            </p>
+                </div>
+
+            {/* Overview Stats */}
+            <div className="mb-8">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Overview</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="medical-card p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Patients</p>
+                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.totalPatients}</p>
+                            </div>
+                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                <UserGroupIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="medical-card p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Today's Appointments</p>
+                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.todayAppointments}</p>
+                            </div>
+                            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                <CalendarIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="medical-card p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Reports Generated</p>
+                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.reportsGenerated}</p>
+                            </div>
+                            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                <DocumentTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="medical-card p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Pending Invoices</p>
+                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.pendingInvoices}</p>
+                            </div>
+                            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                <CurrencyDollarIcon className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Stats overview */}
-            <div>
-                <h2 className="text-lg font-medium text-neutral-900 mb-4">
-                    Overview
-                </h2>
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    {stats.map((stat) => (
-                        <Link
-                            key={stat.name}
-                            href={stat.href}
-                            className="medical-card hover:shadow-medical transition-shadow duration-200 group"
-                        >
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <div className={`${stat.bgColor} rounded-lg p-3`}>
-                                        <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
-                                    </div>
-                                </div>
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-neutral-600">
-                                        {stat.name}
-                                    </p>
-                                    <p className="text-2xl font-bold text-neutral-900 group-hover:text-primary-600 transition-colors duration-200">
-                                        {stat.value}
-                                    </p>
-                                </div>
+            {/* Quick Actions */}
+            <div className="mb-8">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Quick Actions</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                <UserIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                             </div>
-                        </Link>
-                    ))}
-                </div>
-            </div>
-
-            {/* Quick actions */}
-            <div>
-                <h2 className="text-lg font-medium text-neutral-900 mb-4">
-                    Quick Actions
-                </h2>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {quickActions.map((action) => (
-                        <Link
-                            key={action.name}
-                            href={action.href}
-                            className="medical-card hover:shadow-medical transition-all duration-200 group"
-                        >
-                            <div className="flex items-center space-x-4">
-                                <div className={`${action.color} rounded-lg p-3 transition-colors duration-200`}>
-                                    <action.icon className="h-6 w-6 text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="text-base font-medium text-neutral-900 group-hover:text-primary-600 transition-colors duration-200">
-                                        {action.name}
-                                    </h3>
-                                    <p className="text-sm text-neutral-600">
-                                        {action.description}
-                                    </p>
-                                </div>
+                            <div>
+                                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Register a new patient</h3>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Add a new patient to the system</p>
                             </div>
-                        </Link>
-                    ))}
-                </div>
-            </div>
-
-            {/* Recent activity placeholder */}
-            <div className="medical-card">
-                <h2 className="text-lg font-medium text-neutral-900 mb-4">
-                    Recent Activity
-                </h2>
-                <div className="text-center py-12">
-                    <DocumentTextIcon className="mx-auto h-12 w-12 text-neutral-400" />
-                    <h3 className="mt-2 text-sm font-medium text-neutral-900">
-                        No recent activity
-                    </h3>
-                    <p className="mt-1 text-sm text-neutral-500">
-                        Start by creating a new patient or scheduling an appointment.
-                    </p>
-                    <div className="mt-6">
-                        <Link href="/dashboard/patients/new">
-                            <Button variant="primary">
-                                <PlusIcon className="mr-2 h-4 w-4" />
-                                New Patient
-                            </Button>
-                        </Link>
+                        </div>
                     </div>
+
+                    <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                <CalendarIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Book a new appointment</h3>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Schedule patient appointments</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                <DocumentTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Create a new medical report</h3>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Generate AI-powered reports</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="flex-1">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Recent Activity</h2>
+                <div className="medical-card p-8 text-center">
+                    <DocumentTextIcon className="h-16 w-16 text-neutral-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">No Recent Activity</h3>
+                    <p className="text-neutral-600 dark:text-neutral-400 mb-6">Start by creating a new patient or scheduling an appointment.</p>
+                    <Button variant="primary" className="inline-flex items-center gap-2">
+                        <PlusIcon className="h-4 w-4" />
+                        New Patient
+                    </Button>
                 </div>
             </div>
         </div>

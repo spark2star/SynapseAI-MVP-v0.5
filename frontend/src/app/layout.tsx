@@ -11,9 +11,13 @@ export const metadata: Metadata = {
     description: 'Next-generation Electronic Medical Records powered by AI transcription and intelligent reporting',
     keywords: 'SynapseAI, EMR, Electronic Medical Records, Healthcare AI, Medical Transcription, AI Reports, Medical AI',
     authors: [{ name: 'SynapseAI Team' }],
-    viewport: 'width=device-width, initial-scale=1',
     robots: 'noindex, nofollow', // Prevent indexing for medical data
     metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+}
+
+export const viewport = {
+    width: 'device-width',
+    initialScale: 1,
 }
 
 export default function RootLayout({

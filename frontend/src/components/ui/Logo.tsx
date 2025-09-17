@@ -1,8 +1,6 @@
 'use client'
 
-import { useTheme } from 'next-themes'
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
@@ -11,44 +9,31 @@ interface LogoProps {
 }
 
 const sizeClasses = {
-  sm: 'h-8 w-8',
-  md: 'h-12 w-12', 
-  lg: 'h-16 w-16',
-  xl: 'h-24 w-24'
+  sm: 'h-6 w-6',
+  md: 'h-10 w-10', 
+  lg: 'h-12 w-12',
+  xl: 'h-16 w-16'
+}
+
+const textSizes = {
+  sm: 'text-lg',
+  md: 'text-xl',
+  lg: 'text-2xl', 
+  xl: 'text-3xl'
 }
 
 export default function Logo({ size = 'md', className = '', showText = true }: LogoProps) {
-  const { theme, resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  // Avoid hydration mismatch
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    // Return a placeholder during hydration
-    return (
-      <div className={`${sizeClasses[size]} ${className}`}>
-        <div className="w-full h-full bg-blue-500 rounded-lg animate-pulse" />
-      </div>
-    )
-  }
-
-  const isDark = resolvedTheme === 'dark'
-  const logoSrc = isDark ? '/logo-dark.png' : '/logo-light.png'
-
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      {/* Logo Image - Cropped to show just the "S" */}
-      <div className={`relative ${sizeClasses[size]} rounded-lg overflow-hidden`}>
+      {/* Logo Image - Always use dark version */}
+      <div className={`relative ${sizeClasses[size]} rounded-lg overflow-hidden flex-shrink-0`}>
         <Image
-          src={logoSrc}
+          src="/logo-dark.png"
           alt="SynapseAI Logo"
           fill
           className="object-cover object-center"
           style={{
-            // Crop to focus on the "S" symbol (adjust these values based on actual logo)
+            // Crop to focus on the "S" symbol
             objectPosition: 'center top',
             transform: 'scale(1.2) translateY(-10%)'
           }}
@@ -56,15 +41,12 @@ export default function Logo({ size = 'md', className = '', showText = true }: L
         />
       </div>
       
-      {/* Brand Text */}
+      {/* Brand Text - Bigger and no subtitle */}
       {showText && (
         <div className="flex flex-col">
-          <h1 className="font-bold text-lg text-neutral-900 dark:text-white leading-tight">
+          <h1 className={`font-bold ${textSizes[size]} text-neutral-900 dark:text-white leading-tight`}>
             SynapseAI
           </h1>
-          <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-tight">
-            Mental Health AI
-          </p>
         </div>
       )}
     </div>

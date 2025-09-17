@@ -8,7 +8,7 @@
     --toast-color: #334155;
     --toast-border: #e2e8f0;
   }
-  
+
   .dark {
     --toast-bg: #1e293b;
     --toast-color: #e2e8f0;
@@ -21,19 +21,19 @@
   .scrollbar-thin {
     scrollbar-width: thin;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-track {
     @apply bg-neutral-100 dark:bg-neutral-800;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-neutral-300 dark:bg-neutral-600 rounded-full;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     @apply bg-neutral-400 dark:bg-neutral-500;
   }
@@ -52,50 +52,49 @@
   color: transparent;
 }
 
-/* Medical cards styling with dark mode */
+/* Medical cards styling with dark mode - Clean, modern design */
 .medical-card {
-  @apply bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm transition-all duration-200;
+  @apply bg-white dark:bg-neutral-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200;
+  border: 1px solid transparent;
 }
 
 .medical-card:hover {
-  @apply shadow-md border-neutral-300 dark:border-neutral-600;
+  @apply shadow-lg;
+  border: 1px solid rgba(59, 130, 246, 0.1);
 }
 
-/* Navigation item styling */
+/* Navigation item styling - Clean design */
 .nav-item {
-  @apply flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors;
+  @apply flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200;
 }
 
 .nav-item-active {
-  @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800;
+  @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400;
+  box-shadow: inset 3px 0 0 theme('colors.blue.500');
 }
 
 /* Input styling for dark mode */
-input[type="text"], 
-input[type="email"], 
-input[type="password"], 
-input[type="tel"], 
-textarea, 
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+textarea,
 select {
   @apply bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400;
 }
 
-input[type="text"]:focus, 
-input[type="email"]:focus, 
-input[type="password"]:focus, 
-input[type="tel"]:focus, 
-textarea:focus, 
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="tel"]:focus,
+textarea:focus,
 select:focus {
   @apply border-blue-500 dark:border-blue-400 ring-blue-500 dark:ring-blue-400;
 }
 
 /* Form styling */
 .form-input {
-  @apply block w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md shadow-sm 
-         bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 
-         placeholder-neutral-500 dark:placeholder-neutral-400
-         focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400
-         disabled:bg-neutral-50 dark:disabled:bg-neutral-900 disabled:text-neutral-500 dark:disabled:text-neutral-600;
+  @apply block w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md shadow-sm bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 disabled:bg-neutral-50 dark:disabled:bg-neutral-900 disabled:text-neutral-500 dark:disabled:text-neutral-600;
 }
 
 /* Button focus states for accessibility */
@@ -105,9 +104,12 @@ button:focus {
 
 /* Loading animations */
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: .5;
   }
@@ -117,11 +119,13 @@ button:focus {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Dark mode shadows */
+/* Modern shadows with subtle borders */
 .shadow-soft {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .dark .shadow-soft {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
