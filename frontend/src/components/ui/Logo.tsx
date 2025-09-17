@@ -10,23 +10,23 @@ interface LogoProps {
 
 const sizeClasses = {
   sm: 'h-6 w-6',
-  md: 'h-10 w-10', 
-  lg: 'h-12 w-12',
-  xl: 'h-16 w-16'
+  md: 'h-8 w-8',
+  lg: 'h-10 w-10',
+  xl: 'h-12 w-12'
 }
 
 const textSizes = {
-  sm: 'text-lg',
-  md: 'text-xl',
-  lg: 'text-2xl', 
-  xl: 'text-3xl'
+  sm: 'text-base',
+  md: 'text-lg',
+  lg: 'text-xl',
+  xl: 'text-2xl'
 }
 
 export default function Logo({ size = 'md', className = '', showText = true }: LogoProps) {
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      {/* Logo Image - Always use dark version */}
-      <div className={`relative ${sizeClasses[size]} rounded-lg overflow-hidden flex-shrink-0`}>
+    <div className={`flex items-center gap-2 ${className}`}>
+      {/* Logo Image - Always use dark version, smaller */}
+      <div className={`relative ${sizeClasses[size]} rounded-md overflow-hidden flex-shrink-0`}>
         <Image
           src="/logo-dark.png"
           alt="SynapseAI Logo"
@@ -35,16 +35,16 @@ export default function Logo({ size = 'md', className = '', showText = true }: L
           style={{
             // Crop to focus on the "S" symbol
             objectPosition: 'center top',
-            transform: 'scale(1.2) translateY(-10%)'
+            transform: 'scale(1.1) translateY(-5%)'
           }}
           priority
         />
       </div>
-      
-      {/* Brand Text - Bigger and no subtitle */}
+
+      {/* Brand Text - Bigger, no subtitle */}
       {showText && (
-        <div className="flex flex-col">
-          <h1 className={`font-bold ${textSizes[size]} text-neutral-900 dark:text-white leading-tight`}>
+        <div>
+          <h1 className={`font-bold ${textSizes[size]} text-neutral-900 dark:text-white leading-none`}>
             SynapseAI
           </h1>
         </div>

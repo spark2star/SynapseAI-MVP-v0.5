@@ -67,113 +67,114 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-            {/* Overview Stats */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Overview</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="medical-card p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Patients</p>
-                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.totalPatients}</p>
-                            </div>
-                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                <UserGroupIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="medical-card p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Today's Appointments</p>
-                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.todayAppointments}</p>
-                            </div>
-                            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                                <CalendarIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                {/* Overview Stats */}
+                <div className="mb-8">
+                    <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Overview</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="medical-card p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Patients</p>
+                                    <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.totalPatients}</p>
+                                </div>
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                    <UserGroupIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="medical-card p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Reports Generated</p>
-                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.reportsGenerated}</p>
-                            </div>
-                            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                                <DocumentTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                        <div className="medical-card p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Today's Appointments</p>
+                                    <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.todayAppointments}</p>
+                                </div>
+                                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                    <CalendarIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="medical-card p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Pending Invoices</p>
-                                <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.pendingInvoices}</p>
-                            </div>
-                            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                                <CurrencyDollarIcon className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                        <div className="medical-card p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Reports Generated</p>
+                                    <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.reportsGenerated}</p>
+                                </div>
+                                <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                    <DocumentTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            {/* Quick Actions */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Quick Actions</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                <UserIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Register a new patient</h3>
-                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Add a new patient to the system</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                                <CalendarIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Book a new appointment</h3>
-                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Schedule patient appointments</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                                <DocumentTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Create a new medical report</h3>
-                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Generate AI-powered reports</p>
+                        <div className="medical-card p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Pending Invoices</p>
+                                    <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{stats.pendingInvoices}</p>
+                                </div>
+                                <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                    <CurrencyDollarIcon className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Recent Activity */}
-            <div className="flex-1">
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Recent Activity</h2>
-                <div className="medical-card p-8 text-center">
-                    <DocumentTextIcon className="h-16 w-16 text-neutral-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">No Recent Activity</h3>
-                    <p className="text-neutral-600 dark:text-neutral-400 mb-6">Start by creating a new patient or scheduling an appointment.</p>
-                    <Button variant="primary" className="inline-flex items-center gap-2">
-                        <PlusIcon className="h-4 w-4" />
-                        New Patient
-                    </Button>
+                {/* Quick Actions */}
+                <div className="mb-8">
+                    <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Quick Actions</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
+                            <div className="flex items-center space-x-4">
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                    <UserIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Register a new patient</h3>
+                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Add a new patient to the system</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
+                            <div className="flex items-center space-x-4">
+                                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                    <CalendarIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Book a new appointment</h3>
+                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Schedule patient appointments</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="medical-card p-6 hover:scale-105 transition-all duration-200 cursor-pointer">
+                            <div className="flex items-center space-x-4">
+                                <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                    <DocumentTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Create a new medical report</h3>
+                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Generate AI-powered reports</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Recent Activity */}
+                <div className="flex-1">
+                    <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Recent Activity</h2>
+                    <div className="medical-card p-8 text-center">
+                        <DocumentTextIcon className="h-16 w-16 text-neutral-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">No Recent Activity</h3>
+                        <p className="text-neutral-600 dark:text-neutral-400 mb-6">Start by creating a new patient or scheduling an appointment.</p>
+                        <Button variant="primary" className="inline-flex items-center gap-2">
+                            <PlusIcon className="h-4 w-4" />
+                            New Patient
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>

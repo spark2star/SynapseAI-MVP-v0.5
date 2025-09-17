@@ -72,7 +72,7 @@ export default function DashboardSidebar() {
     }
 
     return (
-        <div className="flex h-full flex-col bg-white dark:bg-neutral-900 transition-colors duration-200">
+        <div className="flex h-full flex-col bg-white dark:bg-neutral-900 transition-all duration-300 ease-in-out">
             {/* Logo */}
             <div className="flex h-16 items-center px-6 border-b border-neutral-100 dark:border-neutral-800/50">
                 <Logo size="md" showText={true} />

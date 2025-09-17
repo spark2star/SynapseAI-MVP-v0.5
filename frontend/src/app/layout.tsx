@@ -33,7 +33,7 @@ export default function RootLayout({
                 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
                 <link rel="manifest" href="/manifest.json" />
             </head>
-            <body className={`${inter.className} h-full bg-neutral-50 dark:bg-neutral-900 antialiased transition-colors duration-200`}>
+            <body className={`${inter.className} h-full bg-neutral-50 dark:bg-neutral-900 antialiased transition-all duration-300 ease-in-out`}>
                 <ThemeProvider>
                     <div id="root" className="h-full">
                         {children}
