@@ -29,7 +29,7 @@ const genderOptions = [
     { value: 'male', label: 'Male' },
     { value: 'female', label: 'Female' },
     { value: 'other', label: 'Other' },
-    { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+    { value: 'prefer_not_to_say', label: 'Prefer not to say' }
 ]
 
 const bloodGroupOptions = [
@@ -61,7 +61,7 @@ const relationshipOptions = [
     { value: 'child', label: 'Child' },
     { value: 'sibling', label: 'Sibling' },
     { value: 'friend', label: 'Friend' },
-    { value: 'other', label: 'Other' },
+    { value: 'other', label: 'Other' }
 ]
 
 export default function NewPatientPage() {
