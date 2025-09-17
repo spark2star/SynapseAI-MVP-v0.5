@@ -344,6 +344,7 @@ Thumbs.db
 *-key.json
 *-credentials.json
 service-account*.json
+gcp-credentials.json
 
 # Application specific
 alembic/versions/*.py

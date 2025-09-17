@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { 
+import {
     MicrophoneIcon,
     StopIcon,
     PauseIcon,
@@ -42,7 +42,7 @@ export default function AudioRecorder({
     const [transcriptionChunks, setTranscriptionChunks] = useState<TranscriptionChunk[]>([])
     const [currentInterimText, setCurrentInterimText] = useState('')
     const [isConnected, setIsConnected] = useState(false)
-    
+
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     const websocketRef = useRef<WebSocket | null>(null)
     const audioContextRef = useRef<AudioContext | null>(null)
@@ -57,7 +57,7 @@ export default function AudioRecorder({
         } else if (!isRecording) {
             stopRecording()
         }
-        
+
         return () => {
             cleanup()
         }
@@ -96,21 +96,21 @@ export default function AudioRecorder({
                     channelCount: 1
                 }
             })
-            
+
             streamRef.current = stream
-            
+
             // Set up audio level monitoring
             setupAudioLevelMonitoring(stream)
-            
+
             // Set up WebSocket for real-time transcription
             await setupWebSocket()
-            
+
             // Set up MediaRecorder for audio streaming
             setupMediaRecorder(stream)
-            
+
             setDuration(0)
             toast.success('Recording started')
-            
+
         } catch (error) {
             console.error('Error starting recording:', error)
             toast.error('Failed to start recording. Please check microphone permissions.')
@@ -123,24 +123,24 @@ export default function AudioRecorder({
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
                 mediaRecorderRef.current.stop()
             }
-            
+
             // Close WebSocket
             if (websocketRef.current) {
                 websocketRef.current.send(JSON.stringify({ type: 'stop_recording' }))
                 websocketRef.current.close()
             }
-            
+
             // Stop audio stream
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(track => track.stop())
             }
-            
+
             cleanup()
             setDuration(0)
             setIsPaused(false)
-            
+
             toast.success('Recording stopped')
-            
+
         } catch (error) {
             console.error('Error stopping recording:', error)
             toast.error('Failed to stop recording')
@@ -152,13 +152,19 @@ export default function AudioRecorder({
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                 mediaRecorderRef.current.pause()
                 setIsPaused(true)
-                
+
                 if (websocketRef.current) {
                     websocketRef.current.send(JSON.stringify({ type: 'pause_recording' }))
                 }
-                
+
                 onPause()
-                toast.info('Recording paused')
+                toast('Recording paused', {
+                    icon: '⏸️',
+                    style: {
+                        background: '#f59e0b',
+                        color: '#ffffff',
+                    }
+                })
             }
         } catch (error) {
             console.error('Error pausing recording:', error)
@@ -171,13 +177,19 @@ export default function AudioRecorder({
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
                 mediaRecorderRef.current.resume()
                 setIsPaused(false)
-                
+
                 if (websocketRef.current) {
                     websocketRef.current.send(JSON.stringify({ type: 'resume_recording' }))
                 }
-                
+
                 onResume()
-                toast.info('Recording resumed')
+                toast('Recording resumed', {
+                    icon: '▶️',
+                    style: {
+                        background: '#10b981',
+                        color: '#ffffff',
+                    }
+                })
             }
         } catch (error) {
             console.error('Error resuming recording:', error)
@@ -189,13 +201,13 @@ export default function AudioRecorder({
         return new Promise((resolve, reject) => {
             try {
                 const ws = new WebSocket(`ws://localhost:8000/ws/consultation/${sessionId}`)
-                
+
                 ws.onopen = () => {
                     console.log('WebSocket connected for transcription')
                     setIsConnected(true)
                     resolve()
                 }
-                
+
                 ws.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data)
@@ -204,20 +216,20 @@ export default function AudioRecorder({
                         console.error('Error parsing WebSocket message:', error)
                     }
                 }
-                
+
                 ws.onerror = (error) => {
                     console.error('WebSocket error:', error)
                     setIsConnected(false)
                     reject(error)
                 }
-                
+
                 ws.onclose = () => {
                     console.log('WebSocket connection closed')
                     setIsConnected(false)
                 }
-                
+
                 websocketRef.current = ws
-                
+
             } catch (error) {
                 console.error('Error setting up WebSocket:', error)
                 reject(error)
@@ -231,26 +243,26 @@ export default function AudioRecorder({
                 mimeType: 'audio/webm;codecs=opus',
                 audioBitsPerSecond: 48000
             })
-            
+
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0 && websocketRef.current?.readyState === WebSocket.OPEN) {
                     // Send audio data to WebSocket for real-time transcription
                     websocketRef.current.send(event.data)
                 }
             }
-            
+
             mediaRecorder.onstart = () => {
                 console.log('MediaRecorder started')
             }
-            
+
             mediaRecorder.onstop = () => {
                 console.log('MediaRecorder stopped')
             }
-            
+
             // Start recording with small chunks for real-time processing
             mediaRecorder.start(250) // 250ms chunks
             mediaRecorderRef.current = mediaRecorder
-            
+
         } catch (error) {
             console.error('Error setting up MediaRecorder:', error)
             toast.error('Failed to set up audio recording')
@@ -262,24 +274,24 @@ export default function AudioRecorder({
             const audioContext = new AudioContext()
             const analyser = audioContext.createAnalyser()
             const source = audioContext.createMediaStreamSource(stream)
-            
+
             analyser.fftSize = 256
             source.connect(analyser)
-            
+
             audioContextRef.current = audioContext
             analyserRef.current = analyser
-            
+
             // Start monitoring audio level
             audioLevelIntervalRef.current = setInterval(() => {
                 if (analyserRef.current) {
                     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
                     analyserRef.current.getByteFrequencyData(dataArray)
-                    
+
                     const average = dataArray.reduce((a, b) => a + b) / dataArray.length
                     setAudioLevel(Math.min(100, (average / 256) * 100))
                 }
             }, 100)
-            
+
         } catch (error) {
             console.error('Error setting up audio level monitoring:', error)
         }
@@ -290,7 +302,7 @@ export default function AudioRecorder({
             case 'transcription':
                 if (data.data) {
                     const transcriptionData = data.data
-                    
+
                     if (transcriptionData.type === 'interim') {
                         setCurrentInterimText(transcriptionData.transcript)
                         onTranscriptionUpdate(transcriptionData.transcript, false)
@@ -301,23 +313,23 @@ export default function AudioRecorder({
                             timestamp: transcriptionData.timestamp,
                             isFinal: true
                         }
-                        
+
                         setTranscriptionChunks(prev => [...prev, newChunk])
                         setCurrentInterimText('')
                         onTranscriptionUpdate(transcriptionData.transcript, true)
                     }
                 }
                 break
-                
+
             case 'connected':
                 console.log('Connected to consultation session')
                 break
-                
+
             case 'error':
                 console.error('WebSocket error:', data.message)
                 toast.error(`Transcription error: ${data.message}`)
                 break
-                
+
             default:
                 console.log('Unknown WebSocket message type:', data.type)
         }
@@ -329,18 +341,18 @@ export default function AudioRecorder({
             clearInterval(durationIntervalRef.current)
             durationIntervalRef.current = null
         }
-        
+
         if (audioLevelIntervalRef.current) {
             clearInterval(audioLevelIntervalRef.current)
             audioLevelIntervalRef.current = null
         }
-        
+
         // Close audio context
         if (audioContextRef.current) {
             audioContextRef.current.close()
             audioContextRef.current = null
         }
-        
+
         // Reset state
         setAudioLevel(0)
         setIsConnected(false)
@@ -359,7 +371,7 @@ export default function AudioRecorder({
                     <div className={`p-3 rounded-full ${isRecording ? 'bg-red-100' : 'bg-neutral-100'}`}>
                         <MicrophoneIcon className={`h-6 w-6 ${isRecording ? 'text-red-600' : 'text-neutral-600'}`} />
                     </div>
-                    
+
                     <div>
                         <h3 className="text-lg font-semibold text-neutral-900">
                             {isRecording ? (isPaused ? 'Recording Paused' : 'Recording Active') : 'Ready to Record'}
@@ -378,13 +390,13 @@ export default function AudioRecorder({
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Audio Level Indicator */}
                 {isRecording && (
                     <div className="flex items-center gap-2">
                         <SpeakerWaveIcon className="h-5 w-5 text-neutral-600" />
                         <div className="w-24 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                            <div 
+                            <div
                                 className="h-full bg-green-500 transition-all duration-100"
                                 style={{ width: `${audioLevel}%` }}
                             />
@@ -392,7 +404,7 @@ export default function AudioRecorder({
                     </div>
                 )}
             </div>
-            
+
             {/* Control Buttons */}
             <div className="flex items-center gap-3">
                 {!isRecording ? (
@@ -422,7 +434,7 @@ export default function AudioRecorder({
                                 Resume
                             </button>
                         )}
-                        
+
                         <button
                             onClick={onStop}
                             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -433,7 +445,7 @@ export default function AudioRecorder({
                     </>
                 )}
             </div>
-            
+
             {/* Live Transcription Display */}
             {(transcriptionChunks.length > 0 || currentInterimText) && (
                 <div className="mt-6 p-4 bg-neutral-50 rounded-lg">

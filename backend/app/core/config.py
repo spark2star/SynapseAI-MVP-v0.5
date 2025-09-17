@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     """Application settings with secure defaults and validation."""
     
     # Application
-    APP_NAME: str = "Intelligent EMR System"
+    APP_NAME: str = "SynapseAI - Intelligent EMR System"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
     ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production)$")
@@ -40,19 +40,18 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = Field(..., min_length=32)
     FIELD_ENCRYPTION_KEY: str = Field(..., min_length=32)
     
-    # Google Cloud
-    GOOGLE_CLOUD_PROJECT: str = Field(..., min_length=1)
-    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
+    # Google Cloud Service Account
+    GCP_CREDENTIALS_PATH: str = "gcp-credentials.json"
     
     # Google STT
     GOOGLE_STT_MODEL: str = "medical_conversation"
     GOOGLE_STT_LANGUAGE: str = "en-IN"
     
-    # Gemini AI
-    GEMINI_API_KEY: str = Field(..., min_length=1)
+    # Gemini AI (Vertex AI)
+    GOOGLE_CLOUD_PROJECT: str = "synapse-product-1"
+    VERTEX_AI_LOCATION: str = "us-central1"
     GEMINI_MODEL: str = "gemini-2.5-flash"
-    GEMINI_PROJECT_ID: str = Field(..., min_length=1)
-    GEMINI_LOCATION: str = "us-central1"
+    GOOGLE_APPLICATION_CREDENTIALS: str = "gcp-credentials.json"
     
     # API Configuration
     API_V1_PREFIX: str = "/api/v1"

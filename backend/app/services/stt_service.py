@@ -12,6 +12,7 @@ import logging
 
 from google.cloud import speech
 from google.cloud.speech import RecognitionConfig, StreamingRecognitionConfig
+from google.oauth2 import service_account
 import websockets
 from websockets.exceptions import WebSocketException
 
@@ -26,8 +27,14 @@ class STTService:
     """Service for handling Speech-to-Text operations."""
     
     def __init__(self):
-        self.client = speech.SpeechClient()
+        # Initialize Google Cloud Speech client with service account
+        credentials = service_account.Credentials.from_service_account_file(
+            "gcp-credentials.json",
+            scopes=['https://www.googleapis.com/auth/cloud-platform']
+        )
+        self.client = speech.SpeechClient(credentials=credentials)
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
+        self.project_id = "synapse-product-1"
         
     def get_streaming_config(self, language_code: str = "en-IN") -> StreamingRecognitionConfig:
         """Get streaming recognition configuration for medical transcription."""

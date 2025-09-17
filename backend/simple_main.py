@@ -305,3 +305,85 @@ async def stop_consultation_session(session_id: str):
             "has_recording": True
         }
     }
+
+@app.post("/api/v1/reports/generate")
+async def generate_medical_report_mock(request_data: dict):
+    """Mock AI-powered medical report generation."""
+    return {
+        "status": "success",
+        "data": {
+            "session_id": request_data.get("session_id", "CS-2024-NEW"),
+            "report": {
+                "report_type": request_data.get("report_type", "consultation"),
+                "content": "AI-Generated Medical Report\n\nCHIEF COMPLAINT:\nRoutine checkup and health assessment as discussed during consultation.\n\nHISTORY OF PRESENT ILLNESS:\nPatient reports feeling generally well with no acute concerns. Routine follow-up visit for ongoing health maintenance.\n\nASSESSMENT:\n- Overall health status appears stable\n- Vital signs within normal ranges\n- No acute medical issues identified\n\nPLAN:\n- Continue current health maintenance routine\n- Follow-up in 6 months or as needed\n- Patient education provided regarding preventive care\n\nCLINICAL INSIGHTS:\n- Patient demonstrates good health awareness\n- Compliance with recommended care protocols\n- Low risk profile for acute medical events",
+                "sections": {
+                    "CHIEF COMPLAINT": "Routine checkup and health assessment",
+                    "ASSESSMENT": "Overall health status appears stable",
+                    "PLAN": "Continue current health maintenance routine"
+                },
+                "confidence": 0.95,
+                "ai_generated": True,
+                "model": "gemini-2.5-flash"
+            },
+            "insights": {
+                "key_findings": ["Patient in good health", "No acute concerns"],
+                "recommendations": ["Continue preventive care", "Regular follow-ups"],
+                "confidence": 0.92
+            },
+            "metadata": {
+                "generated_at": "2024-01-01T00:30:00Z",
+                "model_used": "gemini-2.5-flash",
+                "confidence": 0.95,
+                "report_type": request_data.get("report_type", "consultation")
+            }
+        }
+    }
+
+@app.post("/api/v1/reports/insights")
+async def generate_clinical_insights_mock(request_data: dict):
+    """Mock AI-powered clinical insights generation."""
+    return {
+        "status": "success",
+        "data": {
+            "insights": {
+                "key_clinical_findings": [
+                    "Patient appears well-oriented and cooperative",
+                    "No signs of acute distress observed",
+                    "Communication clear and appropriate"
+                ],
+                "differential_diagnosis": [
+                    "Normal health status - no pathology indicated",
+                    "Routine health maintenance encounter"
+                ],
+                "treatment_recommendations": [
+                    "Continue current lifestyle patterns",
+                    "Maintain regular exercise routine",
+                    "Follow balanced nutrition guidelines"
+                ],
+                "follow_up_priorities": [
+                    "Schedule routine follow-up in 6 months",
+                    "Monitor for any new symptoms",
+                    "Continue preventive care measures"
+                ],
+                "confidence": 0.94
+            },
+            "metadata": {
+                "generated_at": "2024-01-01T00:30:00Z",
+                "model_used": "gemini-2.5-flash",
+                "analysis_type": "clinical_insights"
+            }
+        }
+    }
+
+@app.get("/api/v1/reports/health")
+async def reports_health_check():
+    """Mock AI services health check."""
+    return {
+        "status": "success",
+        "data": {
+            "gemini_service": "available",
+            "vertex_ai": "connected",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "version": "1.0.0"
+        }
+    }

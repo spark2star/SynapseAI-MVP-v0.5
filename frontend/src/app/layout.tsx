@@ -6,10 +6,10 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-    title: 'Intelligent EMR System',
-    description: 'Next-generation Electronic Medical Records with AI-powered transcription and reporting',
-    keywords: 'EMR, Electronic Medical Records, Healthcare, AI, Transcription, Medical Reports',
-    authors: [{ name: 'EMR System Team' }],
+    title: 'SynapseAI - Intelligent EMR System',
+    description: 'Next-generation Electronic Medical Records powered by AI transcription and intelligent reporting',
+    keywords: 'SynapseAI, EMR, Electronic Medical Records, Healthcare AI, Medical Transcription, AI Reports, Medical AI',
+    authors: [{ name: 'SynapseAI Team' }],
     viewport: 'width=device-width, initial-scale=1',
     robots: 'noindex, nofollow', // Prevent indexing for medical data
     metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),

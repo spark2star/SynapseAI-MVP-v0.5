@@ -1,6 +1,6 @@
 {
-  "name": "Intelligent EMR System",
-  "short_name": "EMR System",
+  "name": "SynapseAI - Intelligent EMR System",
+  "short_name": "SynapseAI",
   "description": "Next-generation Electronic Medical Records system with AI-powered transcription and reporting",
   "start_url": "/",
   "display": "standalone",
@@ -14,7 +14,11 @@
       "type": "image/x-icon"
     }
   ],
-  "categories": ["medical", "healthcare", "productivity"],
+  "categories": [
+    "medical",
+    "healthcare",
+    "productivity"
+  ],
   "lang": "en",
   "dir": "ltr"
 }

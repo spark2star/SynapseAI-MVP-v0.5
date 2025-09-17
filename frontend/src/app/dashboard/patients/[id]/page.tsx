@@ -25,6 +25,7 @@ import { toast } from 'react-hot-toast'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import AudioRecorder from '@/components/consultation/AudioRecorder'
+import AIInsights from '@/components/consultation/AIInsights'
 import { useAuthStore } from '@/store/authStore'
 import apiService from '@/services/api'
 
@@ -329,6 +330,18 @@ export default function PatientDetailPage() {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* AI-Powered Medical Insights */}
+            {(finalTranscription || liveTranscription || currentSession) && (
+                <AIInsights
+                    sessionId={currentSession || 'CS-2024-NEW'}
+                    transcriptionText={finalTranscription + ' ' + liveTranscription}
+                    patientId={patientId}
+                    onInsightGenerated={(insights) => {
+                        console.log('AI insights generated:', insights)
+                    }}
+                />
             )}
 
             {/* New Consultation Modal */}

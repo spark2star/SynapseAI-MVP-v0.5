@@ -69,10 +69,10 @@ export default function DashboardSidebar() {
                     <HeartIcon className="h-8 w-8 text-primary-600" />
                     <div>
                         <h1 className="text-xl font-bold text-gradient-primary">
-                            EMR System
+                            SynapseAI
                         </h1>
                         <p className="text-xs text-neutral-500">
-                            Privacy by Design
+                            AI-Powered Healthcare
                         </p>
                     </div>
                 </div>
