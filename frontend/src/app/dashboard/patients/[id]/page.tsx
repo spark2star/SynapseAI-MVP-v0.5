@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { 
+import {
     ArrowLeftIcon,
     PhoneIcon,
     EnvelopeIcon,
@@ -15,7 +15,7 @@ import {
     HeartIcon,
     PlusIcon
 } from '@heroicons/react/24/outline'
-import { 
+import {
     PlayIcon,
     StopIcon,
     PauseIcon
@@ -63,15 +63,17 @@ export default function PatientDetailPage() {
     const params = useParams()
     const patientId = params?.id as string
     const { user } = useAuthStore()
-    
+
     const [patient, setPatient] = useState<Patient | null>(null)
     const [sessions, setSessions] = useState<ConsultationSession[]>([])
     const [loading, setLoading] = useState(true)
     const [isRecording, setIsRecording] = useState(false)
+    const [isPaused, setIsPaused] = useState(false)
     const [recordingDuration, setRecordingDuration] = useState(0)
     const [currentSession, setCurrentSession] = useState<string | null>(null)
     const [chiefComplaint, setChiefComplaint] = useState('')
     const [showNewConsultation, setShowNewConsultation] = useState(false)
+    const [isFollowUpSession, setIsFollowUpSession] = useState(false)
     const [liveTranscription, setLiveTranscription] = useState('')
     const [finalTranscription, setFinalTranscription] = useState('')
 
@@ -84,18 +86,18 @@ export default function PatientDetailPage() {
 
     useEffect(() => {
         let interval: NodeJS.Timeout
-        if (isRecording) {
+        if (isRecording && !isPaused) {
             interval = setInterval(() => {
                 setRecordingDuration(prev => prev + 1)
             }, 1000)
         }
         return () => clearInterval(interval)
-    }, [isRecording])
+    }, [isRecording, isPaused])
 
     const fetchPatientDetails = async () => {
         try {
             setLoading(true)
-            
+
             // Mock patient data for demo
             const mockPatient: Patient = {
                 id: patientId,
@@ -111,9 +113,9 @@ export default function PatientDetailPage() {
                 allergies: patientId === 'patient-1' ? 'Penicillin, Peanuts' : 'None known',
                 medical_history: patientId === 'patient-1' ? 'Hypertension, Diabetes Type 2' : 'Asthma',
                 created_at: '2024-01-01T00:00:00Z',
-                last_visit: patientId === 'patient-1' ? null : '2024-01-15T10:00:00Z'
+                last_visit: patientId === 'patient-1' ? undefined : '2024-01-15T10:00:00Z'
             }
-            
+
             setPatient(mockPatient)
         } catch (error) {
             console.error('Error fetching patient:', error)
@@ -152,7 +154,7 @@ export default function PatientDetailPage() {
                     created_at: '2024-01-08T14:00:00Z'
                 }
             ]
-            
+
             setSessions(mockSessions)
         } catch (error) {
             console.error('Error fetching sessions:', error)
@@ -173,7 +175,7 @@ export default function PatientDetailPage() {
                 doctor_id: user?.id,
                 chief_complaint: chiefComplaint
             })
-            
+
             if (response.status === 'success') {
                 setCurrentSession(response.data.session_id)
                 setIsRecording(true)
@@ -181,7 +183,7 @@ export default function PatientDetailPage() {
                 setShowNewConsultation(false)
                 setLiveTranscription('')
                 setFinalTranscription('')
-                
+
                 toast.success('Consultation session started')
             }
         } catch (error) {
@@ -195,10 +197,10 @@ export default function PatientDetailPage() {
         try {
             if (currentSession) {
                 const response = await apiService.post(`/consultation/${currentSession}/stop`)
-                
+
                 if (response.status === 'success') {
                     setIsRecording(false)
-                    
+
                     const newSession: ConsultationSession = {
                         id: 'session-new',
                         session_id: currentSession,
@@ -211,12 +213,12 @@ export default function PatientDetailPage() {
                         has_transcription: !!finalTranscription,
                         created_at: new Date().toISOString()
                     }
-                    
+
                     setSessions(prev => [newSession, ...prev])
                     setCurrentSession(null)
                     setChiefComplaint('')
                     setRecordingDuration(0)
-                    
+
                     toast.success('Consultation session completed')
                 }
             }
@@ -276,7 +278,7 @@ export default function PatientDetailPage() {
             <div className="p-6 space-y-6">
                 {/* Header */}
                 <div className="flex items-center gap-4">
-                    <Link 
+                    <Link
                         href="/dashboard/patients"
                         className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
                     >
@@ -286,379 +288,382 @@ export default function PatientDetailPage() {
                         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{patient.full_name}</h1>
                         <p className="text-neutral-600 dark:text-neutral-400">Patient ID: {patient.patient_id}</p>
                     </div>
-                
-                {!isRecording && (
-                    <Button
-                        variant="primary"
-                        onClick={() => setShowNewConsultation(true)}
-                        className="flex items-center gap-2"
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        Follow Up
-                    </Button>
-                )}
-            </div>
 
-            {/* Audio Recording Interface */}
-            {isRecording && currentSession && (
-                <div className="space-y-4">
-                    <AudioRecorder
-                        sessionId={currentSession}
-                        isRecording={isRecording}
-                        onStart={startConsultation}
-                        onStop={stopConsultation}
-                        onPause={() => {}}
-                        onResume={() => {}}
-                        onTranscriptionUpdate={handleTranscriptionUpdate}
-                    />
-                    
-                    {/* Live Transcription Display */}
-                    {(finalTranscription || liveTranscription) && (
-                        <div className="medical-card">
+                    {!isRecording && (
+                        <Button
+                            variant="primary"
+                            onClick={() => {
+                                setShowNewConsultation(true)
+                                setIsFollowUpSession(true)
+                                setChiefComplaint("Follow-up consultation") // Auto-fill for follow-up
+                            }}
+                            className="flex items-center gap-2"
+                        >
+                            <PlusIcon className="h-4 w-4" />
+                            Follow Up
+                        </Button>
+                    )}
+                </div>
+
+                {/* Active Recording Interface - Single Screen Layout */}
+                {isRecording && currentSession && (
+                    <div className="space-y-4">
+                        {/* Recording Status Bar */}
+                        <div className="bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse"></div>
+                                        <span className="text-lg font-semibold text-red-800 dark:text-red-200">RECORDING IN PROGRESS</span>
+                                    </div>
+                                    <div className="text-sm text-red-600 dark:text-red-300">
+                                        {formatDuration(recordingDuration)} • Multi-language STT Active
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">मराठी</span>
+                                    <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">English</span>
+                                    <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">हिंदी</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recording Controls - Compact Display */}
+                        <AudioRecorder
+                            sessionId={currentSession}
+                            isRecording={isRecording}
+                            duration={recordingDuration}
+                            onStart={startConsultation}
+                            onStop={stopConsultation}
+                            onPause={() => setIsPaused(true)}
+                            onResume={() => setIsPaused(false)}
+                            onTranscriptionUpdate={handleTranscriptionUpdate}
+                        />
+
+                        {/* Live Transcription - Expandable Display */}
+                        <div className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-lg">
                             <div className="p-4">
-                                <h3 className="text-lg font-semibold text-neutral-900 mb-3">Session Transcription</h3>
-                                <div className="text-sm text-neutral-700 space-y-2 max-h-48 overflow-y-auto">
-                                    {finalTranscription && (
-                                        <div className="whitespace-pre-wrap">{finalTranscription}</div>
-                                    )}
-                                    {liveTranscription && (
-                                        <div className="text-neutral-500 italic">
-                                            {liveTranscription}
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                            <MicrophoneIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Live Transcription</h3>
+                                            <p className="text-sm text-neutral-600 dark:text-neutral-400">Mental health optimized • Real-time processing</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm text-neutral-600 dark:text-neutral-400">Word Count</div>
+                                        <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                                            {(finalTranscription + ' ' + liveTranscription).split(' ').filter(word => word.trim()).length}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-4 min-h-[200px] max-h-[600px] overflow-y-auto border-2 border-dashed border-neutral-200 dark:border-neutral-600 transition-all duration-300">
+                                    {finalTranscription || liveTranscription ? (
+                                        <div className="space-y-3">
+                                            {finalTranscription && (
+                                                <div className="text-base text-black dark:text-white whitespace-pre-wrap leading-relaxed font-medium">
+                                                    {finalTranscription}
+                                                </div>
+                                            )}
+                                            {liveTranscription && (
+                                                <div className="relative">
+                                                    <div className="text-base text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border-l-4 border-gray-400">
+                                                        <span className="flex items-center gap-2">
+                                                            <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse"></div>
+                                                            <span className="opacity-75">{liveTranscription}</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center text-neutral-500 dark:text-neutral-400 py-12">
+                                            <div className="h-12 w-12 bg-neutral-300 dark:bg-neutral-600 rounded-full mx-auto mb-4 flex items-center justify-center">
+                                                <MicrophoneIcon className="h-6 w-6" />
+                                            </div>
+                                            <p className="text-lg font-medium mb-2">Listening for speech...</p>
+                                            <p className="text-sm">
+                                                Supports Marathi, English, and Hindi with specialized mental health terminology
+                                            </p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
-                    )}
-                </div>
-            )}
+                    </div>
+                )}
 
-            {/* AI-Powered Medical Insights */}
-            {(finalTranscription || liveTranscription || currentSession) && (
-                <AIInsights
-                    sessionId={currentSession || 'CS-2024-NEW'}
-                    transcriptionText={finalTranscription + ' ' + liveTranscription}
-                    patientId={patientId}
-                    onInsightGenerated={(insights) => {
-                        console.log('AI insights generated:', insights)
-                    }}
-                />
-            )}
+                {/* AI-Powered Medical Report Generation */}
+                {finalTranscription && !isRecording && (
+                    <AIInsights
+                        sessionId={currentSession || 'CS-2024-NEW'}
+                        transcriptionText={finalTranscription}
+                        patientId={patientId}
+                        isLiveSession={false}
+                        onInsightGenerated={(insights) => {
+                            console.log('AI insights generated:', insights)
+                        }}
+                    />
+                )}
 
-            {/* Mental Health Follow-Up Interface */}
-            {showNewConsultation && (
-                <div className="space-y-6">
-                    {/* Session Setup */}
-                    <div className="medical-card bg-blue-50 border-blue-200">
-                        <div className="p-4">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-blue-900">Mental Health Follow-Up Session</h3>
-                                <Button
-                                    variant="secondary" 
-                                    size="sm"
-                                    onClick={() => setShowNewConsultation(false)}
-                                >
-                                    Cancel
-                                </Button>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-blue-800 mb-2">
-                                        Session Focus
-                                    </label>
-                                    <Input
-                                        placeholder="Primary focus for today's session (e.g., anxiety management, mood assessment)..."
-                                        value={chiefComplaint}
-                                        onChange={(e) => setChiefComplaint(e.target.value)}
-                                        className="w-full"
-                                    />
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-blue-800 mb-2">
-                                        Session Type
-                                    </label>
-                                    <select
-                                        className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                        defaultValue="follow-up"
-                                    >
-                                        <option value="follow-up">Follow-up Session</option>
-                                        <option value="therapy">Therapy Session</option>
-                                        <option value="assessment">Mental Health Assessment</option>
-                                        <option value="counseling">Counseling Session</option>
-                                        <option value="crisis">Crisis Intervention</option>
-                                    </select>
-                                </div>
-                                
-                                <div className="flex gap-3">
-                                    <Button
-                                        variant="primary"
-                                        onClick={startConsultation}
-                                        disabled={!chiefComplaint.trim()}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <MicrophoneIcon className="h-4 w-4" />
-                                        Start Session
-                                    </Button>
+                {/* Mental Health Follow-Up Interface */}
+                {showNewConsultation && (
+                    <div className="space-y-6">
+                        {/* Session Setup */}
+                        <div className="medical-card bg-blue-50 border-blue-200">
+                            <div className="p-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold text-blue-900">Mental Health Follow-Up Session</h3>
                                     <Button
                                         variant="secondary"
+                                        size="sm"
                                         onClick={() => setShowNewConsultation(false)}
                                     >
                                         Cancel
                                     </Button>
                                 </div>
+
+                                <div className="space-y-4">
+                                    {!isFollowUpSession && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-blue-800 mb-2">
+                                                Session Focus
+                                            </label>
+                                            <Input
+                                                placeholder="Primary focus for today's session (e.g., anxiety management, mood assessment)..."
+                                                value={chiefComplaint}
+                                                onChange={(e) => setChiefComplaint(e.target.value)}
+                                                className="w-full"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-blue-800 mb-2">
+                                            Session Type
+                                        </label>
+                                        <select
+                                            className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                            defaultValue="follow-up"
+                                        >
+                                            <option value="follow-up">Follow-up Session</option>
+                                            <option value="therapy">Therapy Session</option>
+                                            <option value="assessment">Mental Health Assessment</option>
+                                            <option value="counseling">Counseling Session</option>
+                                            <option value="crisis">Crisis Intervention</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <Button
+                                            variant="primary"
+                                            onClick={startConsultation}
+                                            disabled={!chiefComplaint.trim()}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <MicrophoneIcon className="h-4 w-4" />
+                                            Start Session
+                                        </Button>
+                                        <Button
+                                            variant="secondary"
+                                            onClick={() => {
+                                                setShowNewConsultation(false)
+                                                setIsFollowUpSession(false)
+                                                setChiefComplaint('')
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Session Status - Only show if session is active */}
+                        {currentSession && (
+                            <div className="medical-card bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                                <div className="p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-green-900 dark:text-green-100">Session Active</h3>
+                                                <p className="text-sm text-green-700 dark:text-green-300">
+                                                    Multi-language STT recording • मराठी • English • हिंदी
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm text-green-600 dark:text-green-400 font-medium">Session ID</p>
+                                            <p className="text-xs text-green-500 dark:text-green-500">{currentSession}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Patient Information */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Basic Info */}
+                    <div className="lg:col-span-2 medical-card">
+                        <div className="p-6">
+                            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Patient Information</h2>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Age</label>
+                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.age} years</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Gender</label>
+                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium capitalize">{patient.gender}</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Phone</label>
+                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium flex items-center gap-2">
+                                        <PhoneIcon className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                        {patient.phone_primary}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Email</label>
+                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium flex items-center gap-2">
+                                        <EnvelopeIcon className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                        {patient.email}
+                                    </p>
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Address</label>
+                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.address}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Recording Interface - Only show if session is active */}
-                    {currentSession && (
-                        <div className="space-y-4">
-                            {/* Multi-language Recording Controls */}
-                            <div className="medical-card">
-                                <div className="p-4">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-semibold text-neutral-900">Session Recording</h3>
-                                        <div className="flex items-center gap-2 text-sm text-neutral-600">
-                                            <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-                                            <span>मराठी • English • हिंदी</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <AudioRecorder
-                                        sessionId={currentSession}
-                                        isRecording={isRecording}
-                                        onStart={() => {
-                                            setIsRecording(true)
-                                            toast.success('Recording started - Multi-language support active')
-                                        }}
-                                        onStop={() => {
-                                            setIsRecording(false)
-                                            toast.success('Recording stopped')
-                                        }}
-                                        onPause={() => {
-                                            toast('Recording paused', {
-                                                icon: '⏸️',
-                                                style: {
-                                                    background: '#f59e0b',
-                                                    color: '#ffffff',
-                                                }
-                                            })
-                                        }}
-                                        onResume={() => {
-                                            toast('Recording resumed', {
-                                                icon: '▶️',
-                                                style: {
-                                                    background: '#10b981',
-                                                    color: '#ffffff',
-                                                }
-                                            })
-                                        }}
-                                        onTranscriptionUpdate={handleTranscriptionUpdate}
-                                    />
+                    {/* Quick Stats */}
+                    <div className="space-y-4">
+                        <div className="medical-card p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 rounded-lg">
+                                    <CalendarDaysIcon className="h-5 w-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Last Visit</p>
+                                    <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                                        {patient.last_visit ? formatDate(patient.last_visit) : 'No previous visits'}
+                                    </p>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Live Transcription Display */}
-                            <div className="medical-card">
-                                <div className="p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h3 className="text-lg font-semibold text-neutral-900">Live Transcription</h3>
-                                        <div className="text-xs text-neutral-500 bg-neutral-100 px-2 py-1 rounded">
-                                            Mental Health Optimized
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="bg-neutral-50 rounded-lg p-4 min-h-[250px] max-h-[400px] overflow-y-auto border">
-                                        {finalTranscription || liveTranscription ? (
-                                            <div className="space-y-3">
-                                                {finalTranscription && (
-                                                    <div className="text-sm text-neutral-800 whitespace-pre-wrap leading-relaxed">
-                                                        {finalTranscription}
-                                                    </div>
-                                                )}
-                                                {liveTranscription && (
-                                                    <div className="text-sm text-blue-600 italic font-medium">
-                                                        {liveTranscription}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center text-neutral-500 py-12">
-                                                <div className="h-8 w-8 bg-neutral-300 rounded-full mx-auto mb-3 flex items-center justify-center">
-                                                    <MicrophoneIcon className="h-4 w-4" />
-                                                </div>
-                                                <p className="text-sm">Start recording to see live transcription</p>
-                                                <p className="text-xs mt-1 text-neutral-400">
-                                                    Supports Marathi, English, and Hindi with mental health terminology
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
+                        <div className="medical-card p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-100 rounded-lg">
+                                    <HeartIcon className="h-5 w-5 text-green-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Blood Group</p>
+                                    <p className="font-medium text-neutral-900 dark:text-neutral-100">{patient.blood_group}</p>
                                 </div>
                             </div>
+                        </div>
+
+                        <div className="medical-card p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-amber-100 rounded-lg">
+                                    <DocumentTextIcon className="h-5 w-5 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Total Sessions</p>
+                                    <p className="font-medium text-neutral-900 dark:text-neutral-100">{sessions.length}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Medical Information */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="medical-card">
+                        <div className="p-6">
+                            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Medical History</h3>
+                            <p className="text-neutral-700 dark:text-neutral-300">{patient.medical_history || 'No medical history recorded'}</p>
+                        </div>
+                    </div>
+
+                    <div className="medical-card">
+                        <div className="p-6">
+                            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Allergies</h3>
+                            <p className="text-neutral-700 dark:text-neutral-300">{patient.allergies || 'No known allergies'}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Consultation Sessions */}
+                <div className="medical-card">
+                    <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
+                        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Consultation History</h2>
+                    </div>
+
+                    {sessions.length === 0 ? (
+                        <div className="px-6 py-12 text-center">
+                            <ClockIcon className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+                            <h3 className="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No consultation sessions</h3>
+                            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Start a new consultation to begin recording.</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            {sessions.map((session) => (
+                                <div key={session.id} className="px-6 py-4 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                                                    {session.session_id}
+                                                </h3>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${session.status === 'completed'
+                                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                                                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                                                    }`}>
+                                                    {session.status}
+                                                </span>
+                                            </div>
+
+                                            <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
+                                                {session.chief_complaint}
+                                            </p>
+
+                                            <div className="flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+                                                <span>{formatDate(session.started_at)}</span>
+                                                <span>{session.duration_minutes} min</span>
+                                                {session.has_transcription && (
+                                                    <span className="flex items-center gap-1">
+                                                        <DocumentTextIcon className="h-3 w-3" />
+                                                        Transcribed
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <Button variant="secondary" size="sm">
+                                            View Details
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
-            )}
-
-            {/* Patient Information */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Basic Info */}
-                <div className="lg:col-span-2 medical-card">
-                    <div className="p-6">
-                        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Patient Information</h2>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-700">Age</label>
-                                <p className="text-neutral-900">{patient.age} years</p>
-                            </div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-700">Gender</label>
-                                <p className="text-neutral-900 capitalize">{patient.gender}</p>
-                            </div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-700">Phone</label>
-                                <p className="text-neutral-900 flex items-center gap-2">
-                                    <PhoneIcon className="h-4 w-4 text-neutral-400" />
-                                    {patient.phone_primary}
-                                </p>
-                            </div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-700">Email</label>
-                                <p className="text-neutral-900 flex items-center gap-2">
-                                    <EnvelopeIcon className="h-4 w-4 text-neutral-400" />
-                                    {patient.email}
-                                </p>
-                            </div>
-                            
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-neutral-700">Address</label>
-                                <p className="text-neutral-900">{patient.address}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Quick Stats */}
-                <div className="space-y-4">
-                    <div className="medical-card p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-100 rounded-lg">
-                                <CalendarDaysIcon className="h-5 w-5 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-neutral-600">Last Visit</p>
-                                <p className="font-medium text-neutral-900">
-                                    {patient.last_visit ? formatDate(patient.last_visit) : 'No previous visits'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="medical-card p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-green-100 rounded-lg">
-                                <HeartIcon className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-neutral-600">Blood Group</p>
-                                <p className="font-medium text-neutral-900">{patient.blood_group}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="medical-card p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-100 rounded-lg">
-                                <DocumentTextIcon className="h-5 w-5 text-amber-600" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-neutral-600">Total Sessions</p>
-                                <p className="font-medium text-neutral-900">{sessions.length}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Medical Information */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="medical-card">
-                    <div className="p-6">
-                        <h3 className="text-lg font-semibold text-neutral-900 mb-4">Medical History</h3>
-                        <p className="text-neutral-700">{patient.medical_history || 'No medical history recorded'}</p>
-                    </div>
-                </div>
-                
-                <div className="medical-card">
-                    <div className="p-6">
-                        <h3 className="text-lg font-semibold text-neutral-900 mb-4">Allergies</h3>
-                        <p className="text-neutral-700">{patient.allergies || 'No known allergies'}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Consultation Sessions */}
-            <div className="medical-card">
-                <div className="px-6 py-4 border-b border-neutral-200">
-                    <h2 className="text-lg font-semibold text-neutral-900">Consultation History</h2>
-                </div>
-                
-                {sessions.length === 0 ? (
-                    <div className="px-6 py-12 text-center">
-                        <ClockIcon className="mx-auto h-12 w-12 text-neutral-400" />
-                        <h3 className="mt-2 text-sm font-medium text-neutral-900">No consultation sessions</h3>
-                        <p className="mt-1 text-sm text-neutral-500">Start a new consultation to begin recording.</p>
-                    </div>
-                ) : (
-                    <div className="divide-y divide-neutral-200">
-                        {sessions.map((session) => (
-                            <div key={session.id} className="px-6 py-4 hover:bg-neutral-50 transition-colors">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="text-sm font-medium text-neutral-900">
-                                                {session.session_id}
-                                            </h3>
-                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-                                                session.status === 'completed' 
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-yellow-100 text-yellow-800'
-                                            }`}>
-                                                {session.status}
-                                            </span>
-                                        </div>
-                                        
-                                        <p className="text-sm text-neutral-600 mb-2">
-                                            {session.chief_complaint}
-                                        </p>
-                                        
-                                        <div className="flex items-center gap-4 text-xs text-neutral-500">
-                                            <span>{formatDate(session.started_at)}</span>
-                                            <span>{session.duration_minutes} min</span>
-                                            {session.has_transcription && (
-                                                <span className="flex items-center gap-1">
-                                                    <DocumentTextIcon className="h-3 w-3" />
-                                                    Transcribed
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    <Button variant="secondary" size="sm">
-                                        View Details
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
     )

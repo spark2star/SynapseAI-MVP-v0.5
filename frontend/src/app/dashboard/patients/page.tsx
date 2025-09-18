@@ -72,13 +72,15 @@ export default function PatientsPage() {
 
     if (loading) {
         return (
-            <div className="space-y-6">
-                <div className="animate-pulse">
-                    <div className="h-8 bg-neutral-200 rounded mb-4"></div>
-                    <div className="space-y-3">
-                        {[...Array(5)].map((_, i) => (
-                            <div key={i} className="h-16 bg-neutral-200 rounded"></div>
-                        ))}
+            <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-all duration-300">
+                <div className="p-6 space-y-6">
+                    <div className="animate-pulse">
+                        <div className="h-8 bg-neutral-200 dark:bg-neutral-700 rounded mb-4"></div>
+                        <div className="space-y-3">
+                            {[...Array(5)].map((_, i) => (
+                                <div key={i} className="h-16 bg-neutral-200 dark:bg-neutral-700 rounded"></div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -95,147 +97,148 @@ export default function PatientsPage() {
                         <p className="text-neutral-600 dark:text-neutral-400">Manage patient records and information</p>
                     </div>
 
-                <div className="flex items-center gap-3">
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => toast('Patient registration coming soon!', {
-                            icon: 'ℹ️',
-                            style: {
-                                background: '#3b82f6',
-                                color: '#ffffff',
-                            }
-                        })}
-                        className="flex items-center gap-2"
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        New Patient
-                    </Button>
-                </div>
-            </div>
-
-            {/* Search */}
-            <div className="flex items-center gap-4">
-                <div className="flex-1 relative">
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400" />
-                    <Input
-                        placeholder="Search patients by name, ID, or phone..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                    />
-                </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="medical-card p-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                            <UserGroupIcon className="h-6 w-6 text-blue-600" />
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => toast('Patient registration coming soon!', {
+                                icon: 'ℹ️',
+                                style: {
+                                    background: '#3b82f6',
+                                    color: '#ffffff',
+                                }
+                            })}
+                            className="flex items-center gap-2"
+                        >
+                            <PlusIcon className="h-4 w-4" />
+                            New Patient
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Search */}
+                <div className="flex items-center gap-4">
+                    <div className="flex-1 relative">
+                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400" />
+                        <Input
+                            placeholder="Search patients by name, ID, or phone..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10"
+                        />
+                    </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="medical-card p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                <UserGroupIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Total Patients</p>
+                                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{patients.length}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-sm text-neutral-600">Total Patients</p>
-                            <p className="text-2xl font-bold text-neutral-900">{patients.length}</p>
+                    </div>
+
+                    <div className="medical-card p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                <UserGroupIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400">Recent Visits</p>
+                                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                                    {patients.filter(p => p.last_visit).length}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="medical-card p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                                <UserGroupIcon className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400">New This Month</p>
+                                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                                    {patients.filter(p =>
+                                        new Date(p.created_at).getMonth() === new Date().getMonth()
+                                    ).length}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="medical-card p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                            <UserGroupIcon className="h-6 w-6 text-green-600" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-neutral-600">Recent Visits</p>
-                            <p className="text-2xl font-bold text-neutral-900">
-                                {patients.filter(p => p.last_visit).length}
+                {/* Patient List */}
+                <div className="medical-card">
+                    <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
+                        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                            Patient Records ({filteredPatients.length})
+                        </h2>
+                    </div>
+
+                    {filteredPatients.length === 0 ? (
+                        <div className="px-6 py-12 text-center">
+                            <UserGroupIcon className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+                            <h3 className="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No patients found</h3>
+                            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                                {searchTerm ? 'Try adjusting your search terms.' : 'Get started by registering a new patient.'}
                             </p>
                         </div>
-                    </div>
-                </div>
-
-                <div className="medical-card p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-100 rounded-lg">
-                            <UserGroupIcon className="h-6 w-6 text-amber-600" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-neutral-600">New This Month</p>
-                            <p className="text-2xl font-bold text-neutral-900">
-                                {patients.filter(p =>
-                                    new Date(p.created_at).getMonth() === new Date().getMonth()
-                                ).length}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Patient List */}
-            <div className="medical-card">
-                <div className="px-6 py-4 border-b border-neutral-200">
-                    <h2 className="text-lg font-semibold text-neutral-900">
-                        Patient Records ({filteredPatients.length})
-                    </h2>
-                </div>
-
-                {filteredPatients.length === 0 ? (
-                    <div className="px-6 py-12 text-center">
-                        <UserGroupIcon className="mx-auto h-12 w-12 text-neutral-400" />
-                        <h3 className="mt-2 text-sm font-medium text-neutral-900">No patients found</h3>
-                        <p className="mt-1 text-sm text-neutral-500">
-                            {searchTerm ? 'Try adjusting your search terms.' : 'Get started by registering a new patient.'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="divide-y divide-neutral-200">
-                        {filteredPatients.map((patient) => (
-                            <div key={patient.id} className="px-6 py-4 hover:bg-neutral-50 transition-colors">
-                                <div className="flex items-center justify-between">
-                                    <Link
-                                        href={`/dashboard/patients/${patient.id}`}
-                                        className="flex items-center gap-4 w-full"
-                                    >
-                                        <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center">
-                                            <span className="text-primary-700 font-semibold">
-                                                {getInitials(patient.full_name)}
-                                            </span>
-                                        </div>
-
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-sm font-medium text-neutral-900 hover:text-primary-700 transition-colors">
-                                                    {patient.full_name}
-                                                </h3>
-                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-neutral-100 text-neutral-700">
-                                                    {patient.patient_id}
+                    ) : (
+                        <div className="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            {filteredPatients.map((patient) => (
+                                <div key={patient.id} className="px-6 py-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors">
+                                    <div className="flex items-center justify-between">
+                                        <Link
+                                            href={`/dashboard/patients/${patient.id}`}
+                                            className="flex items-center gap-4 w-full"
+                                        >
+                                            <div className="h-12 w-12 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center">
+                                                <span className="text-primary-700 dark:text-primary-400 font-semibold">
+                                                    {getInitials(patient.full_name)}
                                                 </span>
                                             </div>
 
-                                            <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
-                                                <span>{patient.age} years • {patient.gender}</span>
-                                                {patient.phone_primary && (
-                                                    <div className="flex items-center gap-1">
-                                                        <PhoneIcon className="h-4 w-4" />
-                                                        {patient.phone_primary}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </Link>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-700 dark:hover:text-primary-400 transition-colors">
+                                                        {patient.full_name}
+                                                    </h3>
+                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300">
+                                                        {patient.patient_id}
+                                                    </span>
+                                                </div>
 
-                                    <div className="text-right">
-                                        <p className="text-sm text-neutral-600">Last Visit</p>
-                                        <p className="text-sm font-medium text-neutral-900">
-                                            {formatDate(patient.last_visit)}
-                                        </p>
+                                                <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                                                    <span>{patient.age} years • {patient.gender}</span>
+                                                    {patient.phone_primary && (
+                                                        <div className="flex items-center gap-1">
+                                                            <PhoneIcon className="h-4 w-4" />
+                                                            {patient.phone_primary}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </Link>
+
+                                        <div className="text-right">
+                                            <p className="text-sm text-neutral-600 dark:text-neutral-400">Last Visit</p>
+                                            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                                                {formatDate(patient.last_visit)}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     )

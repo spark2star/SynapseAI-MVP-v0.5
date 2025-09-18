@@ -42,11 +42,15 @@ class Settings(BaseSettings):
     
     # Google Cloud Service Account
     GCP_CREDENTIALS_PATH: str = "gcp-credentials.json"
+    GCP_PROJECT_ID: str = "synapse-product-1"
     
     # Google STT for Mental Health (Multi-language)
     GOOGLE_STT_MODEL: str = "latest_long"
     GOOGLE_STT_PRIMARY_LANGUAGE: str = "mr-IN"  # Marathi (India)
     GOOGLE_STT_ALTERNATE_LANGUAGES: list = ["en-IN", "hi-IN"]  # English (India), Hindi (India)
+    GOOGLE_STT_SAMPLE_RATE: int = 48000
+    GOOGLE_STT_ENABLE_WORD_CONFIDENCE: bool = True
+    GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS: bool = True
     
     # Gemini AI (Vertex AI)
     GOOGLE_CLOUD_PROJECT: str = "synapse-product-1"

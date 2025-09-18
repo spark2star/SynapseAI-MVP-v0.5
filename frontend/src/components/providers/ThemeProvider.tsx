@@ -5,11 +5,13 @@ import { type ThemeProviderProps } from 'next-themes/dist/types'
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return (
-    <NextThemesProvider 
+    <NextThemesProvider
       attribute="class"
       defaultTheme="system"
       enableSystem
-      disableTransitionOnChange
+      disableTransitionOnChange={false}
+      storageKey="synapseai-theme"
+      themes={['light', 'dark', 'system']}
       {...props}
     >
       {children}

@@ -1,0 +1,67 @@
+# SynapseAI EMR System - Environment Configuration
+# Copy this to backend/.env and fill in your actual values
+
+# Application Settings
+APP_NAME="SynapseAI - Intelligent EMR System"
+VERSION="1.0.0"
+ENVIRONMENT="development"
+DEBUG=true
+
+# API Configuration
+API_HOST="0.0.0.0"
+API_PORT=8000
+API_V1_PREFIX="/api/v1"
+
+# Database Configuration
+DATABASE_URL="postgresql://postgres:password@localhost:5432/synapse_emr"
+DATABASE_POOL_SIZE=20
+DATABASE_MAX_OVERFLOW=10
+
+# Redis Configuration
+REDIS_URL="redis://localhost:6379"
+REDIS_SESSION_DB=1
+
+# Security Configuration
+SECRET_KEY="your-super-secret-key-change-this-in-production"
+JWT_SECRET_KEY="your-jwt-secret-key-change-this-in-production"
+JWT_ALGORITHM="HS256"
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+BCRYPT_ROUNDS=12
+
+# Encryption Keys (32 characters minimum)
+ENCRYPTION_KEY="your-32-character-encryption-key-here"
+FIELD_ENCRYPTION_KEY="your-32-character-field-encrypt-key"
+
+# Google Cloud Configuration
+GCP_CREDENTIALS_PATH="gcp-credentials.json"
+GCP_PROJECT_ID="synapse-product-1"
+GOOGLE_CLOUD_PROJECT="synapse-product-1"
+
+# Google Speech-to-Text Configuration
+GOOGLE_STT_MODEL="latest_long"
+GOOGLE_STT_PRIMARY_LANGUAGE="mr-IN"
+GOOGLE_STT_ALTERNATE_LANGUAGES=["en-IN", "hi-IN"]
+GOOGLE_STT_SAMPLE_RATE=48000
+GOOGLE_STT_ENABLE_WORD_CONFIDENCE=true
+GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS=true
+
+# Vertex AI Configuration
+VERTEX_AI_LOCATION="us-central1"
+GEMINI_MODEL="gemini-2.5-flash"
+
+# CORS Configuration
+ALLOWED_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000"]
+ALLOWED_METHODS=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+ALLOWED_HEADERS=["*"]
+
+# Logging Configuration
+LOG_LEVEL="INFO"
+ENABLE_AUDIT_LOGGING=true
+
+# File Upload Configuration
+MAX_FILE_SIZE=10485760  # 10MB
+ALLOWED_FILE_TYPES=["pdf", "doc", "docx", "jpg", "jpeg", "png"]
+
+# Session Configuration
+SESSION_EXPIRE_MINUTES=30

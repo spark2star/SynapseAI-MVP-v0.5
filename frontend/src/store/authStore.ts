@@ -18,6 +18,7 @@ interface AuthState {
     checkAuth: () => Promise<void>
     updateProfile: (profileData: Partial<UserProfile>) => Promise<boolean>
     refreshToken: () => Promise<boolean>
+    fetchUserProfile: () => Promise<void>
 
     // Helpers
     hasRole: (role: string) => boolean
@@ -173,8 +174,8 @@ export const useAuthStore = create<AuthState>()(
                 try {
                     const response = await apiService.get('/users/profile')
 
-                    if (response.status === 'success' && response.data?.profile) {
-                        set({ profile: response.data.profile })
+                    if (response.status === 'success' && response.data) {
+                        set({ profile: response.data })
                     }
                 } catch (error) {
                     console.error('Profile fetch error:', error)

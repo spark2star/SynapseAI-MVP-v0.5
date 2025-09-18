@@ -23,15 +23,18 @@ class MentalHealthSTTService:
     def __init__(self):
         # Initialize Google Cloud Speech client with service account
         credentials = service_account.Credentials.from_service_account_file(
-            "gcp-credentials.json",
+            settings.GCP_CREDENTIALS_PATH,
             scopes=['https://www.googleapis.com/auth/cloud-platform']
         )
         self.client = speech.SpeechClient(credentials=credentials)
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
-        self.project_id = "synapse-product-1"
+        self.project_id = settings.GCP_PROJECT_ID
         
         # Mental Health Terminology Database
         self.mental_health_terminology = self._build_mental_health_database()
+        
+        logger.info(f"Mental Health STT Service initialized with project: {self.project_id}")
+        logger.info(f"Supporting languages: {settings.GOOGLE_STT_PRIMARY_LANGUAGE}, {settings.GOOGLE_STT_ALTERNATE_LANGUAGES}")
         
     def _build_mental_health_database(self) -> Dict[str, list]:
         """Build comprehensive mental health terminology database for all supported languages."""
@@ -171,7 +174,7 @@ class MentalHealthSTTService:
         
         config = RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-            sample_rate_hertz=48000,
+            sample_rate_hertz=settings.GOOGLE_STT_SAMPLE_RATE,
             language_code=settings.GOOGLE_STT_PRIMARY_LANGUAGE,  # Marathi (India)
             alternative_language_codes=settings.GOOGLE_STT_ALTERNATE_LANGUAGES,  # English, Hindi
             model=settings.GOOGLE_STT_MODEL,  # latest_long
@@ -179,11 +182,13 @@ class MentalHealthSTTService:
             enable_automatic_punctuation=True,
             enable_spoken_punctuation=True,
             enable_spoken_emojis=True,
+            enable_word_confidence=settings.GOOGLE_STT_ENABLE_WORD_CONFIDENCE,
+            enable_word_time_offsets=settings.GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS,
             # Mental health specific speech contexts with high boost
             speech_contexts=[
                 speech.SpeechContext(
-                    phrases=all_mental_health_terms,
-                    boost=30.0  # Very high boost for mental health terminology
+                    phrases=all_mental_health_terms[:500],  # Limit to first 500 phrases for performance
+                    boost=20.0  # High boost for mental health terminology
                 )
             ]
         )

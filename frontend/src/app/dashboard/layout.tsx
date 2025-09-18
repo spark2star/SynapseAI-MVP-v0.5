@@ -27,10 +27,10 @@ export default function DashboardLayout({
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+            <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center transition-all duration-300">
                 <div className="text-center">
                     <LoadingSpinner size="lg" />
-                    <p className="mt-4 text-neutral-600">Loading dashboard...</p>
+                    <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading dashboard...</p>
                 </div>
             </div>
         )
@@ -41,7 +41,7 @@ export default function DashboardLayout({
     }
 
     return (
-        <div className="min-h-screen bg-neutral-50">
+        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-all duration-300">
             <div className="flex">
                 {/* Sidebar */}
                 <div className="hidden lg:block lg:fixed lg:inset-y-0 lg:z-40 lg:w-64">

@@ -24,11 +24,13 @@ load_dotenv()
 credentials_path = os.getenv("GCP_CREDENTIALS_PATH", "gcp-credentials.json")
 print(f"Loading Google Cloud credentials from: {credentials_path}")
 
-# Temporarily disable Google Cloud initialization to fix syntax issues
 try:
-    print("⏳ Skipping Google Cloud initialization temporarily")
-    speech_client = None
-    print("✅ Using mock transcription mode")
+credentials = service_account.Credentials.from_service_account_file(
+        credentials_path,
+    scopes=['https://www.googleapis.com/auth/cloud-platform']
+)
+speech_client = speech.SpeechClient(credentials=credentials)
+    print("✅ Google Cloud Speech client initialized successfully")
 except Exception as e:
     print(f"❌ Failed to initialize Google Cloud Speech client: {e}")
     print("Will use mock transcription as fallback")
@@ -868,7 +870,7 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                     if not result.alternatives:
                         continue
                         
-                    transcript = result.alternatives[0].transcript.strip()
+                                        transcript = result.alternatives[0].transcript.strip()
                     is_final = getattr(result, 'is_final', False)
                     confidence = getattr(result.alternatives[0], 'confidence', 0.0)
                     
@@ -959,10 +961,10 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                             })
                         elif message_type == "resume_recording":
                             print(f"Recording resumed for session {session_id}")
-                            await websocket.send_json({
+                        await websocket.send_json({
                                 "type": "recording_resumed",
-                                "timestamp": datetime.now(timezone.utc).isoformat()
-                            })
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        })
                         elif message_type == "ping":
                             await websocket.send_json({
                                 "type": "pong",

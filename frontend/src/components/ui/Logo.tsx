@@ -8,11 +8,12 @@ interface LogoProps {
   showText?: boolean
 }
 
+// Updated size classes to better match text proportions
 const sizeClasses = {
-  sm: 'h-5 w-5',
-  md: 'h-6 w-6', 
-  lg: 'h-8 w-8',
-  xl: 'h-10 w-10'
+  sm: 'h-4 w-4',
+  md: 'h-5 w-5',
+  lg: 'h-6 w-6',
+  xl: 'h-8 w-8'
 }
 
 const textSizes = {
@@ -25,27 +26,23 @@ const textSizes = {
 export default function Logo({ size = 'md', className = '', showText = true }: LogoProps) {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      {/* Logo Image - Always use dark version, smaller */}
-      <div className={`relative ${sizeClasses[size]} rounded-md overflow-hidden flex-shrink-0`}>
+      {/* Logo Image - Always use Logo.png */}
+      <div className={`relative ${sizeClasses[size]} flex-shrink-0`}>
         <Image
-          src="/logo-dark.png"
+          src="/logo.png"
           alt="SynapseAI Logo"
           fill
-          className="object-cover object-center"
-          style={{
-            // Crop to focus on the "S" symbol
-            objectPosition: 'center top',
-            transform: 'scale(1.1) translateY(-5%)'
-          }}
+          sizes="(max-width: 768px) 32px, 32px"
+          className="object-contain transition-all duration-300"
           priority
         />
       </div>
 
-      {/* Brand Text - Bigger, no subtitle, with blue "AI" */}
+      {/* Brand Text - Sized to match logo */}
       {showText && (
         <div>
-          <h1 className={`font-bold ${textSizes[size]} text-neutral-900 dark:text-white leading-none`}>
-            Synapse<span className="text-sky-500">AI</span>
+          <h1 className={`font-bold ${textSizes[size]} text-neutral-900 dark:text-white leading-none transition-colors duration-300`}>
+            Synapse<span className="text-sky-500 dark:text-sky-400">AI</span>
           </h1>
         </div>
       )}

@@ -4,6 +4,7 @@ Handles AI-driven clinical insights and automated documentation.
 """
 
 import asyncio
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
@@ -21,6 +22,7 @@ from app.schemas.auth import get_current_user
 from app.models.user import User
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 class ReportGenerationRequest(BaseModel):
     """Request model for AI report generation."""
@@ -32,6 +34,13 @@ class ClinicalInsightsRequest(BaseModel):
     """Request model for clinical insights generation."""
     transcription_text: str = Field(..., description="Consultation transcription text")
     patient_id: Optional[str] = Field(None, description="Patient ID for context")
+
+class LiveInsightsRequest(BaseModel):
+    """Request model for live insights generation during active sessions."""
+    transcription_text: str = Field(..., description="Current transcription text")
+    patient_id: Optional[str] = Field(None, description="Patient ID for context")
+    session_id: str = Field(..., description="Active session ID")
+    is_partial: bool = Field(default=True, description="Whether this is partial analysis")
 
 class PatientSummaryRequest(BaseModel):
     """Request model for patient history summary."""
@@ -185,6 +194,116 @@ async def generate_clinical_insights(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.post("/live-insights")
+async def generate_live_insights(
+    request: LiveInsightsRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate live AI insights during active consultation sessions.
+    Optimized for real-time partial analysis.
+    """
+    try:
+        # Validate minimum text length for meaningful analysis
+        if len(request.transcription_text.strip()) < 50:
+            return {
+                "status": "success",
+                "data": {
+                    "insights": {
+                        "key_clinical_findings": [],
+                        "treatment_recommendations": [],
+                        "confidence": 0.0
+                    },
+                    "message": "Insufficient text for analysis"
+                }
+            }
+        
+        # Check if Gemini service is available
+        if not gemini_service:
+            raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
+        
+        # Get patient context if available
+        patient_context = None
+        if request.patient_id:
+            patient = db.query(Patient).filter(Patient.id == request.patient_id).first()
+            if patient:
+                patient_context = {
+                    "medical_history": patient.medical_history,
+                    "allergies": patient.allergies,
+                    "age": patient.age,
+                    "gender": patient.gender
+                }
+        
+        # Generate live insights with reduced complexity for speed
+        insights_result = await gemini_service.generate_live_insights(
+            transcription_text=request.transcription_text,
+            patient_context=patient_context,
+            is_partial=request.is_partial
+        )
+        
+        if insights_result["status"] != "success":
+            # Don't raise error for live insights, just log and return empty
+            logger.warning(f"Live insights generation failed: {insights_result.get('error')}")
+            return {
+                "status": "success",
+                "data": {
+                    "insights": {
+                        "key_clinical_findings": [],
+                        "treatment_recommendations": [],
+                        "confidence": 0.0
+                    },
+                    "message": "Analysis temporarily unavailable"
+                }
+            }
+        
+        # Log audit event (non-blocking)
+        background_tasks.add_task(
+            audit_logger.log_event,
+            event_type=AuditEventType.AI_ANALYSIS_PERFORMED,
+            user_id=current_user.id,
+            resource_type="live_session",
+            resource_id=request.session_id,
+            details={
+                "analysis_type": "live_insights",
+                "model_used": "gemini-2.5-flash",
+                "text_length": len(request.transcription_text),
+                "is_partial": request.is_partial
+            }
+        )
+        
+        return {
+            "status": "success",
+            "data": {
+                "insights": insights_result["insights"],
+                "metadata": {
+                    "generated_at": insights_result["generated_at"],
+                    "model_used": "gemini-2.5-flash",
+                    "analysis_type": "live_insights",
+                    "is_partial": request.is_partial,
+                    "session_id": request.session_id
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # For live insights, don't raise errors - just return empty results
+        logger.error(f"Live insights error: {str(e)}")
+        return {
+            "status": "success", 
+            "data": {
+                "insights": {
+                    "key_clinical_findings": [],
+                    "treatment_recommendations": [],
+                    "confidence": 0.0
+                },
+                "error": "Analysis failed"
+            }
+        }
 
 @router.post("/patient-summary")
 async def generate_patient_summary(

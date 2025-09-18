@@ -29,12 +29,14 @@ class STTService:
     def __init__(self):
         # Initialize Google Cloud Speech client with service account
         credentials = service_account.Credentials.from_service_account_file(
-            "gcp-credentials.json",
+            settings.GCP_CREDENTIALS_PATH,
             scopes=['https://www.googleapis.com/auth/cloud-platform']
         )
         self.client = speech.SpeechClient(credentials=credentials)
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
-        self.project_id = "synapse-product-1"
+        self.project_id = settings.GCP_PROJECT_ID
+        
+        logger.info(f"STT Service initialized with project: {self.project_id}")
         
     def get_streaming_config(self, language_code: str = "en-IN") -> StreamingRecognitionConfig:
         """Get streaming recognition configuration for medical transcription."""
