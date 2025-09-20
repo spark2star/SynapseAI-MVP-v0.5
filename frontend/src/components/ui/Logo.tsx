@@ -8,12 +8,12 @@ interface LogoProps {
   showText?: boolean
 }
 
-// Updated size classes to better match text proportions
+// Updated size classes for transparent logo - slightly larger for better visibility
 const sizeClasses = {
-  sm: 'h-4 w-4',
-  md: 'h-5 w-5',
-  lg: 'h-6 w-6',
-  xl: 'h-8 w-8'
+  sm: 'h-6 w-6',     // enhanced visibility (24px)
+  md: 'h-7 w-7',     // better proportion (28px) 
+  lg: 'h-9 w-9',     // improved presence (36px)
+  xl: 'h-11 w-11'    // professional scale (44px)
 }
 
 const textSizes = {
@@ -25,14 +25,14 @@ const textSizes = {
 
 export default function Logo({ size = 'md', className = '', showText = true }: LogoProps) {
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {/* Logo Image - Always use Logo.png */}
+    <div className={`flex items-center gap-3 ${className}`}>
+      {/* Logo Image - Transparent PNG (380x364) with true alpha channel for perfect blending */}
       <div className={`relative ${sizeClasses[size]} flex-shrink-0`}>
         <Image
-          src="/logo.png"
+          src="/logo-no-bg.png"
           alt="SynapseAI Logo"
           fill
-          sizes="(max-width: 768px) 32px, 32px"
+          sizes="(max-width: 768px) 48px, 56px"
           className="object-contain transition-all duration-300"
           priority
         />

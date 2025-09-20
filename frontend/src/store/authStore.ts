@@ -32,7 +32,7 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             profile: null,
             isAuthenticated: false,
-            isLoading: false, // Start with false to prevent initial loading state
+            isLoading: true, // Start with true to show loading initially
 
             // Login action
             login: async (credentials: LoginCredentials): Promise<boolean> => {

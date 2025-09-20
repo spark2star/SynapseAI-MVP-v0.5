@@ -4,24 +4,32 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ClientProvider from '@/components/providers/ClientProvider'
 
-export default function HomePage() {
+function HomePageContent() {
     const router = useRouter()
     const { isAuthenticated, isLoading, checkAuth } = useAuthStore()
 
     useEffect(() => {
         // Check authentication status on page load
-        checkAuth()
+        const initAuth = async () => {
+            try {
+                await checkAuth()
+            } catch (error) {
+                console.error('Auth check failed:', error)
+            }
+        }
+        initAuth()
     }, []) // Remove checkAuth from dependency array to prevent infinite loop
 
     useEffect(() => {
         if (!isLoading) {
             if (isAuthenticated) {
                 // Redirect to dashboard if authenticated
-                router.push('/dashboard')
+                router.replace('/dashboard')
             } else {
                 // Redirect to login if not authenticated
-                router.push('/auth/login')
+                router.replace('/auth/login')
             }
         }
     }, [isAuthenticated, isLoading, router])
@@ -42,4 +50,12 @@ export default function HomePage() {
 
     // Return null while redirecting
     return null
+}
+
+export default function HomePage() {
+    return (
+        <ClientProvider>
+            <HomePageContent />
+        </ClientProvider>
+    )
 }

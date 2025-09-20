@@ -49,7 +49,11 @@ export default function AIInsights({
     const [report, setReport] = useState<MedicalReport | null>(null)
 
     const generateMedicalReport = async () => {
-        if (!transcriptionText.trim()) {
+        const textContent = typeof transcriptionText === 'string'
+            ? transcriptionText.trim()
+            : String(transcriptionText || '').trim()
+
+        if (!textContent) {
             toast.error('No transcription available to generate report')
             return
         }
@@ -132,7 +136,7 @@ export default function AIInsights({
                             variant="primary"
                             size="sm"
                             onClick={generateMedicalReport}
-                            disabled={isGeneratingReport || !transcriptionText.trim()}
+                            disabled={isGeneratingReport || !transcriptionText || !(typeof transcriptionText === 'string' ? transcriptionText.trim() : String(transcriptionText).trim())}
                             className="flex items-center gap-2"
                         >
                             {isGeneratingReport ? (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -26,6 +26,7 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import AudioRecorder from '@/components/consultation/AudioRecorder'
 import AIInsights from '@/components/consultation/AIInsights'
+import EditableTranscript from '@/components/consultation/EditableTranscript'
 import { useAuthStore } from '@/store/authStore'
 import apiService from '@/services/api'
 
@@ -76,6 +77,8 @@ export default function PatientDetailPage() {
     const [isFollowUpSession, setIsFollowUpSession] = useState(false)
     const [liveTranscription, setLiveTranscription] = useState('')
     const [finalTranscription, setFinalTranscription] = useState('')
+    const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+    const audioRecorderRef = useRef<{ stopRecording: () => void }>(null)
 
     useEffect(() => {
         if (patientId) {
@@ -196,11 +199,36 @@ export default function PatientDetailPage() {
     const stopConsultation = async () => {
         try {
             if (currentSession) {
+                console.log('🏁 Starting consultation stop sequence...')
+                console.log('🔍 PRE-STOP STATE:', {
+                    currentSession,
+                    isRecording,
+                    finalTranscription: finalTranscription.slice(-50),
+                    liveTranscription: liveTranscription.slice(-30)
+                })
+
+                // CRITICAL: Stop AudioRecorder component first
+                if (audioRecorderRef.current) {
+                    console.log('🛑 Calling AudioRecorder.stopRecording() to fully stop STT & microphone')
+                    audioRecorderRef.current.stopRecording()
+                }
+
+                // Then update state immediately to trigger UI changes
+                setIsRecording(false)
+                console.log('🛑 Recording state set to false - should trigger loading UI')
+
+                // Give a moment for state to propagate to EditableTranscript
+                await new Promise(resolve => setTimeout(resolve, 200))
+                console.log('🔄 State propagation delay complete, calling API...')
+                console.log('🔍 MID-STOP STATE:', {
+                    currentSession,
+                    isRecording,
+                    finalTranscription: finalTranscription.slice(-50)
+                })
+
                 const response = await apiService.post(`/consultation/${currentSession}/stop`)
 
                 if (response.status === 'success') {
-                    setIsRecording(false)
-
                     const newSession: ConsultationSession = {
                         id: 'session-new',
                         session_id: currentSession,
@@ -215,11 +243,21 @@ export default function PatientDetailPage() {
                     }
 
                     setSessions(prev => [newSession, ...prev])
-                    setCurrentSession(null)
+
+                    // Don't reset currentSession immediately - let user see processing/options first
+                    // setCurrentSession(null) // Commented out to keep component mounted
+                    console.log('💾 Keeping currentSession active for post-recording UI:', currentSession)
                     setChiefComplaint('')
                     setRecordingDuration(0)
 
                     toast.success('Consultation session completed')
+                    console.log('✅ Session saved, keeping transcript component mounted for user actions')
+                    console.log('🔍 POST-STOP STATE:', {
+                        currentSession,
+                        isRecording,
+                        finalTranscription: finalTranscription.slice(-50),
+                        componentShouldRender: !!currentSession
+                    })
                 }
             }
         } catch (error) {
@@ -246,10 +284,102 @@ export default function PatientDetailPage() {
 
     const handleTranscriptionUpdate = (text: string, isFinal: boolean) => {
         if (isFinal) {
-            setFinalTranscription(prev => prev + ' ' + text)
-            setLiveTranscription('')
+            // STT service says this text is final - append it immediately
+            setFinalTranscription(prev => {
+                const newFinal = prev ? prev + ' ' + text : text
+                console.log('📝 STT Final signal received:', text)
+                console.log('📝 Total final transcription now:', newFinal)
+                return newFinal
+            })
+            setLiveTranscription('') // Clear interim when final arrives
         } else {
+            // STT service interim text - show as live
             setLiveTranscription(text)
+            console.log('🎙️ STT Interim:', text)
+        }
+    }
+
+    const handleTranscriptionEdit = (newText: string) => {
+        // Store the edited text separately to avoid conflicts with ongoing STT
+        setFinalTranscription(newText)
+        console.log('✏️ User edited transcription:', newText)
+        toast.success('Transcript updated successfully')
+    }
+
+    const handleGenerateReport = async (transcriptText: string) => {
+        if (!transcriptText.trim()) {
+            toast.error('No transcript available to generate report')
+            return
+        }
+
+        setIsGeneratingReport(true)
+        console.log('🤖 Generating Gemini report for transcript length:', transcriptText.length)
+
+        try {
+            // Call the Gemini API to generate structured report
+            const reportRequest = {
+                transcription: transcriptText,
+                session_id: currentSession || 'unknown',
+                session_type: 'follow_up', // Since this is follow-up session
+                patient_id: patientId
+            }
+
+            console.log('📤 Sending request to Gemini API:', {
+                session_id: reportRequest.session_id,
+                session_type: reportRequest.session_type,
+                patient_id: reportRequest.patient_id,
+                transcription_length: reportRequest.transcription.length,
+                transcription_preview: reportRequest.transcription.slice(0, 100) + '...'
+            })
+
+            const response = await apiService.post('/reports/generate', reportRequest)
+
+            if (response.status === 'success') {
+                // Store the generated report for AI insights
+                const geminiReport = response.data.report
+                console.log('📄 Generated Gemini Report Preview:', typeof geminiReport === 'string' ? geminiReport.slice(0, 300) + '...' : geminiReport)
+
+                // Ensure we pass a string to setFinalTranscription
+                const reportText = typeof geminiReport === 'string' ? geminiReport : JSON.stringify(geminiReport, null, 2)
+                setFinalTranscription(reportText)
+
+                toast.success('AI report generated successfully!')
+                console.log('✅ Gemini report generated:', {
+                    model: response.data.model_used,
+                    session_type: response.data.session_type,
+                    transcription_length: response.data.transcription_length
+                })
+
+                // Scroll to the AI insights section
+                setTimeout(() => {
+                    const aiInsightsElement = document.getElementById('ai-insights-section')
+                    if (aiInsightsElement) {
+                        aiInsightsElement.scrollIntoView({ behavior: 'smooth' })
+                    }
+                }, 500)
+            } else {
+                throw new Error('Report generation failed')
+            }
+
+        } catch (error: any) {
+            console.error('❌ Error generating Gemini report:', error)
+            console.error('❌ Error details:', {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message
+            })
+
+            if (error?.response?.status === 400) {
+                toast.error('Invalid transcript content. Please check your input.')
+            } else if (error?.response?.status === 503) {
+                toast.error('⚠️ Please set up your Gemini API key first!')
+            } else if (error?.response?.status === 500) {
+                toast.error('AI service temporarily unavailable. Please try again.')
+            } else {
+                toast.error('Failed to generate report. Please try again.')
+            }
+        } finally {
+            setIsGeneratingReport(false)
         }
     }
 
@@ -308,6 +438,7 @@ export default function PatientDetailPage() {
                 {/* Active Recording Interface - Single Screen Layout */}
                 {isRecording && currentSession && (
                     <div className="space-y-4">
+                        {/* 🎙️ ACTIVE RECORDING UI - isRecording: {isRecording}, currentSession: {currentSession} */}
                         {/* Recording Status Bar */}
                         <div className="bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-4">
                             <div className="flex items-center justify-between">
@@ -330,6 +461,7 @@ export default function PatientDetailPage() {
 
                         {/* Recording Controls - Compact Display */}
                         <AudioRecorder
+                            ref={audioRecorderRef}
                             sessionId={currentSession}
                             isRecording={isRecording}
                             duration={recordingDuration}
@@ -340,74 +472,41 @@ export default function PatientDetailPage() {
                             onTranscriptionUpdate={handleTranscriptionUpdate}
                         />
 
-                        {/* Live Transcription - Expandable Display */}
-                        <div className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-lg">
-                            <div className="p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                                            <MicrophoneIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Live Transcription</h3>
-                                            <p className="text-sm text-neutral-600 dark:text-neutral-400">Mental health optimized • Real-time processing</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-sm text-neutral-600 dark:text-neutral-400">Word Count</div>
-                                        <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                                            {(finalTranscription + ' ' + liveTranscription).split(' ').filter(word => word.trim()).length}
-                                        </div>
-                                    </div>
-                                </div>
+                    </div>
+                )}
 
-                                <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-4 min-h-[200px] max-h-[600px] overflow-y-auto border-2 border-dashed border-neutral-200 dark:border-neutral-600 transition-all duration-300">
-                                    {finalTranscription || liveTranscription ? (
-                                        <div className="space-y-3">
-                                            {finalTranscription && (
-                                                <div className="text-base text-black dark:text-white whitespace-pre-wrap leading-relaxed font-medium">
-                                                    {finalTranscription}
-                                                </div>
-                                            )}
-                                            {liveTranscription && (
-                                                <div className="relative">
-                                                    <div className="text-base text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border-l-4 border-gray-400">
-                                                        <span className="flex items-center gap-2">
-                                                            <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse"></div>
-                                                            <span className="opacity-75">{liveTranscription}</span>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center text-neutral-500 dark:text-neutral-400 py-12">
-                                            <div className="h-12 w-12 bg-neutral-300 dark:bg-neutral-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                                <MicrophoneIcon className="h-6 w-6" />
-                                            </div>
-                                            <p className="text-lg font-medium mb-2">Listening for speech...</p>
-                                            <p className="text-sm">
-                                                Supports Marathi, English, and Hindi with specialized mental health terminology
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                {/* Editable Live Transcription - Available during AND after recording */}
+                {currentSession && (
+                    <div className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-lg p-4">
+                        {/* 🎯 RENDERING EditableTranscript - currentSession: {currentSession}, isRecording: {isRecording} */}
+                        <EditableTranscript
+                            finalTranscription={finalTranscription}
+                            liveTranscription={liveTranscription}
+                            isRecording={isRecording}
+                            onTranscriptionEdit={handleTranscriptionEdit}
+                            onGenerateReport={handleGenerateReport}
+                            sessionId={currentSession}
+                        />
+                        {/* Debug info */}
+                        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
+                            🎯 EditableTranscript Debug: isRecording={isRecording.toString()}, finalTranscription.length={finalTranscription.length}, currentSession={currentSession}
                         </div>
                     </div>
                 )}
 
                 {/* AI-Powered Medical Report Generation */}
                 {finalTranscription && !isRecording && (
-                    <AIInsights
-                        sessionId={currentSession || 'CS-2024-NEW'}
-                        transcriptionText={finalTranscription}
-                        patientId={patientId}
-                        isLiveSession={false}
-                        onInsightGenerated={(insights) => {
-                            console.log('AI insights generated:', insights)
-                        }}
-                    />
+                    <div id="ai-insights-section">
+                        <AIInsights
+                            sessionId={currentSession || 'CS-2024-NEW'}
+                            transcriptionText={finalTranscription}
+                            patientId={patientId}
+                            isLiveSession={false}
+                            onInsightGenerated={(insights) => {
+                                console.log('AI insights generated:', insights)
+                            }}
+                        />
+                    </div>
                 )}
 
                 {/* Mental Health Follow-Up Interface */}

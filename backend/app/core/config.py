@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     
     # Gemini AI (Vertex AI)
     GOOGLE_CLOUD_PROJECT: str = "synapse-product-1"
-    VERTEX_AI_LOCATION: str = "us-central1"
+    VERTEX_AI_LOCATION: str = "asia-south1"  # Mumbai, India
     GEMINI_MODEL: str = "gemini-2.5-flash"
     GOOGLE_APPLICATION_CREDENTIALS: str = "gcp-credentials.json"
     

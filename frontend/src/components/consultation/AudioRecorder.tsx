@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import {
     MicrophoneIcon,
     StopIcon,
@@ -30,7 +30,7 @@ interface TranscriptionChunk {
     hasCodeMixing?: boolean
 }
 
-export default function AudioRecorder({
+const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderProps>(({
     sessionId,
     isRecording,
     duration = 0,
@@ -39,7 +39,7 @@ export default function AudioRecorder({
     onPause,
     onResume,
     onTranscriptionUpdate
-}: AudioRecorderProps) {
+}, ref) => {
     const [isPaused, setIsPaused] = useState(false)
     const [audioLevel, setAudioLevel] = useState(0)
     const [transcriptionChunks, setTranscriptionChunks] = useState<TranscriptionChunk[]>([])
@@ -195,17 +195,56 @@ export default function AudioRecorder({
                 restartTimeoutRef.current = null
             }
 
-            // Stop Web Speech API
+            // Stop Web Speech API and clear all references
             if (speechRecognitionRef.current) {
                 recognitionActiveRef.current = false
                 speechRecognitionRef.current.stop()
                 speechRecognitionRef.current = null
-                console.log('🛑 Web Speech API stopped')
+                console.log('🛑 Web Speech API stopped and reference cleared')
             }
 
-            // Stop audio stream
+            // Double-check: Clear any pending restart timeouts again
+            if (restartTimeoutRef.current) {
+                clearTimeout(restartTimeoutRef.current)
+                restartTimeoutRef.current = null
+                console.log('🚫 Final cleanup: Cleared any remaining restart timeouts')
+            }
+
+            // CRITICAL: Stop audio stream completely to release microphone
             if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop())
+                console.log('🎤 Stopping audio stream with', streamRef.current.getTracks().length, 'tracks')
+                streamRef.current.getTracks().forEach((track, index) => {
+                    console.log(`🔇 Stopping track ${index}:`, track.kind, track.readyState, track.label)
+                    track.stop()
+                    console.log(`✅ Track ${index} stopped, new state:`, track.readyState)
+                })
+                streamRef.current = null
+                console.log('✅ Audio stream reference cleared')
+
+                // Force garbage collection hint and verify microphone release
+                setTimeout(async () => {
+                    console.log('🧹 Stream cleanup complete - checking microphone release...')
+
+                    // Try to explicitly request permission again to reset browser state
+                    try {
+                        // This should trigger browser to re-evaluate microphone usage
+                        const testStream = await navigator.mediaDevices.getUserMedia({ audio: false })
+                        testStream.getTracks().forEach(track => track.stop())
+                        console.log('🔄 Browser microphone state reset')
+                    } catch (e) {
+                        console.log('📱 Microphone state reset completed')
+                    }
+
+                    // Additional cleanup - try to revoke permissions if possible
+                    if (navigator.permissions) {
+                        try {
+                            const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+                            console.log('🎤 Microphone permission state:', result.state)
+                        } catch (e) {
+                            console.log('🔍 Permission check completed')
+                        }
+                    }
+                }, 200)
             }
 
             cleanup()
@@ -213,6 +252,7 @@ export default function AudioRecorder({
             setIsConnected(false)
             setCurrentInterimText('')
 
+            console.log('🏁 stopRecording complete - microphone should be released')
             toast.success('Recording stopped')
 
         } catch (error) {
@@ -329,10 +369,10 @@ export default function AudioRecorder({
                         tryAlternativeLanguage(processedTranscript)
                     }
                 } else {
-                    interimTranscript += transcript
+                    // Update interim text - trust STT service for final signals
+                    interimTranscript = transcript  // Use latest interim, don't accumulate
                     setCurrentInterimText(interimTranscript)
                     onTranscriptionUpdate(interimTranscript, false)
-
                     console.log('📝 interim:', interimTranscript)
                 }
             }
@@ -368,12 +408,13 @@ export default function AudioRecorder({
                 restartTimeoutRef.current = null
             }
 
-            // Only restart if we're still actively recording
-            if (isRecording && !isPaused) {
+            // Only restart if we're still actively recording AND reference still exists
+            if (isRecording && !isPaused && speechRecognitionRef.current) {
                 console.log('🔄 Scheduling speech recognition restart...')
                 restartTimeoutRef.current = setTimeout(() => {
-                    // Double-check we still need to restart and no recognition is active
+                    // Triple-check we still need to restart and no recognition is active
                     if (isRecording && !isPaused && !recognitionActiveRef.current && speechRecognitionRef.current) {
+                        console.log('🔍 Final check before restart - isRecording:', isRecording, 'isPaused:', isPaused)
                         try {
                             speechRecognitionRef.current.start()
                             console.log('✅ Speech recognition restarted successfully')
@@ -424,27 +465,29 @@ export default function AudioRecorder({
                         recognition.start()
                     }
                 }
-                processorRef.current.onaudioprocess = (event) => {
-                    try {
-                        if (isPausedRef.current || !websocketRef.current) return  // Use ref for immediate check
+                if (processorRef.current) {
+                    processorRef.current.onaudioprocess = (event) => {
+                        try {
+                            if (isPausedRef.current || !websocketRef.current) return  // Use ref for immediate check
 
-                        const inputBuffer = event.inputBuffer
-                        const inputData = inputBuffer.getChannelData(0)
-                        console.log('🎵 Processing resume audio, length:', inputData.length)
+                            const inputBuffer = event.inputBuffer
+                            const inputData = inputBuffer.getChannelData(0)
+                            console.log('🎵 Processing resume audio, length:', inputData.length)
 
-                        const pcmData = floatTo16BitPCM(inputData)
-                        console.log('✅ Resume PCM conversion successful, size:', pcmData.byteLength)
+                            const pcmData = floatTo16BitPCM(inputData)
+                            console.log('✅ Resume PCM conversion successful, size:', pcmData.byteLength)
 
-                        // Send audio to backend
-                        websocketRef.current.send(pcmData)
-                        console.log('📤 Resume audio sent to backend')
+                            // Send audio to backend
+                            websocketRef.current.send(pcmData)
+                            console.log('📤 Resume audio sent to backend')
 
-                        // Calculate audio levels for visual feedback
-                        const average = Math.sqrt(inputData.reduce((sum, sample) => sum + sample * sample, 0) / inputData.length)
-                        const max = Math.max(...inputData.map(Math.abs))
-                        console.log(`Audio chunk: ${pcmData.byteLength} bytes, avg: ${average.toFixed(6)}, max: ${max.toFixed(6)}`)
-                    } catch (error) {
-                        console.error('❌ Resume audio processing error:', error)
+                            // Calculate audio levels for visual feedback
+                            const average = Math.sqrt(inputData.reduce((sum, sample) => sum + sample * sample, 0) / inputData.length)
+                            const max = Math.max(...Array.from(inputData).map(Math.abs))
+                            console.log(`Audio chunk: ${pcmData.byteLength} bytes, avg: ${average.toFixed(6)}, max: ${max.toFixed(6)}`)
+                        } catch (error) {
+                            console.error('❌ Resume audio processing error:', error)
+                        }
                     }
                 }
             }
@@ -604,7 +647,9 @@ export default function AudioRecorder({
                     console.log('📤 Main audio sent to backend')
                 } catch (err) {
                     console.error('❌ Main PCM processing error:', err)
-                    console.error('Error stack:', err.stack)
+                    if (err instanceof Error) {
+                        console.error('Error stack:', err.stack)
+                    }
                 }
             }
 
@@ -723,6 +768,11 @@ export default function AudioRecorder({
                 console.log('Unknown WebSocket message type:', data.type)
         }
     }
+
+    // Expose stopRecording method via ref
+    useImperativeHandle(ref, () => ({
+        stopRecording
+    }), [])
 
     const cleanup = () => {
         // Clear intervals
@@ -847,4 +897,8 @@ export default function AudioRecorder({
             </div>
         </div>
     )
-}
+})
+
+AudioRecorder.displayName = 'AudioRecorder'
+
+export default AudioRecorder

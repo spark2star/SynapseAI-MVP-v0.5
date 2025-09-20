@@ -32,7 +32,7 @@ interface MonthlyData {
 }
 
 export default function DashboardPage() {
-    const { user } = useAuthStore()
+    const { user, profile } = useAuthStore()
     const [stats, setStats] = useState<DashboardStats>({
         totalPatients: 0,
         todayAppointments: 0,
@@ -84,7 +84,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div>
                                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
-                                        Welcome back, Dr. {user?.name || 'Therapist'}
+                                        Welcome back, Dr. {profile?.first_name && profile?.last_name ? `${profile.first_name} ${profile.last_name}` : 'James Bond'}
                                     </h1>
                                     <p className="text-sky-600 dark:text-sky-300 text-sm lg:text-base">
                                         Your patient care overview for today
@@ -234,7 +234,7 @@ export default function DashboardPage() {
                                     {/* Grid lines */}
                                     <defs>
                                         <pattern id="grid" width="40" height="20" patternUnits="userSpaceOnUse">
-                                            <path d="M 40 0 L 0 0 0 20" fill="none" stroke="rgb(203 213 225)" strokeWidth="0.5" opacity="0.3" />
+                                            <path d="M 40 0 L 0 0 0 20" fill="none" stroke="rgb(148 163 184)" strokeWidth="1" opacity="0.8" />
                                         </pattern>
 
                                         {/* Gradients for area fills below lines */}

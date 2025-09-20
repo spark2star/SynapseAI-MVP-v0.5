@@ -187,9 +187,9 @@ export default function LoginPage() {
                     </div>
 
                     {/* Security Features */}
-                    <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-                        <div className="flex flex-col items-center space-y-2">
-                            <ShieldCheckIcon className="h-8 w-8 text-primary-500 dark:text-primary-400" />
+                    <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                        <div className="flex flex-col items-center space-y-1">
+                            <ShieldCheckIcon className="h-6 w-6 text-primary-500 dark:text-primary-400" />
                             <div>
                                 <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                                     HIPAA Compliant
@@ -200,8 +200,8 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-center space-y-2">
-                            <SparklesIcon className="h-8 w-8 text-primary-500 dark:text-primary-400" />
+                        <div className="flex flex-col items-center space-y-1">
+                            <SparklesIcon className="h-6 w-6 text-primary-500 dark:text-primary-400" />
                             <div>
                                 <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                                     AI Powered
@@ -212,8 +212,8 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-center space-y-2">
-                            <HeartIcon className="h-8 w-8 text-primary-500 dark:text-primary-400" />
+                        <div className="flex flex-col items-center space-y-1">
+                            <HeartIcon className="h-6 w-6 text-primary-500 dark:text-primary-400" />
                             <div>
                                 <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                                     Patient First
@@ -225,19 +225,6 @@ export default function LoginPage() {
                         </div>
                     </div>
 
-                    {/* Demo Credentials */}
-                    {process.env.NEXT_PUBLIC_APP_ENV === 'development' && (
-                        <div className="mt-8 p-5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                            <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-3">
-                                Demo Credentials
-                            </h4>
-                            <div className="text-sm text-amber-700 dark:text-amber-400 space-y-2">
-                                <p><strong>Doctor:</strong> doctor@demo.com / password123</p>
-                                <p><strong>Admin:</strong> admin@demo.com / password123</p>
-                                <p><strong>Reception:</strong> reception@demo.com / password123</p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
