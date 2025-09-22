@@ -24,11 +24,16 @@ load_dotenv()
 credentials_path = os.getenv("GCP_CREDENTIALS_PATH", "gcp-credentials.json")
 print(f"Loading Google Cloud credentials from: {credentials_path}")
 
-# Temporarily disable Google Cloud initialization to fix syntax issues
+# Enable Google Cloud Speech-to-Text for real STT
 try:
-    print("⏳ Skipping Google Cloud initialization temporarily")
-    speech_client = None
-    print("✅ Using mock transcription mode")
+    print("⏳ Initializing Google Cloud Speech-to-Text...")
+    from google.oauth2 import service_account
+    credentials = service_account.Credentials.from_service_account_file(
+        credentials_path,
+        scopes=['https://www.googleapis.com/auth/cloud-platform']
+    )
+    speech_client = speech.SpeechClient(credentials=credentials)
+    print("✅ Google Cloud Speech-to-Text initialized successfully")
 except Exception as e:
     print(f"❌ Failed to initialize Google Cloud Speech client: {e}")
     print("Will use mock transcription as fallback")
@@ -699,18 +704,26 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
             "झोप", "घबराट", "मूड", "मन", "भावना", "चिकित्सा"
         ]
         
-        # Configure streaming recognition (simplified for debugging)
+        # Configure streaming recognition for mental health (Hindi/Marathi/English)
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=16000,
-            language_code="en-US",  # Start with basic English for testing
-            model="default",  # Use default model to avoid potential issues
-            enable_automatic_punctuation=False,  # Disable for simplicity
-            enable_word_confidence=False,  # Disable for simplicity
-            # Remove speech contexts for now to simplify
+            language_code="mr-IN",  # Primary: Marathi (India)
+            alternative_language_codes=["en-IN", "hi-IN"],  # English (India), Hindi (India)
+            model="latest_long",  # Best for long-form medical conversations
+            use_enhanced=True,  # Enhanced model for better accuracy
+            enable_automatic_punctuation=True,  # Medical transcription needs punctuation
+            enable_word_confidence=True,  # Track confidence for medical accuracy
+            # Mental health speech contexts
+            speech_contexts=[
+                speech.SpeechContext(
+                    phrases=mental_health_phrases,
+                    boost=15.0  # Boost mental health terminology
+                )
+            ]
         )
         
-        print(f"🔧 Using simplified STT config: encoding=LINEAR16, rate=16000, lang=en-US, model=default")
+        print(f"🔧 Using Google STT config: encoding=LINEAR16, rate=16000, lang=mr-IN (primary), alt=[en-IN, hi-IN], model=latest_long")
         import sys
         sys.stdout.flush()
         
@@ -722,10 +735,16 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
         
         print(f"Google Cloud Speech-to-Text initialized for session {session_id}")
         
-        # Send confirmation of STT readiness
+        # Send confirmation of STT readiness with language info
         await websocket.send_json({
             "type": "stt_ready",
             "message": "Google Cloud Speech-to-Text ready for mental health consultation",
+            "languages": {
+                "primary": "mr-IN (Marathi)",
+                "alternatives": ["en-IN (English)", "hi-IN (Hindi)"]
+            },
+            "sample_rate": "16000Hz",
+            "model": "latest_long",
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
         

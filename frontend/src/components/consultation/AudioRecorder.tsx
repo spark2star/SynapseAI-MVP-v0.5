@@ -180,7 +180,7 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                 echoCancellation: false,
                 noiseSuppression: false,
                 autoGainControl: true,
-                sampleRate: { ideal: 48000 },
+                sampleRate: { ideal: 16000 },  // Google STT optimal sample rate
                 channelCount: 1
             }
 
@@ -691,9 +691,9 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
         try {
             const createOrGetAudioContext = (): AudioContext => {
                 if (audioContextRef.current) return audioContextRef.current
-                // Force 48kHz sample rate for optimal RNNoise performance
+                // Use 16kHz sample rate for Google Cloud STT compatibility
                 const ctx = new AudioContext({
-                    sampleRate: 48000
+                    sampleRate: 16000
                 })
                 audioContextRef.current = ctx
                 return ctx
