@@ -21,8 +21,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize Google Cloud Speech client with proper path
-credentials_path = os.getenv("GCP_CREDENTIALS_PATH", "gcp-credentials.json")
+# Use relative path that works in both development and Docker container
+credentials_path = "gcp-credentials.json"
+
 print(f"Loading Google Cloud credentials from: {credentials_path}")
+print(f"Current working directory: {os.getcwd()}")
+print(f"Credentials file exists: {os.path.exists(credentials_path)}")
+if os.path.exists(credentials_path):
+    print(f"Credentials file size: {os.path.getsize(credentials_path)} bytes")
+else:
+    print(f"❌ Credentials not found at: {os.path.abspath(credentials_path)}")
 
 # Enable Google Cloud Speech-to-Text for real STT
 try:
@@ -658,11 +666,11 @@ async def stop_consultation_session(session_id: str):
         "message": "Consultation session completed successfully"
     }
 
-@app.websocket("/ws/consultation/{session_id}")
+@app.websocket("/ws/consultation/{session_id}")  # Reference-based STT endpoint
 async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str):
     """
-    Real-time WebSocket endpoint for consultation audio streaming and transcription.
-    Uses Google Cloud Speech-to-Text with mental health optimization.
+    Real-time WebSocket endpoint using reference Google STT architecture.
+    Adapted from Google's official streaming STT example for medical use.
     """
     await websocket.accept()
     print(f"WebSocket connected for session: {session_id}")
