@@ -9,11 +9,14 @@ import {
     SpeakerWaveIcon
 } from '@heroicons/react/24/solid'
 import { toast } from 'react-hot-toast'
+import { MedicalAudioProcessor } from '../../services/rnnoise'
+import AudioDeviceSelector from './AudioDeviceSelector'
 
 interface AudioRecorderProps {
     sessionId: string
     isRecording: boolean
     duration?: number  // Optional prop to sync with parent timer
+    selectedAudioDevice?: string  // Audio device selected from parent
     onStart: () => void
     onStop: () => void
     onPause: () => void
@@ -34,6 +37,7 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
     sessionId,
     isRecording,
     duration = 0,
+    selectedAudioDevice: propSelectedAudioDevice,
     onStart,
     onStop,
     onPause,
@@ -47,6 +51,16 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
     const [isConnected, setIsConnected] = useState(false)
     const [currentLanguage, setCurrentLanguage] = useState('en-IN') // Default to English India
     const [codeMixingMode, setCodeMixingMode] = useState(true) // Enable code-mixing processing
+    const [isNoiseReductionEnabled, setIsNoiseReductionEnabled] = useState(true) // Enable RNNoise by default
+    const [noiseReductionStatus, setNoiseReductionStatus] = useState<'loading' | 'ready' | 'error' | 'disabled'>('loading')
+    const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>(propSelectedAudioDevice || '')
+    const [showDeviceSelector, setShowDeviceSelector] = useState(false)
+
+    // Audio processing health monitoring
+    const [audioProcessingHealth, setAudioProcessingHealth] = useState<'healthy' | 'degrading' | 'unhealthy'>('healthy')
+    const audioHealthIntervalRef = useRef<NodeJS.Timeout | null>(null)
+    const lastAudioProcessTimeRef = useRef<number>(Date.now())
+    const audioResetCountRef = useRef<number>(0)
 
     // Helper function to generate language context for LLM processing
     const getLanguageContext = (): string => {
@@ -130,6 +144,7 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
     const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null)
     const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const isPausedRef = useRef<boolean>(false)
+    const audioProcessorRef = useRef<MedicalAudioProcessor | null>(null)
 
     // Keep isPausedRef in sync with isPaused state
     useEffect(() => {
@@ -148,23 +163,58 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
         }
     }, [isRecording, sessionId])
 
+    // Sync external device selection with internal state
+    useEffect(() => {
+        if (propSelectedAudioDevice && propSelectedAudioDevice !== selectedAudioDevice) {
+            setSelectedAudioDevice(propSelectedAudioDevice)
+            console.log('🎤 Updated audio device from parent:', propSelectedAudioDevice)
+        }
+    }, [propSelectedAudioDevice, selectedAudioDevice])
+
     // Timer is now managed by parent component
 
     const startRecording = async () => {
         try {
+            // Prepare audio constraints with selected device
+            const audioConstraints: MediaTrackConstraints = {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: true,
+                sampleRate: { ideal: 48000 },
+                channelCount: 1
+            }
+
+            // Apply selected audio device if available
+            if (selectedAudioDevice) {
+                audioConstraints.deviceId = { exact: selectedAudioDevice }
+                console.log('🎤 Using selected audio device:', selectedAudioDevice)
+            } else {
+                console.log('🎤 Using default audio device (no specific device selected)')
+            }
+
             // Request microphone access for audio level monitoring
             const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: true,
-                    sampleRate: { ideal: 48000 },
-                    channelCount: 1
-                },
+                audio: audioConstraints,
                 video: false
             })
 
             streamRef.current = stream
+
+            // Verify which device is being used
+            const track = stream.getAudioTracks()[0]
+            if (track) {
+                const settings = track.getSettings()
+                console.log('🎤 Active audio device:', {
+                    deviceId: settings.deviceId,
+                    label: track.label,
+                    sampleRate: settings.sampleRate,
+                    channelCount: settings.channelCount
+                })
+
+                // Show user which device is active
+                const deviceName = track.label || 'Unknown Device'
+                toast.success(`Recording started with: ${deviceName}`)
+            }
 
             // Set up audio level monitoring (visual feedback)
             setupAudioLevelMonitoring(stream)
@@ -178,7 +228,6 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
             speechRecognitionRef.current = recognition
             recognition.start()
 
-            toast.success('Recording started with Web Speech API')
             console.log('🎤 Web Speech API recording started')
 
         } catch (error) {
@@ -247,10 +296,18 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                 }, 200)
             }
 
+            // Stop health monitoring
+            if (audioHealthIntervalRef.current) {
+                clearInterval(audioHealthIntervalRef.current)
+                audioHealthIntervalRef.current = null
+            }
+
             cleanup()
             setIsPaused(false)
             setIsConnected(false)
             setCurrentInterimText('')
+            setAudioProcessingHealth('healthy')
+            audioResetCountRef.current = 0
 
             console.log('🏁 stopRecording complete - microphone should be released')
             toast.success('Recording stopped')
@@ -563,12 +620,81 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
         })
     }
 
-    // PCM streaming (LINEAR16 @ 16kHz) for Google STT best practices
+    // Initialize audio processor for noise reduction
+    useEffect(() => {
+        let timeoutId: NodeJS.Timeout | null = null
+        let isMounted = true
+
+        const initializeAudioProcessor = async () => {
+            try {
+                if (!isMounted) return
+
+                setNoiseReductionStatus('loading')
+                console.log('🔧 Initializing audio processor...')
+
+                const processor = new MedicalAudioProcessor(isNoiseReductionEnabled)
+
+                if (!isMounted) {
+                    processor.destroy()
+                    return
+                }
+
+                audioProcessorRef.current = processor
+
+                // Wait a moment for initialization
+                timeoutId = setTimeout(() => {
+                    if (!isMounted) return
+
+                    try {
+                        if (processor.isNoiseReductionAvailable()) {
+                            setNoiseReductionStatus('ready')
+                            console.log('✅ Medical Audio Processor with RNNoise ready')
+                        } else {
+                            setNoiseReductionStatus('error')
+                            console.log('⚠️ RNNoise not available, using basic processing')
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ Error checking RNNoise availability:', err)
+                        setNoiseReductionStatus('error')
+                    }
+                }, 1000)
+
+            } catch (error) {
+                console.error('❌ Failed to initialize audio processor:', error)
+                if (isMounted) {
+                    setNoiseReductionStatus('error')
+                }
+            }
+        }
+
+        // Only initialize if noise reduction is enabled
+        if (isNoiseReductionEnabled) {
+            initializeAudioProcessor()
+        } else {
+            setNoiseReductionStatus('disabled')
+        }
+
+        return () => {
+            isMounted = false
+            if (timeoutId) {
+                clearTimeout(timeoutId)
+            }
+            if (audioProcessorRef.current) {
+                audioProcessorRef.current.destroy()
+                audioProcessorRef.current = null
+            }
+        }
+    }, [isNoiseReductionEnabled])
+
+    // Enhanced PCM streaming (48kHz with RNNoise) for medical-grade audio quality
     const setupPcmStreaming = (stream: MediaStream) => {
         try {
             const createOrGetAudioContext = (): AudioContext => {
                 if (audioContextRef.current) return audioContextRef.current
-                const ctx = new AudioContext()
+                // Force 48kHz sample rate for optimal RNNoise performance
+                const ctx = new AudioContext({
+                    sampleRate: 48000
+                })
                 audioContextRef.current = ctx
                 return ctx
             }
@@ -632,19 +758,38 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                     // Only filter out complete silence
                     if (averageLevel < 0.00001 && maxLevel < 0.001) return
 
-                    console.log('🎵 Main processor: processing audio, input length:', input.length)
-                    const downsampled = downsampleBuffer(input, audioContext.sampleRate, 16000)
-                    if (downsampled.length === 0) return
-                    console.log('🔄 Downsampled length:', downsampled.length)
+                    // Update audio processing health
+                    lastAudioProcessTimeRef.current = Date.now()
 
-                    const pcm16 = floatTo16BitPCM(downsampled)
-                    console.log('✅ Main PCM conversion successful, size:', pcm16.byteLength)
+                    // Reduced logging - only every 100th frame to prevent performance degradation
+                    const frameCount = Math.floor(Date.now() / 100) % 100
+                    if (frameCount === 0) {
+                        console.log('🎵 Audio processing active, level:', averageLevel.toFixed(4))
+                    }
 
-                    // Debug logging for audio levels
-                    console.log(`Audio chunk: ${pcm16.byteLength} bytes, avg: ${averageLevel.toFixed(6)}, max: ${maxLevel.toFixed(6)}`)
+                    // Apply RNNoise processing if available (48kHz optimized)
+                    let processedAudio = input
+                    if (audioProcessorRef.current && isNoiseReductionEnabled) {
+                        try {
+                            processedAudio = audioProcessorRef.current.processAudioBuffer(input)
+                            if (frameCount === 0) console.log('🔇 RNNoise processing applied')
+                        } catch (error) {
+                            console.warn('⚠️ RNNoise processing failed, using original audio:', error)
+                            processedAudio = input
+                            // Consider this a health issue
+                            setAudioProcessingHealth('degrading')
+                        }
+                    }
+
+                    // Keep audio at 48kHz for best STT quality (no downsampling needed)
+                    const pcm16 = floatTo16BitPCM(processedAudio)
+
+                    // Reduced debug logging
+                    if (frameCount === 0) {
+                        console.log(`📊 Audio: ${pcm16.byteLength}B, avg: ${averageLevel.toFixed(4)}, max: ${maxLevel.toFixed(4)}`)
+                    }
 
                     websocketRef.current.send(pcm16)
-                    console.log('📤 Main audio sent to backend')
                 } catch (err) {
                     console.error('❌ Main PCM processing error:', err)
                     if (err instanceof Error) {
@@ -653,10 +798,86 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                 }
             }
 
-            console.log('PCM streaming initialized (LINEAR16 @16kHz)')
+            // Start audio health monitoring - reset every 30 seconds to prevent degradation
+            audioHealthIntervalRef.current = setInterval(() => {
+                const timeSinceLastProcess = Date.now() - lastAudioProcessTimeRef.current
+
+                if (timeSinceLastProcess > 5000) {
+                    console.warn('⚠️ Audio processing stalled, triggering reset...')
+                    setAudioProcessingHealth('unhealthy')
+                    resetAudioProcessing()
+                } else if (timeSinceLastProcess > 2000) {
+                    setAudioProcessingHealth('degrading')
+                } else {
+                    setAudioProcessingHealth('healthy')
+                }
+
+                // Proactive reset every 30 seconds to prevent degradation
+                audioResetCountRef.current += 1
+                if (audioResetCountRef.current >= 6) { // 6 * 5 seconds = 30 seconds
+                    console.log('🔄 Proactive audio chain reset (30s maintenance)')
+                    resetAudioProcessing()
+                    audioResetCountRef.current = 0
+                }
+            }, 5000) // Check every 5 seconds
+
+            console.log('Enhanced PCM streaming initialized (LINEAR16 @48kHz with RNNoise + Health Monitoring)')
         } catch (error) {
             console.error('Error setting up PCM streaming:', error)
             toast.error('Failed to set up PCM streaming')
+        }
+    }
+
+    // Reset audio processing chain to prevent degradation
+    const resetAudioProcessing = () => {
+        try {
+            console.log('🔧 Resetting audio processing chain...')
+
+            // Clean up existing processor
+            if (processorRef.current) {
+                processorRef.current.disconnect()
+                processorRef.current = null
+            }
+
+            // Clean up source
+            if (sourceNodeRef.current) {
+                sourceNodeRef.current.disconnect()
+                sourceNodeRef.current = null
+            }
+
+            // Reset RNNoise processor
+            if (audioProcessorRef.current) {
+                try {
+                    audioProcessorRef.current.destroy()
+                } catch (e) {
+                    console.warn('RNNoise cleanup warning:', e)
+                }
+                audioProcessorRef.current = null
+            }
+
+            // Wait a bit then reinitialize if still recording
+            setTimeout(() => {
+                if (streamRef.current && isRecording) {
+                    console.log('🔄 Reinitializing audio processing...')
+
+                    // Re-setup audio processing chain
+                    setupPcmStreaming(streamRef.current)
+
+                    // Re-initialize RNNoise if enabled
+                    if (isNoiseReductionEnabled) {
+                        import('../../services/rnnoise').then(({ MedicalAudioProcessor }) => {
+                            const processor = new MedicalAudioProcessor(true)
+                            audioProcessorRef.current = processor
+                        }).catch(console.error)
+                    }
+
+                    setAudioProcessingHealth('healthy')
+                    console.log('✅ Audio processing chain reset complete')
+                }
+            }, 100)
+
+        } catch (error) {
+            console.error('Error resetting audio processing:', error)
         }
     }
 
@@ -714,9 +935,13 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                     const transcriptionData = data.data
 
                     if (transcriptionData.type === 'interim') {
+                        const wordCount = transcriptionData.transcript.split(' ').length
+                        console.log(`🎤 INTERIM (${wordCount} words):`, transcriptionData.transcript)
                         setCurrentInterimText(transcriptionData.transcript)
                         onTranscriptionUpdate(transcriptionData.transcript, false)
                     } else if (transcriptionData.type === 'final') {
+                        const wordCount = transcriptionData.transcript.split(' ').length
+                        console.log(`✅ FINAL (${wordCount} words):`, transcriptionData.transcript)
                         const newChunk: TranscriptionChunk = {
                             text: transcriptionData.transcript,
                             confidence: transcriptionData.confidence,
@@ -724,9 +949,16 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                             isFinal: true
                         }
 
-                        setTranscriptionChunks(prev => [...prev, newChunk])
+                        setTranscriptionChunks(prev => {
+                            const updatedChunks = [...prev, newChunk]
+                            // Send accumulated final text to parent, not just the latest chunk
+                            const fullFinalText = updatedChunks.map(chunk => chunk.text).join(' ')
+                            onTranscriptionUpdate(transcriptionData.transcript, true) // Send only this chunk for proper accumulation
+                            console.log('📝 Final chunk added:', transcriptionData.transcript)
+                            console.log('📝 All final chunks so far:', fullFinalText)
+                            return updatedChunks
+                        })
                         setCurrentInterimText('')
-                        onTranscriptionUpdate(transcriptionData.transcript, true)
                     }
                 }
                 break
@@ -854,6 +1086,68 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                     </div>
                 </div>
 
+                {/* Audio Controls Section */}
+                <div className="flex items-center gap-4">
+                    {/* Device Selector Toggle - Less prominent during recording */}
+                    <button
+                        onClick={() => setShowDeviceSelector(!showDeviceSelector)}
+                        className="flex items-center gap-2 px-2 py-1 text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 rounded hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors"
+                        title="Change microphone input"
+                    >
+                        <MicrophoneIcon className="h-3 w-3" />
+                        Change Input
+                    </button>
+
+                    {/* Noise Reduction Controls */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                            Noise Reduction
+                        </label>
+                        <button
+                            onClick={() => {
+                                setIsNoiseReductionEnabled(!isNoiseReductionEnabled)
+                                if (audioProcessorRef.current) {
+                                    audioProcessorRef.current.setNoiseReduction(!isNoiseReductionEnabled)
+                                }
+                            }}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isNoiseReductionEnabled
+                                ? 'bg-blue-600'
+                                : 'bg-neutral-300 dark:bg-neutral-600'
+                                }`}
+                        >
+                            <span
+                                className={`inline-block h-3 w-3 transform rounded-full bg-white transition ${isNoiseReductionEnabled ? 'translate-x-5' : 'translate-x-1'
+                                    }`}
+                            />
+                        </button>
+                        <div className="flex items-center gap-1">
+                            {noiseReductionStatus === 'loading' && (
+                                <div className="h-2 w-2 bg-yellow-500 rounded-full animate-pulse" title="Initializing noise reduction..." />
+                            )}
+                            {noiseReductionStatus === 'ready' && (
+                                <div className="h-2 w-2 bg-green-500 rounded-full" title="RNNoise ready" />
+                            )}
+                            {noiseReductionStatus === 'error' && (
+                                <div className="h-2 w-2 bg-orange-500 rounded-full" title="Using basic noise reduction" />
+                            )}
+                            {noiseReductionStatus === 'disabled' && (
+                                <div className="h-2 w-2 bg-neutral-400 rounded-full" title="Noise reduction disabled" />
+                            )}
+
+                            {/* Audio Processing Health Indicator */}
+                            {audioProcessingHealth === 'healthy' && (
+                                <div className="h-2 w-2 bg-green-500 rounded-full" title="Audio processing healthy" />
+                            )}
+                            {audioProcessingHealth === 'degrading' && (
+                                <div className="h-2 w-2 bg-yellow-500 rounded-full animate-pulse" title="Audio processing degrading" />
+                            )}
+                            {audioProcessingHealth === 'unhealthy' && (
+                                <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse" title="Audio processing unhealthy - resetting" />
+                            )}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Control Buttons */}
                 <div className="flex items-center gap-2">
                     {!isRecording ? (
@@ -895,6 +1189,35 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                     )}
                 </div>
             </div>
+
+            {/* Audio Device Selector Panel */}
+            {showDeviceSelector && (
+                <div className="mt-4 p-4 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                            Audio Input Settings
+                        </h4>
+                        <button
+                            onClick={() => setShowDeviceSelector(false)}
+                            className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                        >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <AudioDeviceSelector
+                        selectedDeviceId={selectedAudioDevice}
+                        onDeviceChange={setSelectedAudioDevice}
+                    />
+                    <div className="mt-3 text-xs text-neutral-600 dark:text-neutral-400">
+                        <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-1.5 bg-blue-500 rounded-full"></div>
+                            <span>Changes apply to new recording sessions</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 })

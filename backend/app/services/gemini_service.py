@@ -107,51 +107,41 @@ IMPORTANT LANGUAGE CONTEXT:
 TRANSCRIPT TO ANALYZE:
 {transcription}
 
-TASK: Generate a comprehensive follow-up mental health assessment report with the following structure:
+TASK: Generate a CONCISE follow-up mental health assessment report with the following structure:
 
 ## CURRENT SITUATION
-- Present concerns and symptoms as described by the patient
-- Changes since last visit (improvement, worsening, or stable)
-- Current life circumstances and stressors
-- Functional impact on daily activities
+- Present concerns and symptoms (brief summary)
+- Current stressors and triggers
+- Functional impact on daily life
 
 ## MENTAL STATUS EXAMINATION
-- Appearance and behavior
-- Mood and affect (as observed and reported)
-- Thought process and content
-- Cognitive function (if assessed)
-- Insight and judgment
-- Risk assessment (suicidal/self-harm ideation if mentioned)
+- Mood and affect
+- Thought process and insight
+- Risk assessment (if applicable)
 
-## VITALS & PHYSICAL OBSERVATIONS
-- Sleep patterns and quality
-- Appetite and eating habits
-- Energy levels and fatigue
-- Physical symptoms (headaches, body aches, etc.)
-- Any psychosomatic complaints
+## SLEEP & PHYSICAL HEALTH
+- Sleep patterns and disturbances
+- Appetite and energy levels
+- Physical symptoms
 
-## MEDICATION COMPLIANCE
-- Current medications being taken (if mentioned)
-- Adherence to prescribed regimen
-- Patient's attitude toward medication
-- Any missed doses or irregular usage
+## MEDICATION & TREATMENT
+- Current medications (if mentioned)
+- Treatment compliance and concerns
 
-## MEDICATION SIDE EFFECTS
-- Any adverse effects reported by patient
-- Impact on daily functioning
-- Patient's concerns about side effects
-- Need for dosage adjustment or medication change
+## RECOMMENDATIONS
+- Immediate intervention needs
+- Treatment adjustments suggested
+- Follow-up requirements
 
 GUIDELINES:
-1. Only include information explicitly mentioned or clearly implied in the transcript
-2. Use professional medical terminology
-3. Be objective and avoid speculation
-4. If any section has no relevant information, state "No specific information provided"
-5. Maintain patient confidentiality and professional tone
-6. Focus on facts and observations rather than definitive diagnoses
-7. Highlight any urgent concerns or red flags clearly
+1. Keep each section to 2-3 bullet points maximum
+2. Use professional but concise language
+3. Only include information from the transcript
+4. Skip sections if no relevant information is provided
+5. Focus on key clinical findings and actionable insights
+6. No placeholder text or template language
 
-Provide the report in clear, structured sections as outlined above.
+Provide a clean, structured report without extra formatting or placeholders.
 """
 
     def _get_new_patient_prompt(self, transcription: str) -> str:

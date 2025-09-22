@@ -5,6 +5,9 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import apiService from '@/services/api'
 import type { User, UserProfile, LoginCredentials, AuthTokens } from '@/types'
 
+// Global auth check lock to prevent multiple simultaneous calls
+let authCheckInProgress = false
+
 interface AuthState {
     // State
     user: User | null
@@ -32,7 +35,7 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             profile: null,
             isAuthenticated: false,
-            isLoading: true, // Start with true to show loading initially
+            isLoading: false, // Start with false to prevent infinite loading
 
             // Login action
             login: async (credentials: LoginCredentials): Promise<boolean> => {
@@ -110,6 +113,20 @@ export const useAuthStore = create<AuthState>()(
 
             // Check authentication status
             checkAuth: async (): Promise<void> => {
+                // Prevent multiple simultaneous auth checks globally
+                if (authCheckInProgress) {
+                    console.log('Auth check already in progress globally, skipping...')
+                    return
+                }
+
+                const currentState = get()
+                if (currentState.isLoading) {
+                    console.log('Auth check already in progress locally, skipping...')
+                    return
+                }
+
+                authCheckInProgress = true
+
                 try {
                     set({ isLoading: true })
 
@@ -123,8 +140,16 @@ export const useAuthStore = create<AuthState>()(
                         return
                     }
 
+                    // Add timeout to prevent hanging
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Auth check timeout')), 5000)
+                    )
+
                     // Validate token with backend
-                    const response = await apiService.get('/auth/validate-token')
+                    const response = await Promise.race([
+                        apiService.get('/auth/validate-token'),
+                        timeoutPromise
+                    ]) as any
 
                     if (response.status === 'success' && response.data?.valid) {
                         const { user_id, role, email } = response.data
@@ -145,8 +170,8 @@ export const useAuthStore = create<AuthState>()(
                             isLoading: false
                         })
 
-                        // Fetch user profile
-                        await get().fetchUserProfile()
+                        // Fetch user profile (don't await to prevent blocking)
+                        get().fetchUserProfile().catch(console.error)
                     } else {
                         // Token is invalid
                         apiService.clearAuthTokens()
@@ -159,6 +184,12 @@ export const useAuthStore = create<AuthState>()(
                     }
                 } catch (error) {
                     console.error('Auth check error:', error)
+
+                    // Handle different error types
+                    if (error instanceof Error && error.message === 'Auth check timeout') {
+                        console.warn('Auth check timed out - assuming not authenticated')
+                    }
+
                     apiService.clearAuthTokens()
                     set({
                         user: null,
@@ -166,6 +197,8 @@ export const useAuthStore = create<AuthState>()(
                         isAuthenticated: false,
                         isLoading: false
                     })
+                } finally {
+                    authCheckInProgress = false
                 }
             },
 

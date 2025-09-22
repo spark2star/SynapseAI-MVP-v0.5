@@ -14,6 +14,7 @@ import {
 
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/ui/Button'
+import { toast } from 'react-hot-toast'
 
 export default function DashboardHeader() {
     const router = useRouter()
@@ -25,9 +26,20 @@ export default function DashboardHeader() {
         router.push('/auth/login')
     }
 
-    const displayName = profile
-        ? `Dr. ${profile.first_name} ${profile.last_name}`
-        : user?.email
+    const handleComingSoon = (featureName: string) => {
+        toast(`${featureName} feature is coming soon! 🚀`, {
+            icon: '⏳',
+            duration: 3000,
+            style: {
+                borderRadius: '12px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: '1px solid #d1d5db'
+            }
+        })
+    }
+
+    const displayName = 'Dr. James Bond' // Fixed name as requested
 
     return (
         <div className="sticky top-0 z-30 bg-white dark:bg-neutral-800 shadow-sm border-b border-neutral-200 dark:border-neutral-700 transition-all duration-300">
@@ -89,7 +101,7 @@ export default function DashboardHeader() {
                             <Menu.Item>
                                 {({ active }) => (
                                     <button
-                                        onClick={() => router.push('/dashboard/profile')}
+                                        onClick={() => handleComingSoon('Profile')}
                                         className={clsx(
                                             'w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 flex items-center transition-colors duration-200',
                                             active ? 'bg-neutral-100 dark:bg-neutral-700' : ''
@@ -97,6 +109,9 @@ export default function DashboardHeader() {
                                     >
                                         <UserCircleIcon className="mr-3 h-4 w-4" />
                                         Profile
+                                        <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400">
+                                            Soon
+                                        </span>
                                     </button>
                                 )}
                             </Menu.Item>

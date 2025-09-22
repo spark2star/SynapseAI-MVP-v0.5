@@ -16,8 +16,13 @@ export default function DashboardLayout({
     const { isAuthenticated, isLoading, checkAuth } = useAuthStore()
 
     useEffect(() => {
-        checkAuth()
-    }, []) // Remove checkAuth from dependency array to prevent infinite loop
+        // Only check auth once when dashboard loads
+        if (!isAuthenticated && !isLoading) {
+            checkAuth().catch(error => {
+                console.error('Dashboard auth check failed:', error)
+            })
+        }
+    }, [isAuthenticated, isLoading]) // Remove checkAuth from dependencies
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {

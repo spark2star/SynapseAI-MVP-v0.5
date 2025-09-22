@@ -66,3 +66,4 @@ ALLOWED_FILE_TYPES=["pdf", "doc", "docx", "jpg", "jpeg", "png"]
 # Session Configuration
 SESSION_EXPIRE_MINUTES=30
 
+

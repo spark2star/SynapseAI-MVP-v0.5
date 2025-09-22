@@ -7,7 +7,7 @@ from typing import Dict, Any
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.gemini_service import gemini_service
 
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 class ReportGenerationRequest(BaseModel):
     transcription: str
     session_id: str
-    session_type: str = "follow_up"
-    patient_id: str = None
+    session_type: str = Field(default="follow_up", description="Type of session (new_patient, follow_up)")
+    patient_id: str = Field(default=None, description="Patient ID (optional)")
 
 @router.post("/generate")
 async def generate_report(request: ReportGenerationRequest):

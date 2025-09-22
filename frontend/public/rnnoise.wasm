@@ -1,0 +1,16 @@
+/*
+ * Placeholder for RNNoise WebAssembly binary
+ * 
+ * This is a placeholder file. In a production environment, you would either:
+ * 1. Build RNNoise from source to WebAssembly
+ * 2. Use a pre-built RNNoise WASM binary
+ * 3. Use the mock implementation in rnnoise.js for development
+ * 
+ * For now, the JavaScript implementation will provide a mock noise reduction
+ * that still improves audio quality through basic filtering.
+ * 
+ * To get the real RNNoise WASM binary:
+ * - Clone https://github.com/xiph/rnnoise
+ * - Follow the WebAssembly build instructions
+ * - Replace this file with the generated rnnoise.wasm
+ */

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
     ArrowLeftIcon,
@@ -25,8 +25,10 @@ import { toast } from 'react-hot-toast'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import AudioRecorder from '@/components/consultation/AudioRecorder'
+import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
+import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
 import { useAuthStore } from '@/store/authStore'
 import apiService from '@/services/api'
 
@@ -62,7 +64,9 @@ interface ConsultationSession {
 
 export default function PatientDetailPage() {
     const params = useParams()
+    const searchParams = useSearchParams()
     const patientId = params?.id as string
+    const isFollowUpMode = searchParams?.get('followup') === 'true'
     const { user } = useAuthStore()
 
     const [patient, setPatient] = useState<Patient | null>(null)
@@ -78,6 +82,8 @@ export default function PatientDetailPage() {
     const [liveTranscription, setLiveTranscription] = useState('')
     const [finalTranscription, setFinalTranscription] = useState('')
     const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+    const [generatedReport, setGeneratedReport] = useState<any>(null)
+    const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('')
     const audioRecorderRef = useRef<{ stopRecording: () => void }>(null)
 
     useEffect(() => {
@@ -86,6 +92,16 @@ export default function PatientDetailPage() {
             fetchConsultationSessions()
         }
     }, [patientId])
+
+    // Auto-trigger follow-up session if coming from dashboard
+    useEffect(() => {
+        if (isFollowUpMode && patient && !isRecording && !showNewConsultation) {
+            // Auto-open the consultation modal for follow-up
+            setShowNewConsultation(true)
+            setIsFollowUpSession(true)
+            setChiefComplaint("Follow-up consultation") // Auto-fill for follow-up
+        }
+    }, [isFollowUpMode, patient, isRecording, showNewConsultation])
 
     useEffect(() => {
         let interval: NodeJS.Timeout
@@ -283,19 +299,27 @@ export default function PatientDetailPage() {
     }
 
     const handleTranscriptionUpdate = (text: string, isFinal: boolean) => {
+        const wordCount = text.split(' ').length
+
         if (isFinal) {
             // STT service says this text is final - append it immediately
             setFinalTranscription(prev => {
                 const newFinal = prev ? prev + ' ' + text : text
-                console.log('📝 STT Final signal received:', text)
-                console.log('📝 Total final transcription now:', newFinal)
+                const totalWords = newFinal.split(' ').length
+                console.log(`📝 STT FINAL received (${wordCount} words):`, text)
+                console.log(`📝 Total final transcription now (${totalWords} words):`, newFinal)
                 return newFinal
             })
             setLiveTranscription('') // Clear interim when final arrives
         } else {
-            // STT service interim text - show as live
+            // Handle interim text - show it in live transcription
             setLiveTranscription(text)
-            console.log('🎙️ STT Interim:', text)
+            console.log(`🎤 STT INTERIM received (${wordCount} words):`, text)
+
+            // Debug: Alert if interim text gets very long without becoming final
+            if (wordCount >= 50) {
+                console.warn(`⚠️ LONG INTERIM TEXT (${wordCount} words) - may be stuck!`)
+            }
         }
     }
 
@@ -335,28 +359,22 @@ export default function PatientDetailPage() {
             const response = await apiService.post('/reports/generate', reportRequest)
 
             if (response.status === 'success') {
-                // Store the generated report for AI insights
-                const geminiReport = response.data.report
-                console.log('📄 Generated Gemini Report Preview:', typeof geminiReport === 'string' ? geminiReport.slice(0, 300) + '...' : geminiReport)
-
-                // Ensure we pass a string to setFinalTranscription
-                const reportText = typeof geminiReport === 'string' ? geminiReport : JSON.stringify(geminiReport, null, 2)
-                setFinalTranscription(reportText)
-
-                toast.success('AI report generated successfully!')
-                console.log('✅ Gemini report generated:', {
-                    model: response.data.model_used,
-                    session_type: response.data.session_type,
-                    transcription_length: response.data.transcription_length
+                // Store the generated report data
+                const reportData = response.data
+                console.log('📄 Generated Gemini Report:', {
+                    model: reportData.model_used,
+                    session_type: reportData.session_type,
+                    transcription_length: reportData.transcription_length,
+                    report_preview: typeof reportData.report === 'string' ? reportData.report.slice(0, 300) + '...' : reportData.report
                 })
 
-                // Scroll to the AI insights section
-                setTimeout(() => {
-                    const aiInsightsElement = document.getElementById('ai-insights-section')
-                    if (aiInsightsElement) {
-                        aiInsightsElement.scrollIntoView({ behavior: 'smooth' })
-                    }
-                }, 500)
+                // Store report in a separate state variable (we'll create this)
+                setGeneratedReport(reportData)
+
+                toast.success('✅ Medical report generated successfully with Gemini 2.5 Flash!')
+                console.log('🎯 Real Gemini 2.5 Flash report generated successfully!')
+
+                // No auto-scroll - let user control their view
             } else {
                 throw new Error('Report generation failed')
             }
@@ -409,17 +427,24 @@ export default function PatientDetailPage() {
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <Link
-                        href="/dashboard/patients"
+                        href={isFollowUpMode ? "/dashboard" : "/dashboard/patients"}
                         className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
                     >
                         <ArrowLeftIcon className="h-5 w-5" />
                     </Link>
                     <div className="flex-1">
-                        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{patient.full_name}</h1>
+                        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                            {patient.full_name}
+                            {isFollowUpMode && (
+                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200">
+                                    Follow-up Session
+                                </span>
+                            )}
+                        </h1>
                         <p className="text-neutral-600 dark:text-neutral-400">Patient ID: {patient.patient_id}</p>
                     </div>
 
-                    {!isRecording && (
+                    {!isRecording && !isFollowUpMode && (
                         <Button
                             variant="primary"
                             onClick={() => {
@@ -465,6 +490,7 @@ export default function PatientDetailPage() {
                             sessionId={currentSession}
                             isRecording={isRecording}
                             duration={recordingDuration}
+                            selectedAudioDevice={selectedAudioDevice}
                             onStart={startConsultation}
                             onStop={stopConsultation}
                             onPause={() => setIsPaused(true)}
@@ -487,30 +513,20 @@ export default function PatientDetailPage() {
                             onGenerateReport={handleGenerateReport}
                             sessionId={currentSession}
                         />
-                        {/* Debug info */}
-                        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
-                            🎯 EditableTranscript Debug: isRecording={isRecording.toString()}, finalTranscription.length={finalTranscription.length}, currentSession={currentSession}
-                        </div>
                     </div>
                 )}
 
                 {/* AI-Powered Medical Report Generation */}
                 {finalTranscription && !isRecording && (
-                    <div id="ai-insights-section">
-                        <AIInsights
-                            sessionId={currentSession || 'CS-2024-NEW'}
-                            transcriptionText={finalTranscription}
-                            patientId={patientId}
-                            isLiveSession={false}
-                            onInsightGenerated={(insights) => {
-                                console.log('AI insights generated:', insights)
-                            }}
-                        />
-                    </div>
+                    <MedicalReportDisplay
+                        reportData={generatedReport}
+                        isGenerating={isGeneratingReport}
+                        onGenerateNew={() => handleGenerateReport(finalTranscription)}
+                    />
                 )}
 
-                {/* Mental Health Follow-Up Interface */}
-                {showNewConsultation && (
+                {/* Mental Health Follow-Up Interface - Hide when report is displayed */}
+                {showNewConsultation && !generatedReport && (
                     <div className="space-y-6">
                         {/* Session Setup */}
                         <div className="medical-card bg-blue-50 border-blue-200">
@@ -555,6 +571,21 @@ export default function PatientDetailPage() {
                                             <option value="counseling">Counseling Session</option>
                                             <option value="crisis">Crisis Intervention</option>
                                         </select>
+                                    </div>
+
+                                    {/* Audio Input Device Selection - Show before recording */}
+                                    <div className="p-4 bg-white border border-blue-300 rounded-lg">
+                                        <h4 className="text-sm font-medium text-blue-900 mb-3 flex items-center gap-2">
+                                            <MicrophoneIcon className="h-4 w-4" />
+                                            Audio Input Settings
+                                        </h4>
+                                        <p className="text-xs text-blue-700 mb-3">
+                                            Select your collar microphone or preferred audio input device before starting the session
+                                        </p>
+                                        <AudioDeviceSelector
+                                            selectedDeviceId={selectedAudioDevice}
+                                            onDeviceChange={setSelectedAudioDevice}
+                                        />
                                     </div>
 
                                     <div className="flex gap-3">

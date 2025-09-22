@@ -11,7 +11,7 @@ function HomePageContent() {
     const { isAuthenticated, isLoading, checkAuth } = useAuthStore()
 
     useEffect(() => {
-        // Check authentication status on page load
+        // Check authentication status on page load - only run once
         const initAuth = async () => {
             try {
                 await checkAuth()
@@ -20,7 +20,7 @@ function HomePageContent() {
             }
         }
         initAuth()
-    }, []) // Remove checkAuth from dependency array to prevent infinite loop
+    }, []) // Remove checkAuth from dependencies to prevent infinite loop
 
     useEffect(() => {
         if (!isLoading) {

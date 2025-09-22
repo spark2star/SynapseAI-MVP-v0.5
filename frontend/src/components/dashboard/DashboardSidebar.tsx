@@ -19,6 +19,7 @@ import type { NavItem } from '@/types'
 import Logo from '@/components/ui/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { Button } from '@/components/ui/Button'
+import { toast } from 'react-hot-toast'
 
 export default function DashboardSidebar() {
     const pathname = usePathname()
@@ -71,6 +72,21 @@ export default function DashboardSidebar() {
         logout()
     }
 
+    const handleComingSoon = (featureName: string) => {
+        toast(`${featureName} feature is coming soon! 🚀`, {
+            icon: '⏳',
+            duration: 3000,
+            style: {
+                borderRadius: '12px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: '1px solid #d1d5db'
+            }
+        })
+    }
+
+    const comingSoonPages = ['/dashboard/appointments', '/dashboard/reports', '/dashboard/billing']
+
     return (
         <div className="flex h-full flex-col bg-white dark:bg-neutral-900 transition-all duration-300 ease-in-out">
             {/* Logo */}
@@ -80,27 +96,50 @@ export default function DashboardSidebar() {
 
             {/* Navigation */}
             <nav className="flex-1 px-4 py-6 space-y-1">
-                {navigation.map((item) => (
-                    <Link
-                        key={item.name}
-                        href={item.href}
-                        className={clsx(
-                            'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200',
-                            item.current
-                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                                : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
-                        )}
-                        style={item.current ? { boxShadow: 'inset 3px 0 0 rgb(59 130 246)' } : {}}
-                    >
-                        <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                        {item.name}
-                        {item.badge && (
-                            <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-400">
-                                {item.badge}
-                            </span>
-                        )}
-                    </Link>
-                ))}
+                {navigation.map((item) => {
+                    const isComingSoon = comingSoonPages.includes(item.href)
+
+                    if (isComingSoon) {
+                        return (
+                            <button
+                                key={item.name}
+                                onClick={() => handleComingSoon(item.name)}
+                                className={clsx(
+                                    'w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 text-left',
+                                    'text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                                )}
+                            >
+                                <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                                {item.name}
+                                <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400">
+                                    Soon
+                                </span>
+                            </button>
+                        )
+                    }
+
+                    return (
+                        <Link
+                            key={item.name}
+                            href={item.href}
+                            className={clsx(
+                                'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+                                item.current
+                                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                                    : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                            )}
+                            style={item.current ? { boxShadow: 'inset 3px 0 0 rgb(59 130 246)' } : {}}
+                        >
+                            <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                            {item.name}
+                            {item.badge && (
+                                <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-400">
+                                    {item.badge}
+                                </span>
+                            )}
+                        </Link>
+                    )
+                })}
             </nav>
 
             {/* Footer with theme toggle and user info */}

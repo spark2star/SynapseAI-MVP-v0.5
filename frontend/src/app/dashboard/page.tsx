@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import {
     UserGroupIcon,
@@ -13,9 +14,12 @@ import {
     ArrowUpIcon,
     ArrowDownIcon,
     ChartBarIcon,
-    HeartIcon
+    HeartIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/Button'
+import PatientSelectionModal from '@/components/consultation/PatientSelectionModal'
+import { toast } from 'react-hot-toast'
 
 interface DashboardStats {
     totalPatients: number
@@ -31,7 +35,19 @@ interface MonthlyData {
     needsAttention: number
 }
 
+interface Patient {
+    id: string
+    patient_id: string
+    full_name: string
+    age: number
+    gender: string
+    phone_primary: string
+    last_visit: string | null
+    created_at: string
+}
+
 export default function DashboardPage() {
+    const router = useRouter()
     const { user, profile } = useAuthStore()
     const [stats, setStats] = useState<DashboardStats>({
         totalPatients: 0,
@@ -41,6 +57,7 @@ export default function DashboardPage() {
     })
 
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
+    const [showPatientSelection, setShowPatientSelection] = useState(false)
 
     useEffect(() => {
         // Simulate loading stats
@@ -71,6 +88,24 @@ export default function DashboardPage() {
         day: 'numeric'
     })
 
+    const handlePatientSelect = (patient: Patient) => {
+        // Navigate to patient detail page with follow-up flag
+        router.push(`/dashboard/patients/${patient.id}?followup=true`)
+    }
+
+    const handleComingSoon = (featureName: string) => {
+        toast(`${featureName} feature is coming soon! 🚀`, {
+            icon: '⏳',
+            duration: 3000,
+            style: {
+                borderRadius: '12px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: '1px solid #d1d5db'
+            }
+        })
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-all duration-500">
             <div className="p-6 lg:p-8">
@@ -84,7 +119,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div>
                                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
-                                        Welcome back, Dr. {profile?.first_name && profile?.last_name ? `${profile.first_name} ${profile.last_name}` : 'James Bond'}
+                                        Welcome back, Dr. James Bond
                                     </h1>
                                     <p className="text-sky-600 dark:text-sky-300 text-sm lg:text-base">
                                         Your patient care overview for today
@@ -175,7 +210,10 @@ export default function DashboardPage() {
                     </h2>
                     <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-slate-700/50 p-6 lg:p-8">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-                            <div className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer">
+                            <div
+                                onClick={() => handleComingSoon('New Patient Registration')}
+                                className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer"
+                            >
                                 <div className="flex flex-col items-center text-center">
                                     <div className="p-3 bg-sky-50 dark:bg-sky-900/30 rounded-xl mb-4 group-hover:bg-sky-100 dark:group-hover:bg-sky-800/40 transition-colors duration-300">
                                         <UserIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
@@ -185,17 +223,23 @@ export default function DashboardPage() {
                                 </div>
                             </div>
 
-                            <div className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer">
+                            <div
+                                onClick={() => setShowPatientSelection(true)}
+                                className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer"
+                            >
                                 <div className="flex flex-col items-center text-center">
-                                    <div className="p-3 bg-sky-50 dark:bg-sky-900/30 rounded-xl mb-4 group-hover:bg-sky-100 dark:group-hover:bg-sky-800/40 transition-colors duration-300">
-                                        <CalendarIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+                                    <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-xl mb-4 group-hover:bg-green-100 dark:group-hover:bg-green-800/40 transition-colors duration-300">
+                                        <ArrowPathIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
                                     </div>
-                                    <h3 className="font-semibold text-lg mb-1 text-slate-800 dark:text-slate-100">Schedule Session</h3>
-                                    <p className="text-slate-600 dark:text-slate-400 text-sm">Book appointments</p>
+                                    <h3 className="font-semibold text-lg mb-1 text-slate-800 dark:text-slate-100">Follow-up Session</h3>
+                                    <p className="text-slate-600 dark:text-slate-400 text-sm">Continue patient care</p>
                                 </div>
                             </div>
 
-                            <div className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer">
+                            <div
+                                onClick={() => handleComingSoon('AI Report Generation')}
+                                className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer"
+                            >
                                 <div className="flex flex-col items-center text-center">
                                     <div className="p-3 bg-sky-50 dark:bg-sky-900/30 rounded-xl mb-4 group-hover:bg-sky-100 dark:group-hover:bg-sky-800/40 transition-colors duration-300">
                                         <DocumentTextIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
@@ -434,6 +478,13 @@ export default function DashboardPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Patient Selection Modal for Follow-up */}
+            <PatientSelectionModal
+                isOpen={showPatientSelection}
+                onClose={() => setShowPatientSelection(false)}
+                onPatientSelect={handlePatientSelect}
+            />
         </div>
     )
 }

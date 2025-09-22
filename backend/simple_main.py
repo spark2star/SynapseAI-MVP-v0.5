@@ -338,37 +338,59 @@ async def stop_consultation_session(session_id: str):
     }
 
 @app.post("/api/v1/reports/generate")
-async def generate_medical_report_mock(request_data: dict):
-    """Mock AI-powered medical report generation."""
-    return {
-        "status": "success",
-        "data": {
-            "session_id": request_data.get("session_id", "CS-2024-NEW"),
-            "report": {
-                "report_type": request_data.get("report_type", "consultation"),
-                "content": "AI-Generated Medical Report\n\nCHIEF COMPLAINT:\nRoutine checkup and health assessment as discussed during consultation.\n\nHISTORY OF PRESENT ILLNESS:\nPatient reports feeling generally well with no acute concerns. Routine follow-up visit for ongoing health maintenance.\n\nASSESSMENT:\n- Overall health status appears stable\n- Vital signs within normal ranges\n- No acute medical issues identified\n\nPLAN:\n- Continue current health maintenance routine\n- Follow-up in 6 months or as needed\n- Patient education provided regarding preventive care\n\nCLINICAL INSIGHTS:\n- Patient demonstrates good health awareness\n- Compliance with recommended care protocols\n- Low risk profile for acute medical events",
-                "sections": {
-                    "CHIEF COMPLAINT": "Routine checkup and health assessment",
-                    "ASSESSMENT": "Overall health status appears stable",
-                    "PLAN": "Continue current health maintenance routine"
-                },
-                "confidence": 0.95,
-                "ai_generated": True,
-                "model": "gemini-2.5-flash"
-            },
-            "insights": {
-                "key_findings": ["Patient in good health", "No acute concerns"],
-                "recommendations": ["Continue preventive care", "Regular follow-ups"],
-                "confidence": 0.92
-            },
-            "metadata": {
-                "generated_at": "2024-01-01T00:30:00Z",
-                "model_used": "gemini-2.5-flash",
-                "confidence": 0.95,
-                "report_type": request_data.get("report_type", "consultation")
+async def generate_medical_report_real(request_data: dict):
+    """Real AI-powered medical report generation using Gemini 2.5 Flash."""
+    try:
+        if not gemini_service:
+            raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
+        
+        transcription = request_data.get("transcription")
+        session_id = request_data.get("session_id", "unknown")
+        session_type = request_data.get("session_type", "follow_up")
+        
+        if not transcription or not transcription.strip():
+            raise HTTPException(status_code=400, detail="Transcription text is required")
+        
+        print(f"🤖 Generating Gemini report for session {session_id}, type: {session_type}")
+        print(f"📝 Transcript length: {len(transcription)} characters")
+        
+        # Generate report using real Gemini service
+        result = await gemini_service.generate_medical_report(
+            transcription=transcription,
+            session_type=session_type
+        )
+        
+        if result["status"] == "success":
+            print(f"✅ Gemini report generated successfully for session {session_id}")
+            return {
+                "status": "success",
+                "data": {
+                    "report": result["report"],
+                    "session_id": session_id,
+                    "session_type": result["session_type"],
+                    "model_used": result["model_used"],
+                    "transcription_length": result["transcription_length"],
+                    "generated_at": result["generated_at"]
+                }
             }
-        }
-    }
+        else:
+            print(f"❌ Gemini service error: {result.get('error', 'Unknown error')}")
+            raise HTTPException(status_code=500, detail=f"AI service error: {result.get('error', 'Unknown error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error in report generation: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate report. Please try again.")
+
+# Include real Gemini service directly in simple_main.py for now
+try:
+    from app.services.gemini_service import gemini_service
+    print("✅ Gemini service imported successfully - Real LLM enabled")
+except ImportError as e:
+    print(f"⚠️ Could not import Gemini service: {e}")
+    print("💡 Falling back to mock reports")
+    gemini_service = None
 
 @app.post("/api/v1/reports/insights")
 async def generate_clinical_insights_mock(request_data: dict):
@@ -800,6 +822,13 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
             if module_speech_client is None:
                 print("❌ No speech client available")
                 return
+                
+            # Stream parameters for long therapy sessions (20+ minutes)
+            max_stream_duration = 240  # 4 minutes - restart streams regularly 
+            max_requests_per_stream = 1000  # High limit for long sessions
+            stream_start_time = time.time()  # Track when this stream started
+            print(f"🕐 Stream started at {stream_start_time}, will restart after {max_stream_duration}s or {max_requests_per_stream} requests")
+            sys.stdout.flush()
             
             # WORKING PATTERN: Based on successful implementation
             def request_generator():
@@ -847,17 +876,37 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                 print(f"📡 Processing STT responses...")
                 sys.stdout.flush()
                 
-                # Process responses
+                # Process responses with restart logic
+                requests_sent = 0  # Track requests in this response loop
                 for response in responses:
                     if stop_event.is_set():
                         break
+                    
+                    requests_sent += 1
+                    
+                    # Check if we need to restart the stream for long sessions
+                    current_time = time.time()
+                    stream_duration = current_time - stream_start_time
+                    
+                    if (stream_duration > max_stream_duration or 
+                        requests_sent > max_requests_per_stream):
+                        print(f"🔄 Stream restart needed for long session: duration={stream_duration:.1f}s, requests={requests_sent}")
+                        print(f"🎯 This is normal for therapy sessions longer than {max_stream_duration/60:.1f} minutes")
+                        sys.stdout.flush()
+                        break  # This will restart the stream
                     
                     if hasattr(response, 'error') and response.error:
                         error_code = getattr(response.error, 'code', 'no_code')
                         error_message = getattr(response.error, 'message', 'no_message') 
                         error_details = getattr(response.error, 'details', 'no_details')
-                        print(f"❌ FULL STT ERROR: code={error_code}, message='{error_message}', details='{error_details}'")
-                        print(f"🔍 Full error object: {response.error}")
+                        print(f"❌ STT ERROR: code={error_code}, message='{error_message}', details='{error_details}'")
+                        
+                        # Handle specific errors that require restart
+                        if error_code in [11, 3, 4]:  # DEADLINE_EXCEEDED, INVALID_ARGUMENT, DEADLINE_EXCEEDED
+                            print(f"🔄 Restarting stream due to error {error_code}")
+                            sys.stdout.flush()
+                            break  # Restart stream
+                        
                         sys.stdout.flush()
                         continue
                     
@@ -901,22 +950,62 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                 traceback.print_exc()
                 sys.stdout.flush()
         
-        # Start STT streaming in background thread
-        def run_streaming_wrapper():
-            print(f"🚀 STT THREAD STARTING for session {session_id}")
-            import sys
-            sys.stdout.flush()  # Force immediate output
-            try:
-                run_streaming()
-            except Exception as thread_error:
-                print(f"💥 CRITICAL STT THREAD ERROR: {thread_error}")
-                import traceback
-                traceback.print_exc()
+        # Start STT streaming with automatic restart capability
+        def run_streaming_with_restart():
+            restart_count = 0
+            while not stop_event.is_set():
+                restart_count += 1
+                print(f"🚀 STT STREAM #{restart_count} STARTING for session {session_id}")
+                import sys
                 sys.stdout.flush()
+                
+                try:
+                    run_streaming()
+                    
+                    # If we reach here without exception, check if we should continue
+                    if stop_event.is_set():
+                        print(f"🛑 Stop event set, ending STT for session {session_id}")
+                        break
+                    
+                    # Check if there's still audio to process
+                    if audio_queue.qsize() > 0:
+                        print(f"🔄 Audio remaining, auto-restarting STT stream #{restart_count + 1}")
+                        print(f"🎭 Continuing therapy session - this is normal for 20+ minute sessions")
+                        time.sleep(0.5)  # Brief pause before restart
+                        continue
+                    else:
+                        print(f"🏁 No more audio, ending STT for session {session_id}")
+                        break
+                        
+                except Exception as stream_error:
+                    print(f"❌ STT stream error (attempt #{restart_count}): {stream_error}")
+                    
+                    # Check for specific restart conditions - common in long therapy sessions
+                    error_str = str(stream_error).lower()
+                    if any(keyword in error_str for keyword in ['deadline', 'timeout', 'limit', 'exceeded', 'duration']):
+                        print(f"🔄 Detected stream limit (normal for long sessions), restarting STT stream #{restart_count + 1}")
+                        print(f"💬 This restart ensures stable transcription during therapy sessions")
+                        time.sleep(1)
+                        continue
+                    else:
+                        # Other errors might be more serious
+                        print(f"💥 Serious STT error: {stream_error}")
+                        import traceback
+                        traceback.print_exc()
+                        time.sleep(2)
+                        if restart_count < 5:  # Max 5 restart attempts
+                            continue
+                        else:
+                            print(f"🚫 Max restart attempts reached for session {session_id}")
+                            break
+                    
+                    sys.stdout.flush()
+                
+            print(f"🔚 STT streaming ended for session {session_id} after {restart_count} attempts")
         
-        streaming_thread = threading.Thread(target=run_streaming_wrapper, daemon=True)
+        streaming_thread = threading.Thread(target=run_streaming_with_restart, daemon=True)
         streaming_thread.start()
-        print(f"🎤 STT thread started for session {session_id}")
+        print(f"🎤 STT thread with auto-restart started for session {session_id}")
         import sys
         sys.stdout.flush()  # Force immediate output
         

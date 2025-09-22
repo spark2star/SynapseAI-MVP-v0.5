@@ -84,7 +84,12 @@ class Settings(BaseSettings):
     
     # File Upload
     MAX_UPLOAD_SIZE: str = "50MB"
+    MAX_FILE_SIZE: int = 10485760  # 10MB (for backward compatibility with env template)
     ALLOWED_AUDIO_FORMATS: List[str] = ["wav", "mp3", "m4a", "webm"]
+    ALLOWED_FILE_TYPES: List[str] = ["pdf", "doc", "docx", "jpg", "jpeg", "png"]
+    
+    # Session
+    SESSION_EXPIRE_MINUTES: int = 30
     
     # MFA
     MFA_ISSUER: str = "EMR-System"
@@ -114,6 +119,13 @@ class Settings(BaseSettings):
     @validator("ALLOWED_AUDIO_FORMATS", pre=True)
     def validate_audio_formats(cls, v):
         """Parse comma-separated formats if provided as string."""
+        if isinstance(v, str):
+            return [fmt.strip() for fmt in v.split(",")]
+        return v
+    
+    @validator("ALLOWED_FILE_TYPES", pre=True)
+    def validate_file_types(cls, v):
+        """Parse comma-separated file types if provided as string."""
         if isinstance(v, str):
             return [fmt.strip() for fmt in v.split(",")]
         return v
