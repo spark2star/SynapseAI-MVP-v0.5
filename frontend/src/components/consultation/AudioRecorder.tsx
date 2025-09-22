@@ -219,16 +219,11 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
             // Set up audio level monitoring (visual feedback)
             setupAudioLevelMonitoring(stream)
 
-            // Setup and start Web Speech API
-            const recognition = setupWebSpeechAPI()
-            if (!recognition) {
-                throw new Error('Speech recognition not supported')
-            }
-
-            speechRecognitionRef.current = recognition
-            recognition.start()
-
-            console.log('🎤 Web Speech API recording started')
+            // Setup Google Cloud STT via WebSocket (replaces browser WebSpeechAPI)
+            console.log('🔗 Connecting to Google Cloud STT WebSocket...')
+            await setupWebSocket()
+            
+            console.log('🎤 Google Cloud STT recording started')
 
         } catch (error) {
             console.error('Error starting recording:', error)
