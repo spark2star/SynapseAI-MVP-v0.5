@@ -1,0 +1,87 @@
+#!/bin/bash
+# Deployment script for SynapseAI
+
+set -e
+
+echo "🚀 SynapseAI Production Deployment Script"
+echo "========================================"
+
+# Check if .env.prod exists
+if [ ! -f .env.prod ]; then
+    echo "❌ ERROR: .env.prod file not found!"
+    echo "Please copy .env.prod.example to .env.prod and configure it."
+    exit 1
+fi
+
+# Check if GCP credentials exist
+if [ ! -f gcp-credentials.json ]; then
+    echo "❌ ERROR: gcp-credentials.json not found!"
+    echo "Please place your Google Cloud service account credentials file in the root directory."
+    exit 1
+fi
+
+# Load environment variables
+source .env.prod
+
+echo "📋 Pre-deployment checklist:"
+echo "✅ Environment file: .env.prod"
+echo "✅ GCP credentials: gcp-credentials.json"
+
+# Validate required environment variables
+required_vars=("POSTGRES_PASSWORD" "SECRET_KEY" "JWT_SECRET" "ENCRYPTION_KEY" "GOOGLE_CLOUD_PROJECT")
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        echo "❌ ERROR: Required environment variable $var is not set!"
+        exit 1
+    fi
+done
+
+echo "✅ All required environment variables are set"
+
+# Stop existing containers
+echo "🛑 Stopping existing containers..."
+docker-compose -f docker-compose.prod.yml down || true
+
+# Build and start production containers
+echo "🏗️  Building production containers..."
+docker-compose -f docker-compose.prod.yml build --no-cache
+
+echo "🚀 Starting production services..."
+docker-compose -f docker-compose.prod.yml up -d
+
+# Wait for services to be healthy
+echo "⏳ Waiting for services to be healthy..."
+sleep 30
+
+# Check service health
+echo "🔍 Checking service health..."
+if docker-compose -f docker-compose.prod.yml ps | grep -q "unhealthy"; then
+    echo "❌ Some services are unhealthy! Check logs:"
+    docker-compose -f docker-compose.prod.yml logs
+    exit 1
+fi
+
+echo "✅ All services are healthy!"
+
+# Display running services
+echo "📊 Running services:"
+docker-compose -f docker-compose.prod.yml ps
+
+echo ""
+echo "🎉 SynapseAI has been deployed successfully!"
+echo ""
+echo "🌐 Frontend: http://localhost:3000"
+echo "🔗 Backend API: http://localhost:8000"
+echo "📚 API Docs: http://localhost:8000/docs"
+echo "🩺 Health Check: http://localhost:8000/api/v1/health"
+echo ""
+echo "📝 Useful commands:"
+echo "  View logs: docker-compose -f docker-compose.prod.yml logs -f"
+echo "  Stop services: docker-compose -f docker-compose.prod.yml down"
+echo "  Restart: docker-compose -f docker-compose.prod.yml restart"
+echo ""
+echo "🔒 Remember to:"
+echo "  1. Set up SSL/TLS certificates for production"
+echo "  2. Configure your domain DNS to point to this server"
+echo "  3. Set up regular database backups"
+echo "  4. Monitor logs and performance"

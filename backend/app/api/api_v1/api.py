@@ -4,7 +4,7 @@ Main API router that includes all endpoint routers.
 
 from fastapi import APIRouter
 
-from app.api.api_v1.endpoints import auth, patients, users, health, reports, consultation as consultation_endpoints
+from app.api.api_v1.endpoints import auth, patients, users, health, reports, consultation as consultation_endpoints, newsletter, contact, intake
 from app.api.websocket import consultation
 
 api_router = APIRouter()
@@ -16,6 +16,9 @@ api_router.include_router(patients.router, prefix="/patients", tags=["patients"]
 api_router.include_router(health.router, prefix="/health", tags=["health"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(consultation_endpoints.router, prefix="/consultation", tags=["consultation"])
+api_router.include_router(newsletter.router, prefix="/newsletter", tags=["newsletter"])
+api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
+api_router.include_router(intake.router, prefix="/intake", tags=["patient-intake"])
 
 # Include WebSocket routers (no prefix for WebSocket endpoints)
 api_router.include_router(consultation.router, tags=["websocket"])

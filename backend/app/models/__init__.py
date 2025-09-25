@@ -10,6 +10,12 @@ from .report import Report, ReportTemplate
 from .appointment import Appointment
 from .billing import Bill
 from .audit import AuditLog
+from .newsletter import NewsletterSubscription
+from .contact import ContactSubmission
+from .symptom import (
+    MasterSymptom, UserSymptom, PatientSymptom, IntakePatient,
+    SymptomSeverity, SymptomFrequency, DurationUnit
+)
 
 __all__ = [
     "User",
@@ -21,5 +27,14 @@ __all__ = [
     "ReportTemplate",
     "Appointment",
     "Bill",
-    "AuditLog"
+    "AuditLog",
+    "NewsletterSubscription",
+    "ContactSubmission",
+    "MasterSymptom",
+    "UserSymptom", 
+    "PatientSymptom",
+    "IntakePatient",
+    "SymptomSeverity",
+    "SymptomFrequency",
+    "DurationUnit"
 ]

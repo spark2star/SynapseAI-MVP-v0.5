@@ -1,0 +1,157 @@
+# Production Docker Compose for SynapseAI
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: synapseai_postgres_prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-synapseai_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-synapseai_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: md5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-scripts/:/docker-entrypoint-initdb.d/
+    ports:
+      - "127.0.0.1:5432:5432" # Only bind to localhost
+    networks:
+      - synapseai_network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-synapseai_user} -d ${POSTGRES_DB:-synapseai_prod}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: synapseai_redis_prod
+    volumes:
+      - redis_data:/data
+      - ./infrastructure/docker/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    ports:
+      - "127.0.0.1:6379:6379" # Only bind to localhost
+    networks:
+      - synapseai_network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # SynapseAI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: synapseai_app_prod
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-synapseai_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-synapseai_prod}
+
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+
+      # Security
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+
+      # Google Cloud
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-credentials.json
+
+      # Application
+      FASTAPI_ENV: production
+      DEBUG: false
+      LOG_LEVEL: INFO
+
+      # CORS (restrict in production)
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://yourdomain.com}
+
+      # Rate limiting
+      RATE_LIMIT_ENABLED: true
+      RATE_LIMIT_REQUESTS: 100
+      RATE_LIMIT_WINDOW: 3600
+
+    ports:
+      - "8000:8000"
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - synapseai_network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    volumes:
+      - app_logs:/app/logs
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: synapseai_nginx_prod
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro # SSL certificates
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    networks:
+      - synapseai_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+networks:
+  synapseai_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_logs:
+    driver: local
+
+

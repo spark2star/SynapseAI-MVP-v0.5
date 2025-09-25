@@ -2,254 +2,288 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
 import { toast } from 'react-hot-toast'
-import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import Stage1Form, { Stage1Data } from '@/components/intake/Stage1Form'
+import Stage2Form, { PatientSymptom } from '@/components/intake/Stage2Form'
+import { CheckCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 
-import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
-import Select from '@/components/ui/Select'
-import apiService from '@/services/api'
+type IntakeStage = 'stage1' | 'stage2' | 'complete'
 
-interface NewPatientForm {
-    firstName: string
-    lastName: string
-    email: string
-    phone: string
-    dateOfBirth: string
-    gender: string
-    address: string
-    emergencyContact: string
-    emergencyPhone: string
-    medicalHistory: string
-    allergies: string
-    currentMedications: string
+interface CreatedPatient {
+    patient_id: string
+    name: string
 }
 
 export default function NewPatientPage() {
     const router = useRouter()
-    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [currentStage, setCurrentStage] = useState<IntakeStage>('stage1')
+    const [stage1Data, setStage1Data] = useState<Stage1Data | null>(null)
+    const [createdPatient, setCreatedPatient] = useState<CreatedPatient | null>(null)
+    const [isLoading, setIsLoading] = useState(false)
 
-    const {
-        register,
-        handleSubmit,
-        formState: { errors },
-        reset
-    } = useForm<NewPatientForm>()
-
-    const onSubmit = async (data: NewPatientForm) => {
-        setIsSubmitting(true)
+    const handleStage1Complete = async (data: Stage1Data) => {
+        setIsLoading(true)
         try {
-            const response = await apiService.post('/patients', {
-                first_name: data.firstName,
-                last_name: data.lastName,
-                email: data.email,
-                phone: data.phone,
-                date_of_birth: data.dateOfBirth,
-                gender: data.gender,
-                address: data.address,
-                emergency_contact_name: data.emergencyContact,
-                emergency_contact_phone: data.emergencyPhone,
-                medical_history: data.medicalHistory,
-                allergies: data.allergies,
-                current_medications: data.currentMedications
+            // Call the intake API to create patient
+            const response = await fetch('http://127.0.0.1:8000/api/v1/intake/patients', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
+                body: JSON.stringify({
+                    name: data.name,
+                    age: data.age,
+                    sex: data.sex,
+                    address: data.address,
+                    informants: data.informants,
+                    illness_duration: data.illness_duration,
+                    referred_by: data.referred_by,
+                    precipitating_factor: data.precipitating_factor
+                })
             })
 
-            if (response.status === 'success') {
-                toast.success('Patient created successfully!')
-                router.push(`/dashboard/patients/${response.data.id}`)
-            } else {
+            if (!response.ok) {
                 throw new Error('Failed to create patient')
             }
+
+            const result = await response.json()
+
+            if (result.status === 'success') {
+                setStage1Data(data)
+                setCreatedPatient({
+                    patient_id: result.data.patient_id,
+                    name: result.data.name
+                })
+                setCurrentStage('stage2')
+                toast.success('Patient demographics saved successfully!')
+            } else {
+                throw new Error(result.message || 'Failed to create patient')
+            }
         } catch (error) {
-            console.error('Error creating patient:', error)
-            toast.error('Failed to create patient. Please try again.')
+            console.error('Stage 1 error:', error)
+            toast.error(error instanceof Error ? error.message : 'Failed to save patient information')
         } finally {
-            setIsSubmitting(false)
+            setIsLoading(false)
         }
     }
 
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
-            <div className="container mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="flex items-center gap-4 mb-8">
-                    <Button
-                        onClick={() => router.back()}
-                        variant="secondary"
-                        size="sm"
-                        className="flex items-center gap-2"
-                    >
-                        <ArrowLeftIcon className="h-4 w-4" />
-                        Back
-                    </Button>
-                    <div>
-                        <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
-                            Add New Patient
+    const handleStage2Complete = async (symptoms: PatientSymptom[]) => {
+        if (!createdPatient) {
+            toast.error('Patient information not found')
+            return
+        }
+
+        setIsLoading(true)
+        try {
+            // Call the API to add symptoms to patient
+            const response = await fetch(`http://127.0.0.1:8000/api/v1/intake/patients/${createdPatient.patient_id}/symptoms`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
+                body: JSON.stringify(symptoms)
+            })
+
+            if (!response.ok) {
+                throw new Error('Failed to save symptoms')
+            }
+
+            const result = await response.json()
+
+            if (result.status === 'success') {
+                setCurrentStage('complete')
+                toast.success(`Patient registration completed! Added ${symptoms.length} symptoms.`)
+
+                // Redirect to patient list or dashboard after a brief delay
+                setTimeout(() => {
+                    router.push('/dashboard/patients')
+                }, 2000)
+            } else {
+                throw new Error(result.message || 'Failed to save symptoms')
+            }
+        } catch (error) {
+            console.error('Stage 2 error:', error)
+            toast.error(error instanceof Error ? error.message : 'Failed to save symptoms')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleBack = () => {
+        if (currentStage === 'stage2') {
+            setCurrentStage('stage1')
+        } else if (currentStage === 'stage1') {
+            router.back()
+        }
+    }
+
+    if (currentStage === 'complete') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-all duration-500 flex items-center justify-center p-6">
+                <div className="max-w-2xl w-full">
+                    <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-slate-700/50 p-8 text-center">
+                        <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                            <CheckCircleIcon className="h-10 w-10 text-white" />
+                        </div>
+
+                        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-4">
+                            Patient Registration Complete! 🎉
                         </h1>
-                        <p className="text-neutral-600 dark:text-neutral-400">
-                            Create a new patient record in the EMR system
-                        </p>
+
+                        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-6 mb-6">
+                            <h3 className="font-semibold text-emerald-800 dark:text-emerald-200 mb-2">
+                                Successfully Registered:
+                            </h3>
+                            <p className="text-emerald-700 dark:text-emerald-300 text-lg font-medium">
+                                {createdPatient?.name}
+                            </p>
+                            <p className="text-emerald-600 dark:text-emerald-400 text-sm mt-1">
+                                Patient ID: {createdPatient?.patient_id}
+                            </p>
+                        </div>
+
+                        <div className="text-slate-600 dark:text-slate-400 mb-8">
+                            <p className="mb-2">✅ Demographics and basic information saved</p>
+                            <p className="mb-4">✅ Symptoms and clinical details recorded</p>
+
+                            <div className="text-sm bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4">
+                                <p className="text-sky-800 dark:text-sky-200">
+                                    Redirecting you to the patient list in a moment...
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-center gap-4">
+                            <button
+                                onClick={() => router.push('/dashboard/patients')}
+                                className="px-6 py-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                            >
+                                View Patient List
+                            </button>
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="px-6 py-3 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-all duration-200"
+                            >
+                                Back to Dashboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-all duration-500">
+            <div className="p-6 lg:p-8">
+                {/* Header with Navigation */}
+                <div className="mb-8">
+                    <div className="flex items-center gap-4 mb-6">
+                        <button
+                            onClick={handleBack}
+                            className="p-2 hover:bg-white/60 dark:hover:bg-slate-800/60 rounded-xl transition-colors duration-200"
+                        >
+                            <ArrowLeftIcon className="h-6 w-6 text-slate-600 dark:text-slate-400" />
+                        </button>
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                                New Patient Registration
+                            </h1>
+                            <p className="text-slate-600 dark:text-slate-400 mt-1">
+                                Complete the two-stage intake process for mental health consultation
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Progress Indicator */}
+                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-sky-100/50 dark:border-slate-700/50 p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                {/* Stage 1 */}
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${currentStage === 'stage1'
+                                        ? 'bg-sky-500 text-white shadow-lg'
+                                        : currentStage === 'stage2'
+                                            ? 'bg-emerald-500 text-white'
+                                            : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-400'
+                                        }`}>
+                                        {currentStage === 'stage1' ? '1' : currentStage === 'stage2' ? '✓' : '1'}
+                                    </div>
+                                    <div>
+                                        <p className={`font-semibold text-sm ${currentStage === 'stage1'
+                                            ? 'text-sky-600 dark:text-sky-400'
+                                            : currentStage === 'stage2'
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-slate-600 dark:text-slate-400'
+                                            }`}>
+                                            Demographics
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-500">
+                                            Basic patient information
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Connector */}
+                                <div className={`w-16 h-1 rounded-full ${currentStage === 'stage2'
+                                    ? 'bg-emerald-500'
+                                    : 'bg-slate-200 dark:bg-slate-600'
+                                    }`} />
+
+                                {/* Stage 2 */}
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${currentStage === 'stage2'
+                                        ? 'bg-emerald-500 text-white shadow-lg'
+                                        : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-400'
+                                        }`}>
+                                        2
+                                    </div>
+                                    <div>
+                                        <p className={`font-semibold text-sm ${currentStage === 'stage2'
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-slate-600 dark:text-slate-400'
+                                            }`}>
+                                            Symptoms
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-500">
+                                            Clinical symptom assessment
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="text-right">
+                                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                                    Step {currentStage === 'stage1' ? '1' : '2'} of 2
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-500">
+                                    {currentStage === 'stage1' ? 'Patient Information' : 'Symptom Assessment'}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Form */}
-                <div className="medical-card p-8">
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                        {/* Personal Information */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="md:col-span-2">
-                                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
-                                    Personal Information
-                                </h2>
-                            </div>
+                {/* Stage Content */}
+                {currentStage === 'stage1' && (
+                    <Stage1Form
+                        onNext={handleStage1Complete}
+                        initialData={stage1Data || undefined}
+                        isLoading={isLoading}
+                    />
+                )}
 
-                            <Input
-                                label="First Name"
-                                {...register('firstName', { required: 'First name is required' })}
-                                error={errors.firstName?.message}
-                            />
-
-                            <Input
-                                label="Last Name"
-                                {...register('lastName', { required: 'Last name is required' })}
-                                error={errors.lastName?.message}
-                            />
-
-                            <Input
-                                label="Email"
-                                type="email"
-                                {...register('email', {
-                                    required: 'Email is required',
-                                    pattern: {
-                                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                                        message: 'Invalid email address'
-                                    }
-                                })}
-                                error={errors.email?.message}
-                            />
-
-                            <Input
-                                label="Phone"
-                                type="tel"
-                                {...register('phone', { required: 'Phone number is required' })}
-                                error={errors.phone?.message}
-                            />
-
-                            <Input
-                                label="Date of Birth"
-                                type="date"
-                                {...register('dateOfBirth', { required: 'Date of birth is required' })}
-                                error={errors.dateOfBirth?.message}
-                            />
-
-                            <Select
-                                label="Gender"
-                                {...register('gender', { required: 'Gender is required' })}
-                                error={errors.gender?.message}
-                            >
-                                <option value="">Select Gender</option>
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                                <option value="other">Other</option>
-                                <option value="prefer_not_to_say">Prefer not to say</option>
-                            </Select>
-                        </div>
-
-                        {/* Contact Information */}
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-                                Contact Information
-                            </h2>
-
-                            <Input
-                                label="Address"
-                                {...register('address')}
-                                error={errors.address?.message}
-                            />
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Input
-                                    label="Emergency Contact Name"
-                                    {...register('emergencyContact')}
-                                    error={errors.emergencyContact?.message}
-                                />
-
-                                <Input
-                                    label="Emergency Contact Phone"
-                                    type="tel"
-                                    {...register('emergencyPhone')}
-                                    error={errors.emergencyPhone?.message}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Medical Information */}
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-                                Medical Information
-                            </h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                                        Medical History
-                                    </label>
-                                    <textarea
-                                        {...register('medicalHistory')}
-                                        rows={3}
-                                        className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-neutral-700 dark:text-neutral-100 transition-all duration-200"
-                                        placeholder="Previous medical conditions, surgeries, etc."
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                                        Allergies
-                                    </label>
-                                    <textarea
-                                        {...register('allergies')}
-                                        rows={2}
-                                        className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-neutral-700 dark:text-neutral-100 transition-all duration-200"
-                                        placeholder="Known allergies to medications, foods, etc."
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                                        Current Medications
-                                    </label>
-                                    <textarea
-                                        {...register('currentMedications')}
-                                        rows={2}
-                                        className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-neutral-700 dark:text-neutral-100 transition-all duration-200"
-                                        placeholder="Current medications and dosages"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Submit Buttons */}
-                        <div className="flex items-center justify-end gap-4 pt-6 border-t border-neutral-200 dark:border-neutral-700">
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => router.back()}
-                                disabled={isSubmitting}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="submit"
-                                variant="primary"
-                                loading={isSubmitting}
-                                disabled={isSubmitting}
-                            >
-                                Create Patient
-                            </Button>
-                        </div>
-                    </form>
-                </div>
+                {currentStage === 'stage2' && createdPatient && (
+                    <Stage2Form
+                        patientId={createdPatient.patient_id}
+                        patientName={createdPatient.name}
+                        onComplete={handleStage2Complete}
+                        onBack={handleBack}
+                        isLoading={isLoading}
+                    />
+                )}
             </div>
         </div>
     )

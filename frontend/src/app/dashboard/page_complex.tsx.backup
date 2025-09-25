@@ -211,7 +211,7 @@ export default function DashboardPage() {
                     <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-slate-700/50 p-6 lg:p-8">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
                             <div
-                                onClick={() => router.push('/dashboard/patients/new')}
+                                onClick={() => handleComingSoon('New Patient Registration')}
                                 className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer"
                             >
                                 <div className="flex flex-col items-center text-center">

@@ -17,6 +17,7 @@ interface AudioRecorderProps {
     isRecording: boolean
     duration?: number  // Optional prop to sync with parent timer
     selectedAudioDevice?: string  // Audio device selected from parent
+    selectedLanguage?: string     // Language selected from parent
     onStart: () => void
     onStop: () => void
     onPause: () => void
@@ -38,6 +39,7 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
     isRecording,
     duration = 0,
     selectedAudioDevice: propSelectedAudioDevice,
+    selectedLanguage: propSelectedLanguage = 'en-IN',
     onStart,
     onStop,
     onPause,
@@ -171,6 +173,14 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
         }
     }, [propSelectedAudioDevice, selectedAudioDevice])
 
+    // Sync external language selection with internal state
+    useEffect(() => {
+        if (propSelectedLanguage && propSelectedLanguage !== currentLanguage) {
+            setCurrentLanguage(propSelectedLanguage)
+            console.log('🌍 Updated language from parent:', propSelectedLanguage)
+        }
+    }, [propSelectedLanguage, currentLanguage])
+
     // Timer is now managed by parent component
 
     const startRecording = async () => {
@@ -219,11 +229,37 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
             // Set up audio level monitoring (visual feedback)
             setupAudioLevelMonitoring(stream)
 
-            // Setup Google Cloud STT via WebSocket (replaces browser WebSpeechAPI)
-            console.log('🔗 Connecting to Google Cloud STT WebSocket...')
-            await setupWebSocket()
-            
-            console.log('🎤 Google Cloud STT recording started')
+            // Setup browser WebSpeechAPI for transcription
+            console.log('🔗 Setting up browser Speech Recognition...')
+            const recognition = setupWebSpeechAPI()
+
+            if (recognition) {
+                speechRecognitionRef.current = recognition
+                // Start recognition with error handling - THIS FIXES THE STARTUP ISSUE
+                try {
+                    recognition.start()
+                    console.log('🎤 Browser Speech Recognition started successfully')
+                } catch (startError) {
+                    console.error('❌ Error starting recognition on first try:', startError)
+                    // Try again after a short delay
+                    setTimeout(() => {
+                        try {
+                            if (recognition && isRecording && !isPausedRef.current) {
+                                recognition.start()
+                                console.log('🎤 Browser Speech Recognition started on retry')
+                            }
+                        } catch (retryError) {
+                            console.error('❌ Error starting recognition on retry:', retryError)
+                            toast.error('Failed to start speech recognition. Please try again.')
+                        }
+                    }, 500)
+                }
+            }
+
+            // Keep RNNoise audio processing for quality, but don't send to WebSocket
+            // setupPcmStreaming(stream)  // Disabled - using browser STT instead of Google Cloud STT
+
+            console.log('🎤 Browser Speech Recognition started')
 
         } catch (error) {
             console.error('Error starting recording:', error)
@@ -355,6 +391,17 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
             console.error('Web Speech API not supported')
             toast.error('Speech recognition not supported in this browser')
             return null
+        }
+
+        // Clean up any existing recognition instance first - THIS FIXES THE STARTUP ISSUE
+        if (speechRecognitionRef.current) {
+            try {
+                speechRecognitionRef.current.stop()
+                speechRecognitionRef.current = null
+                console.log('🧹 Cleaned up previous recognition instance')
+            } catch (e) {
+                console.log('🧹 No previous recognition to clean up')
+            }
         }
 
         const recognition = new SpeechRecognition()
@@ -517,31 +564,8 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                         recognition.start()
                     }
                 }
-                if (processorRef.current) {
-                    processorRef.current.onaudioprocess = (event) => {
-                        try {
-                            if (isPausedRef.current || !websocketRef.current) return  // Use ref for immediate check
-
-                            const inputBuffer = event.inputBuffer
-                            const inputData = inputBuffer.getChannelData(0)
-                            console.log('🎵 Processing resume audio, length:', inputData.length)
-
-                            const pcmData = floatTo16BitPCM(inputData)
-                            console.log('✅ Resume PCM conversion successful, size:', pcmData.byteLength)
-
-                            // Send audio to backend
-                            websocketRef.current.send(pcmData)
-                            console.log('📤 Resume audio sent to backend')
-
-                            // Calculate audio levels for visual feedback
-                            const average = Math.sqrt(inputData.reduce((sum, sample) => sum + sample * sample, 0) / inputData.length)
-                            const max = Math.max(...Array.from(inputData).map(Math.abs))
-                            console.log(`Audio chunk: ${pcmData.byteLength} bytes, avg: ${average.toFixed(6)}, max: ${max.toFixed(6)}`)
-                        } catch (error) {
-                            console.error('❌ Resume audio processing error:', error)
-                        }
-                    }
-                }
+                // Note: Browser STT doesn't need manual audio processing
+                console.log('✅ Browser STT resumed - no additional audio processing needed')
             }
 
             // Reconnect the processor to resume sending audio data
@@ -557,9 +581,7 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                 }
             }
 
-            if (websocketRef.current) {
-                websocketRef.current.send(JSON.stringify({ type: 'resume_recording' }))
-            }
+            // Browser STT resumes automatically with recognition.start()
 
             onResume()
             toast('Recording resumed', {
@@ -855,8 +877,8 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                 if (streamRef.current && isRecording) {
                     console.log('🔄 Reinitializing audio processing...')
 
-                    // Re-setup audio processing chain
-                    setupPcmStreaming(streamRef.current)
+                    // Note: Using browser STT, no need to re-setup PCM streaming
+                    console.log('✅ Audio reset - browser STT will continue automatically')
 
                     // Re-initialize RNNoise if enabled
                     if (isNoiseReductionEnabled) {
