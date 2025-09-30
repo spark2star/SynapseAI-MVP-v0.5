@@ -73,6 +73,8 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
     const analyserRef = useRef<AnalyserNode | null>(null)
     const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const confidenceScoresRef = useRef<number[]>([])
+    const audioProcessorRef = useRef<ScriptProcessorNode | null>(null)
+    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null)
 
     // Constants
     const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'
@@ -288,43 +290,54 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
             // Setup audio level monitoring
             setupAudioLevelMonitoring(stream)
 
-            // Check browser support
-            const mimeType = 'audio/webm;codecs=opus'
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                throw new Error('Browser does not support audio/webm;codecs=opus')
-            }
-
-            // Create MediaRecorder
-            const mediaRecorder = new MediaRecorder(stream, {
-                mimeType,
-                audioBitsPerSecond: 128000
-            })
-
-            mediaRecorderRef.current = mediaRecorder
-
             // Connect WebSocket first
             await connectWebSocket()
 
-            // Handle audio data
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0 && websocketRef.current?.readyState === WebSocket.OPEN) {
-                    event.data.arrayBuffer().then((buffer) => {
-                        websocketRef.current?.send(buffer)
-                    }).catch((err) => {
-                        console.error('[VertexAI] Error sending audio:', err)
-                    })
+            // Create AudioContext for raw PCM capture (LINEAR16)
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+                sampleRate: 16000  // 16kHz for Speech API
+            })
+            audioContextRef.current = audioContext
+
+            // Create media stream source
+            const source = audioContext.createMediaStreamSource(stream)
+            sourceNodeRef.current = source
+
+            // Create ScriptProcessorNode for raw PCM capture
+            // Buffer size: 4096 samples at 16kHz = ~256ms chunks
+            const processor = audioContext.createScriptProcessor(4096, 1, 1)
+            audioProcessorRef.current = processor
+
+            // Process audio: Convert Float32 to Int16 (LINEAR16)
+            processor.onaudioprocess = (e) => {
+                if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                    return
+                }
+
+                const inputBuffer = e.inputBuffer
+                const inputData = inputBuffer.getChannelData(0)  // Mono channel
+
+                // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767]
+                const outputData = new Int16Array(inputData.length)
+                for (let i = 0; i < inputData.length; i++) {
+                    // Clamp to [-1.0, 1.0] and convert to Int16
+                    const sample = Math.max(-1, Math.min(1, inputData[i]))
+                    outputData[i] = sample < 0 ? sample * 32768 : sample * 32767
+                }
+
+                // Send raw PCM bytes (LINEAR16 format)
+                try {
+                    websocketRef.current.send(outputData.buffer)
+                } catch (err) {
+                    console.error('[VertexAI] Error sending audio:', err)
                 }
             }
 
-            mediaRecorder.onerror = (event) => {
-                console.error('[VertexAI] MediaRecorder error:', event)
-                toast.error('Microphone recording error')
-                stopRecording()
-            }
+            // Connect: source -> processor -> destination (silent)
+            source.connect(processor)
+            processor.connect(audioContext.destination)
 
-            // Start recording with chunked output
-            mediaRecorder.start(AUDIO_CHUNK_INTERVAL)
-            console.log('[VertexAI] MediaRecorder started')
+            console.log('[VertexAI] LINEAR16 PCM audio processor started @ 16kHz')
 
         } catch (err: any) {
             console.error('[VertexAI] Error starting recording:', err)
@@ -339,7 +352,19 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
     const stopRecording = () => {
         console.log('[VertexAI] Stopping recording and cleaning up...')
 
-        // Stop MediaRecorder
+        // Disconnect and stop audio processor nodes
+        if (audioProcessorRef.current) {
+            audioProcessorRef.current.disconnect()
+            audioProcessorRef.current.onaudioprocess = null
+            audioProcessorRef.current = null
+        }
+
+        if (sourceNodeRef.current) {
+            sourceNodeRef.current.disconnect()
+            sourceNodeRef.current = null
+        }
+
+        // Stop MediaRecorder (if any legacy usage)
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop()
             mediaRecorderRef.current = null
@@ -358,7 +383,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
         }
 
         // Close audio context
-        if (audioContextRef.current) {
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
             audioContextRef.current.close()
             audioContextRef.current = null
             analyserRef.current = null

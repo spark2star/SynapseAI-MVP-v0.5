@@ -1662,16 +1662,19 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         client = speech.SpeechClient(credentials=credentials)
         
         # Configure recognition (Speech V2 API)
-        # Note: Speech V2 API ExplicitDecodingConfig only supports LINEAR16, MULAW, ALAW
-        # For WebM/Opus audio from frontend, we MUST use AutoDetectDecodingConfig
-        # Reference: https://cloud.google.com/speech-to-text/v2/docs/reference/rpc/google.cloud.speech.v2
+        # Note: AutoDetectDecodingConfig doesn't work well with WebM/Opus
+        # Frontend will send LINEAR16 PCM audio (16kHz, mono)
         recognition_config = speech.RecognitionConfig(
-            auto_decoding_config=speech.AutoDetectDecodingConfig(),
+            explicit_decoding_config=speech.ExplicitDecodingConfig(
+                encoding=speech.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
+                sample_rate_hertz=16000,  # Standard for speech recognition
+                audio_channel_count=1  # Mono
+            ),
             language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
             model=settings.GOOGLE_STT_MODEL
             # Note: Default recognizer (_) doesn't support advanced features like punctuation
         )
-        print(f"📋 Recognition config: model={settings.GOOGLE_STT_MODEL}, languages={[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES})")
+        print(f"📋 Recognition config: LINEAR16 @ 16kHz, model={settings.GOOGLE_STT_MODEL}, languages={[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES})")
         
         streaming_config = speech.StreamingRecognitionConfig(
             config=recognition_config,
@@ -1686,6 +1689,7 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         
         audio_queue = queue.Queue()
         processing_complete = threading.Event()
+        loop = asyncio.get_event_loop()  # Get event loop before threading
         
         # Audio stream generator (synchronous)
         def audio_stream_generator():
@@ -1744,7 +1748,7 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                                 "language_code": result.language_code,
                                 "timestamp": datetime.now(timezone.utc).isoformat()
                             }),
-                            asyncio.get_event_loop()
+                            loop
                         )
                         
                         if result.is_final:
@@ -1776,7 +1780,7 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                         "error": user_message,
                         "detail": f"{error_type}: {error_msg[:200]}"  # Truncate long error messages
                     }),
-                    asyncio.get_event_loop()
+                    loop
                 )
             finally:
                 print(f"🧹 Speech processing thread cleanup for session {session_id}")
