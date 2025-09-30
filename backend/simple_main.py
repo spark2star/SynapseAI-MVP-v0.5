@@ -18,8 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Import REAL JWT manager from production backend
+# Import REAL JWT manager and WebSocket router from production backend
 from app.core.security import JWTManager
+from app.api.websocket.transcribe import router as transcribe_router
 
 # Load environment variables
 load_dotenv()
@@ -68,6 +69,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register Vertex AI WebSocket router for real-time STT
+app.include_router(transcribe_router, tags=["Vertex AI STT"])
 
 class LoginRequest(BaseModel):
     email: str
