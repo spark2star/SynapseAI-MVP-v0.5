@@ -58,7 +58,7 @@ export default function DashboardSidebar() {
         },
     ]
 
-    // Add settings for all users (MFA setup)
+    // Add settings for all users
     navigation.push({
         name: 'Settings',
         href: '/dashboard/settings',

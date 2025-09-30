@@ -6,13 +6,13 @@ import type { ApiResponse } from '@/types'
 
 class ApiService {
     private api: AxiosInstance
-    private baseURL: string
+    private _baseURL: string
 
     constructor() {
-        this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+        this._baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
 
         this.api = axios.create({
-            baseURL: this.baseURL,
+            baseURL: this._baseURL,
             timeout: 30000, // 30 seconds - increased timeout for slower responses
             headers: {
                 'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ class ApiService {
     }
 
     private async refreshAccessToken(refreshToken: string) {
-        const response = await axios.post(`${this.baseURL}/auth/refresh`, {
+        const response = await axios.post(`${this._baseURL}/auth/refresh`, {
             refresh_token: refreshToken
         })
 
@@ -158,6 +158,14 @@ class ApiService {
 
     public isAuthenticated(): boolean {
         return !!this.getAccessToken()
+    }
+
+    public getToken(): string | null {
+        return this.getAccessToken()
+    }
+
+    public get baseURL(): string {
+        return this._baseURL
     }
 
     // Generic API methods

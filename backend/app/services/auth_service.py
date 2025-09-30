@@ -4,7 +4,7 @@ Handles user authentication, registration, and session management.
 """
 
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta, timezone
 import secrets
@@ -13,6 +13,7 @@ import qrcode
 import io
 import base64
 
+from app.core.database import get_db
 from app.models.user import User, UserProfile, UserRole
 from app.schemas.user import UserCreate, UserLogin, PasswordChange, PasswordResetRequest, MFASetup, MFAVerification
 from app.schemas.auth import LoginResponse, SessionInfo

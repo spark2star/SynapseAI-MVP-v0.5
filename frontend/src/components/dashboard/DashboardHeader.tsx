@@ -101,7 +101,7 @@ export default function DashboardHeader() {
                             <Menu.Item>
                                 {({ active }) => (
                                     <button
-                                        onClick={() => handleComingSoon('Profile')}
+                                        onClick={() => router.push('/dashboard/profile')}
                                         className={clsx(
                                             'w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 flex items-center transition-colors duration-200',
                                             active ? 'bg-neutral-100 dark:bg-neutral-700' : ''
@@ -109,9 +109,6 @@ export default function DashboardHeader() {
                                     >
                                         <UserCircleIcon className="mr-3 h-4 w-4" />
                                         Profile
-                                        <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400">
-                                            Soon
-                                        </span>
                                     </button>
                                 )}
                             </Menu.Item>

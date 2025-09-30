@@ -8,15 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.security import HTTPBearer
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import time
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from app.core.config import settings
 from app.core.database import create_tables, db_health
 from app.api.api_v1.api import api_router
 from app.core.security import SecurityHeaders
 from app.core.audit import audit_logger
+from app.core.exceptions import register_exception_handlers
 
 
 # Configure logging
@@ -64,6 +67,9 @@ app = FastAPI(
     redoc_url=f"{settings.API_V1_PREFIX}/redoc" if settings.DEBUG else None,
     lifespan=lifespan
 )
+
+# Register exception handlers
+register_exception_handlers(app)
 
 # Security Middleware
 app.add_middleware(SecurityHeaders)
@@ -155,6 +161,11 @@ async def health_check():
 
 # Include API routes
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# Mount static files directory for logo uploads
+static_dir = Path("./static")
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # Root endpoint

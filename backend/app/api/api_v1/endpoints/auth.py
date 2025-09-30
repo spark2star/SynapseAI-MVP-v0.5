@@ -6,7 +6,6 @@ Handles user login, logout, registration, and token management.
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from typing import Annotated
 from typing import Dict, Any
 import time
 from datetime import datetime, timezone
@@ -31,9 +30,7 @@ router = APIRouter()
 async def login(
     login_data: LoginRequest,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    auth_service: Annotated[AuthenticationService, Depends(get_auth_service)],
-    _: Annotated[None, Depends(rate_limit_check)] = None
+    auth_service: AuthenticationService = Depends(get_auth_service)
 ):
     """
     User login endpoint.
@@ -94,7 +91,7 @@ async def login(
 @router.post("/logout", response_model=Dict[str, Any])
 async def logout(
     request: Request,
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    current_user_id: str = Depends(get_current_user_id),
     auth_service: AuthenticationService = Depends(get_auth_service)
 ):
     """
@@ -198,7 +195,6 @@ async def validate_token(
 async def register_user(
     user_data: UserCreate,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
     current_user_token: Dict[str, Any] = Depends(require_role("admin")),
     auth_service: AuthenticationService = Depends(get_auth_service)
 ):
@@ -251,7 +247,7 @@ async def register_user(
 async def change_password(
     password_data: PasswordChange,
     request: Request,
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    current_user_id: str = Depends(get_current_user_id),
     auth_service: AuthenticationService = Depends(get_auth_service)
 ):
     """
@@ -296,8 +292,7 @@ async def change_password(
 async def request_password_reset(
     reset_data: PasswordResetRequest,
     request: Request,
-    auth_service: Annotated[AuthenticationService, Depends(get_auth_service)],
-    _: Annotated[None, Depends(rate_limit_check)] = None
+    auth_service: AuthenticationService = Depends(get_auth_service)
 ):
     """
     Request password reset.

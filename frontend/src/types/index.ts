@@ -38,6 +38,38 @@ export interface UserProfile {
     updated_at: string
 }
 
+export interface PractitionerProfile {
+    id: string
+    email: string
+    first_name: string
+    last_name: string
+    full_name: string
+    clinic_name?: string | null
+    clinic_address?: string | null
+    phone?: string | null
+    license_number?: string | null
+    specialization?: string | null
+    logo_url?: string | null
+    avatar_url?: string | null
+    updated_at?: string | null
+}
+
+export interface PractitionerProfileUpdate {
+    first_name?: string
+    last_name?: string
+    clinic_name?: string
+    clinic_address?: string
+    phone?: string
+    license_number?: string
+    specialization?: string
+}
+
+export interface PractitionerProfileUpdateResponse {
+    success: boolean
+    message: string
+    data: PractitionerProfile
+}
+
 export interface Patient {
     id: string
     patient_id: string

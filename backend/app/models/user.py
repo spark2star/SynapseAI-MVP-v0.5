@@ -119,6 +119,10 @@ class UserProfile(BaseModel):
     specialization = Column(EncryptedType(100), nullable=True)
     organization = Column(EncryptedType(200), nullable=True)
     
+    # Clinic/Practice information (for practitioner profiles)
+    clinic_name = Column(EncryptedType(255), nullable=True)
+    clinic_address = Column(Text, nullable=True)  # Can be long, stored as text
+    
     # Address (encrypted)
     address_line1 = Column(EncryptedType(255), nullable=True)
     address_line2 = Column(EncryptedType(255), nullable=True)
@@ -134,6 +138,7 @@ class UserProfile(BaseModel):
     
     # Profile metadata
     avatar_url = Column(String(500), nullable=True)
+    logo_url = Column(String(500), nullable=True)  # Professional logo for reports
     bio = Column(Text, nullable=True)
     
     # Relationships
