@@ -71,8 +71,8 @@ class UserSymptomCreate(BaseModel):
 async def create_intake_patient(
     patient_data: IntakePatientCreate,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db)
+    current_user_id: str = Depends(get_current_user_id)
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"]))
 ):
     """
@@ -127,8 +127,8 @@ async def create_intake_patient(
 async def search_symptoms(
     q: str = Query(..., min_length=2, description="Search query for symptoms"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return"),
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db)
+    current_user_id: str = Depends(get_current_user_id)
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"]))
 ):
     """
@@ -198,8 +198,8 @@ async def search_symptoms(
 async def create_user_symptom(
     symptom_data: UserSymptomCreate,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db)
+    current_user_id: str = Depends(get_current_user_id)
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor"]))
 ):
     """
@@ -261,8 +261,8 @@ async def add_patient_symptoms(
     patient_id: str,
     symptoms_data: List[PatientSymptomCreate],
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db)
+    current_user_id: str = Depends(get_current_user_id)
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"]))
 ):
     """
@@ -352,8 +352,8 @@ async def add_patient_symptoms(
 @router.get("/patients/{patient_id}", response_model=Dict[str, Any])
 async def get_intake_patient(
     patient_id: str,
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db)
+    current_user_id: str = Depends(get_current_user_id)
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"]))
 ):
     """
@@ -402,8 +402,8 @@ async def get_intake_patient(
 async def list_intake_patients(
     limit: int = Query(50, ge=1, le=100, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Results to skip"),
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db)
+    current_user_id: str = Depends(get_current_user_id)
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"]))
 ):
     """

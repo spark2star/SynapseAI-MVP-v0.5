@@ -26,8 +26,8 @@ router = APIRouter()
 
 @router.get("/profile", response_model=Dict[str, Any])
 async def get_user_profile(
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
-    db: Annotated[Session, Depends(get_db)]
+    current_user_id: str = Depends(get_current_user_id)
+    db: Session = Depends(get_db)
 ):
     """
     Get current user's profile information.
@@ -99,8 +99,8 @@ async def get_user_profile(
 async def update_user_profile(
     profile_data: UserUpdate,
     request: Request,
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
-    db: Annotated[Session, Depends(get_db)]
+    current_user_id: str = Depends(get_current_user_id)
+    db: Session = Depends(get_db)
 ):
     """
     Update current user's profile information.
@@ -186,7 +186,7 @@ async def list_users(
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     role: Optional[str] = Query(None, description="Filter by user role"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db)
     current_user_token: Dict[str, Any] = Depends(require_any_role(["admin", "doctor"]))
 ):
     """
@@ -279,7 +279,7 @@ async def list_users(
 async def get_user_by_id(
     user_id: str,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db)
     current_user_token: Dict[str, Any] = Depends(require_any_role(["admin", "doctor"]))
 ):
     """
