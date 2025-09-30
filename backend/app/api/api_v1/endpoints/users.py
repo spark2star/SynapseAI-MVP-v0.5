@@ -99,7 +99,7 @@ async def get_user_profile(
 async def update_user_profile(
     profile_data: UserUpdate,
     request: Request,
-    current_user_id: str = Depends(get_current_user_id)
+    current_user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
