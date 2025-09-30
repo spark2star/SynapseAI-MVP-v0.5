@@ -5,10 +5,11 @@ Handles patient CRUD operations with encryption and search functionality.
 
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, timezone
 
+from app.core.database import get_db
 from app.models.patient import Patient, Gender, BloodGroup
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientSearch
 from app.core.audit import audit_logger, AuditEventType, log_patient_access
@@ -452,6 +453,6 @@ class PatientService:
         }
 
 
-def get_patient_service(db: Session) -> PatientService:
+def get_patient_service(db: Session = Depends(get_db)) -> PatientService:
     """Dependency to get patient service."""
     return PatientService(db)
