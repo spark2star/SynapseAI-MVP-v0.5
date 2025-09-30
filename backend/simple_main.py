@@ -1661,17 +1661,16 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         client = speech.SpeechClient(credentials=credentials)
         
         # Configure recognition (Speech V2 API)
+        # Note: Default recognizer (_) doesn't support advanced features like punctuation
+        # These features are only available with specific recognizer models
         recognition_config = speech.RecognitionConfig(
             auto_decoding_config=speech.AutoDetectDecodingConfig(),
             language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
-            model=settings.GOOGLE_STT_MODEL,
-            features=speech.RecognitionFeatures(
-                enable_automatic_punctuation=settings.GOOGLE_STT_ENABLE_PUNCTUATION,
-                enable_word_time_offsets=settings.GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS,
-                enable_word_confidence=settings.GOOGLE_STT_ENABLE_WORD_CONFIDENCE
-                # Note: Diarization is disabled in config.py (GOOGLE_STT_ENABLE_DIARIZATION = False)
-                # Speech V2 API doesn't require diarization_config if disabled
-            )
+            model=settings.GOOGLE_STT_MODEL
+            # Removed features that aren't supported by default recognizer:
+            # - enable_automatic_punctuation
+            # - enable_word_time_offsets  
+            # - enable_word_confidence
         )
         
         streaming_config = speech.StreamingRecognitionConfig(
