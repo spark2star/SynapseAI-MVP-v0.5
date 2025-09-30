@@ -1691,8 +1691,9 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         # Audio stream generator (synchronous)
         def audio_stream_generator():
             # Send config first
+            # Note: Speech V2 API requires 'global' location for streaming recognition
             yield speech.StreamingRecognizeRequest(
-                recognizer=f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/{settings.VERTEX_AI_LOCATION}/recognizers/_",
+                recognizer=f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/global/recognizers/_",
                 streaming_config=streaming_config
             )
             
