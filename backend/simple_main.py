@@ -1661,16 +1661,19 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         client = speech.SpeechClient(credentials=credentials)
         
         # Configure recognition (Speech V2 API)
-        # Note: Default recognizer (_) doesn't support advanced features like punctuation
-        # These features are only available with specific recognizer models
+        # Note: Frontend sends audio in WebM Opus format
+        # We need to explicitly specify the encoding (auto-detect fails)
+        explicit_decoding_config = speech.ExplicitDecodingConfig(
+            encoding=speech.ExplicitDecodingConfig.AudioEncoding.WEBM_OPUS,
+            sample_rate_hertz=48000,  # Opus default sample rate
+            audio_channel_count=1  # Mono
+        )
+        
         recognition_config = speech.RecognitionConfig(
-            auto_decoding_config=speech.AutoDetectDecodingConfig(),
+            explicit_decoding_config=explicit_decoding_config,
             language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
             model=settings.GOOGLE_STT_MODEL
-            # Removed features that aren't supported by default recognizer:
-            # - enable_automatic_punctuation
-            # - enable_word_time_offsets  
-            # - enable_word_confidence
+            # Note: Default recognizer (_) doesn't support advanced features like punctuation
         )
         
         streaming_config = speech.StreamingRecognitionConfig(
