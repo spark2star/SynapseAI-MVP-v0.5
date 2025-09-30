@@ -18,9 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Import REAL JWT manager and WebSocket router from production backend
+# Import REAL JWT manager from production backend
 from app.core.security import JWTManager
-from app.api.websocket.transcribe import router as transcribe_router
 
 # Load environment variables
 load_dotenv()
@@ -69,9 +68,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Register Vertex AI WebSocket router for real-time STT
-app.include_router(transcribe_router, tags=["Vertex AI STT"])
 
 class LoginRequest(BaseModel):
     email: str
@@ -1599,4 +1595,150 @@ async def websocket_consultation_endpoint(websocket: WebSocket, session_id: str)
                 streaming_thread.join(timeout=1.5)
         except Exception:
             pass
-        print(f"WebSocket connection closed for session: {session_id}")
+        print(f"WebSocket connection closed for session: {session_id}")# This code goes into simple_main.py
+# Add this endpoint after the existing /ws/consultation endpoint
+
+@app.websocket("/ws/transcribe")
+async def vertex_ai_transcribe_websocket(websocket: WebSocket):
+    """
+    Lightweight Vertex AI STT WebSocket endpoint for testing.
+    Validates JWT token and streams audio to Vertex AI.
+    """
+    await websocket.accept()
+    
+    # Extract token from query parameters
+    token = None
+    session_id = None
+    try:
+        query_params = dict(websocket.query_params)
+        token = query_params.get('token')
+        session_id = query_params.get('session_id', 'test-session')
+        
+        if not token:
+            await websocket.send_json({"error": "No token provided"})
+            await websocket.close(code=1008)
+            return
+        
+        # Validate JWT token
+        try:
+            payload = jwt_manager.verify_token(token, token_type="access")
+            user_id = payload.get("sub")
+            user_email = payload.get("email")
+            print(f"✅ WebSocket authenticated: {user_email} ({user_id})")
+        except Exception as e:
+            print(f"❌ JWT validation failed: {e}")
+            await websocket.send_json({"error": "Invalid or expired token"})
+            await websocket.close(code=1008)
+            return
+        
+        # Send connection confirmation
+        await websocket.send_json({
+            "status": "connected",
+            "message": "Vertex AI STT ready",
+            "session_id": session_id
+        })
+        
+        # Initialize Vertex AI Speech client
+        from google.cloud import speech_v2 as speech
+        from google.oauth2 import service_account
+        from app.core.config import get_settings
+        
+        settings = get_settings()
+        
+        # Create credentials
+        credentials = service_account.Credentials.from_service_account_file(
+            settings.GOOGLE_APPLICATION_CREDENTIALS,
+            scopes=['https://www.googleapis.com/auth/cloud-platform']
+        )
+        
+        client = speech.SpeechClient(credentials=credentials)
+        
+        # Configure recognition
+        recognition_config = speech.RecognitionConfig(
+            auto_decoding_config=speech.AutoDetectDecodingConfig(),
+            language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
+            model=settings.GOOGLE_STT_MODEL,
+            features=speech.RecognitionFeatures(
+                enable_automatic_punctuation=settings.GOOGLE_STT_ENABLE_PUNCTUATION,
+                enable_word_time_offsets=settings.GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS,
+                enable_word_confidence=settings.GOOGLE_STT_ENABLE_WORD_CONFIDENCE,
+                diarization_config=speech.SpeakerDiarizationConfig(
+                    enable_speaker_diarization=settings.GOOGLE_STT_ENABLE_DIARIZATION,
+                    min_speaker_count=1,
+                    max_speaker_count=settings.GOOGLE_STT_DIARIZATION_SPEAKER_COUNT
+                )
+            )
+        )
+        
+        streaming_config = speech.StreamingRecognitionConfig(
+            config=recognition_config,
+            streaming_features=speech.StreamingRecognitionFeatures(
+                interim_results=settings.GOOGLE_STT_INTERIM_RESULTS
+            )
+        )
+        
+        # Audio stream generator
+        async def audio_stream_generator():
+            # Send config first
+            yield speech.StreamingRecognizeRequest(
+                recognizer=f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/{settings.VERTEX_AI_LOCATION}/recognizers/_",
+                streaming_config=streaming_config
+            )
+            
+            # Then stream audio
+            try:
+                while True:
+                    audio_chunk = await asyncio.wait_for(
+                        websocket.receive_bytes(),
+                        timeout=300.0  # 5 minutes
+                    )
+                    if not audio_chunk or len(audio_chunk) == 0:
+                        break
+                    yield speech.StreamingRecognizeRequest(audio=audio_chunk)
+            except asyncio.TimeoutError:
+                print(f"Audio stream timeout for session {session_id}")
+            except WebSocketDisconnect:
+                print(f"WebSocket disconnected for session {session_id}")
+        
+        # Process responses
+        responses = client.streaming_recognize(requests=audio_stream_generator())
+        
+        for response in responses:
+            for result in response.results:
+                if not result.alternatives:
+                    continue
+                
+                alternative = result.alternatives[0]
+                transcript = alternative.transcript
+                confidence = alternative.confidence if result.is_final else 0.0
+                
+                # Send result to client
+                await websocket.send_json({
+                    "transcript": transcript,
+                    "is_final": result.is_final,
+                    "confidence": confidence,
+                    "language_code": result.language_code,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+                
+                if result.is_final:
+                    print(f"📝 Final transcript: {transcript} (confidence: {confidence:.2f})")
+        
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for session {session_id}")
+    except Exception as e:
+        print(f"WebSocket error: {str(e)}")
+        try:
+            await websocket.send_json({
+                "error": str(e),
+                "detail": "Transcription error occurred"
+            })
+        except:
+            pass
+    finally:
+        try:
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.close()
+        except:
+            pass
+        print(f"WebSocket closed for session {session_id}")
