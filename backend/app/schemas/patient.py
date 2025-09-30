@@ -142,7 +142,7 @@ class PatientUpdate(BaseModel):
 class PatientSearch(BaseModel):
     """Schema for patient search parameters."""
     query: Optional[str] = Field(None, min_length=2, description="Search query")
-    search_type: str = Field("name", regex="^(name|phone|email)$", description="Type of search")
+    search_type: str = Field("name", pattern="^(name|phone|email)$", description="Type of search")
     limit: int = Field(20, ge=1, le=100, description="Maximum number of results")
     offset: int = Field(0, ge=0, description="Number of results to skip")
     
