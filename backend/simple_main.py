@@ -1625,8 +1625,15 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
             user_id = payload.get("sub")
             user_email = payload.get("email")
             print(f"✅ WebSocket authenticated: {user_email} ({user_id})")
+        except HTTPException as e:
+            error_msg = getattr(e, 'detail', str(e))
+            print(f"❌ JWT validation failed (HTTPException): {error_msg}")
+            await websocket.send_json({"error": error_msg})
+            await websocket.close(code=1008)
+            return
         except Exception as e:
-            print(f"❌ JWT validation failed: {e}")
+            error_msg = str(e) if str(e) else type(e).__name__
+            print(f"❌ JWT validation failed (Exception): {error_msg}")
             await websocket.send_json({"error": "Invalid or expired token"})
             await websocket.close(code=1008)
             return
