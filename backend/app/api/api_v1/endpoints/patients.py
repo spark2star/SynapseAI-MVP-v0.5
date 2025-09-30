@@ -28,10 +28,10 @@ router = APIRouter()
 async def create_patient(
     patient_data: PatientCreate,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
-    patient_service: Annotated[PatientService, Depends(get_patient_service)],
+    patient_service: PatientService = Depends(get_patient_service),
     __: None = Depends(rate_limit_check)
 ):
     """
@@ -81,10 +81,10 @@ async def create_patient(
 async def get_patient(
     patient_id: str,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
-    patient_service: Annotated[PatientService, Depends(get_patient_service)]
+    patient_service: PatientService = Depends(get_patient_service)
 ):
     """
     Get patient information by ID.
@@ -156,10 +156,10 @@ async def update_patient(
     patient_id: str,
     patient_data: PatientUpdate,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
-    patient_service: Annotated[PatientService, Depends(get_patient_service)]
+    patient_service: PatientService = Depends(get_patient_service)
 ):
     """
     Update patient information.
@@ -211,10 +211,10 @@ async def search_patients(
     search_type: str = Query("name", regex="^(name|phone|email)$", description="Type of search"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
-    patient_service: Annotated[PatientService, Depends(get_patient_service)]
+    patient_service: PatientService = Depends(get_patient_service)
 ):
     """
     Search patients by name, phone, or email.
@@ -290,10 +290,10 @@ async def list_patients(
     limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     created_by: Optional[str] = Query(None, description="Filter by creator user ID"),
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"])),
-    patient_service: Annotated[PatientService, Depends(get_patient_service)]
+    patient_service: PatientService = Depends(get_patient_service)
 ):
     """
     List patients with pagination.
@@ -360,10 +360,10 @@ async def get_patient_history(
     patient_id: str,
     request: Request,
     limit: int = Query(20, ge=1, le=50, description="Maximum number of sessions"),
-    db: Annotated[Session, Depends(get_db)],
-    current_user_id: Annotated[str, Depends(get_current_user_id)],
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
     _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor"])),
-    patient_service: Annotated[PatientService, Depends(get_patient_service)]
+    patient_service: PatientService = Depends(get_patient_service)
 ):
     """
     Get patient consultation history.
@@ -416,9 +416,9 @@ async def delete_patient(
     patient_id: str,
     request: Request,
     reason: Optional[str] = Query(None, description="Reason for deletion"),
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
     current_user_token: Dict[str, Any] = Depends(require_role("admin")),
-    patient_service: Annotated[PatientService, Depends(get_patient_service)]
+    patient_service: PatientService = Depends(get_patient_service)
 ):
     """
     Delete patient record (admin only).
