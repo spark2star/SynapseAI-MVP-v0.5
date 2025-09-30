@@ -24,7 +24,7 @@ import { toast } from 'react-hot-toast'
 
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import AudioRecorder from '@/components/consultation/AudioRecorder'
+import VertexAIAudioRecorder from '@/components/consultation/VertexAIAudioRecorder'
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
@@ -84,7 +84,7 @@ export default function PatientDetailPage() {
     const [isGeneratingReport, setIsGeneratingReport] = useState(false)
     const [generatedReport, setGeneratedReport] = useState<any>(null)
     const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('')
-    const [selectedLanguage, setSelectedLanguage] = useState<string>('en-IN')
+    // Removed selectedLanguage - Vertex AI auto-detects language
     const audioRecorderRef = useRef<{ stopRecording: () => void }>(null)
 
     useEffect(() => {
@@ -486,14 +486,13 @@ export default function PatientDetailPage() {
                         </div>
 
 
-                        {/* Recording Controls - Compact Display */}
-                        <AudioRecorder
+                        {/* Recording Controls - Vertex AI Powered */}
+                        <VertexAIAudioRecorder
                             ref={audioRecorderRef}
                             sessionId={currentSession}
                             isRecording={isRecording}
                             duration={recordingDuration}
                             selectedAudioDevice={selectedAudioDevice}
-                            selectedLanguage={selectedLanguage}
                             onStart={startConsultation}
                             onStop={stopConsultation}
                             onPause={() => setIsPaused(true)}
@@ -576,46 +575,17 @@ export default function PatientDetailPage() {
                                         </select>
                                     </div>
 
-                                    {/* Primary Language Selection */}
-                                    <div className="p-4 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-700 rounded-lg">
-                                        <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
+                                    {/* Vertex AI Auto-Language Detection Info */}
+                                    <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-300 dark:border-green-700 rounded-lg">
+                                        <h4 className="text-sm font-medium text-green-900 dark:text-green-100 mb-2 flex items-center gap-2">
                                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                             </svg>
-                                            Primary Language for Speech Recognition
+                                            Vertex AI Auto-Detection
                                         </h4>
-                                        <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                                            Select the primary language for speech recognition. The system will also detect code-mixed Hindi/Marathi automatically.
+                                        <p className="text-xs text-green-700 dark:text-green-300">
+                                            ✨ Automatically detects and switches between Hindi (हिंदी), Marathi (मराठी), and English (India). Just speak naturally!
                                         </p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                            {[
-                                                { code: 'hi-IN', name: 'Hindi (हिंदी)', flag: '🇮🇳' },
-                                                { code: 'mr-IN', name: 'Marathi (मराठी)', flag: '🇮🇳' },
-                                                { code: 'en-IN', name: 'English (India)', flag: '🇮🇳' }
-                                            ].map((lang) => (
-                                                <button
-                                                    key={lang.code}
-                                                    onClick={() => setSelectedLanguage(lang.code)}
-                                                    className={`p-3 rounded-lg border text-sm font-medium transition-all ${selectedLanguage === lang.code
-                                                            ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-500 text-blue-900 dark:text-blue-100'
-                                                            : 'bg-white dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-slate-600'
-                                                        }`}
-                                                >
-                                                    <div className="flex items-center gap-2 justify-center">
-                                                        <span className="text-lg">{lang.flag}</span>
-                                                        <span>{lang.name}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                        {selectedLanguage && (
-                                            <p className="text-xs text-green-700 dark:text-green-300 mt-2 flex items-center gap-1">
-                                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                                Selected: {selectedLanguage === 'hi-IN' ? 'Hindi (हिंदी)' : selectedLanguage === 'mr-IN' ? 'Marathi (मराठी)' : 'English (India)'}
-                                            </p>
-                                        )}
                                     </div>
 
                                     {/* Audio Input Device Selection - Show before recording */}

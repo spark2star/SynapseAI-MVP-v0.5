@@ -185,9 +185,10 @@ async def transcribe_websocket(
                 while True:
                     try:
                         # Receive audio chunk from client with timeout
+                        # Increased to 300 seconds (5 minutes) for long consultations
                         audio_chunk = await asyncio.wait_for(
                             websocket.receive_bytes(),
-                            timeout=30.0  # 30 second timeout for inactive streams
+                            timeout=300.0  # 5 minute timeout for inactive streams
                         )
                         
                         if not audio_chunk or len(audio_chunk) == 0:

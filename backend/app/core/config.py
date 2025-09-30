@@ -53,8 +53,8 @@ class Settings(BaseSettings):
     GOOGLE_STT_ENABLE_WORD_CONFIDENCE: bool = True
     GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS: bool = True
     GOOGLE_STT_ENABLE_PUNCTUATION: bool = True
-    GOOGLE_STT_ENABLE_DIARIZATION: bool = True
-    GOOGLE_STT_DIARIZATION_SPEAKER_COUNT: int = 2  # Doctor + Patient
+    GOOGLE_STT_ENABLE_DIARIZATION: bool = False  # Disabled - only doctor's voice matters
+    GOOGLE_STT_DIARIZATION_SPEAKER_COUNT: int = 1  # Single speaker (doctor)
     GOOGLE_STT_INTERIM_RESULTS: bool = True
     GOOGLE_STT_PROFANITY_FILTER: bool = False  # Medical terms may be flagged
     
