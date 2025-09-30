@@ -1719,72 +1719,97 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                     continue
         
         # Process responses in a separate thread
+        # NOTE: Keep processing until explicitly stopped (processing_complete is set)
         def process_speech_responses():
             response_count = 0
-            try:
-                print(f"🚀 Starting Speech API streaming_recognize for session {session_id}")
-                responses = client.streaming_recognize(requests=audio_stream_generator())
-                print(f"✅ Speech API stream established, waiting for responses...")
-                
-                for response in responses:
-                    response_count += 1
-                    if response_count % 10 == 0:
-                        print(f"📥 Received {response_count} responses from Vertex AI")
+            stream_count = 0
+            
+            while not processing_complete.is_set():
+                stream_count += 1
+                try:
+                    print(f"🚀 Starting Speech API stream #{stream_count} for session {session_id}")
+                    responses = client.streaming_recognize(requests=audio_stream_generator())
+                    print(f"✅ Speech API stream established, waiting for responses...")
                     
-                    for result in response.results:
-                        if not result.alternatives:
-                            continue
+                    for response in responses:
+                        if processing_complete.is_set():
+                            print(f"⏹️  Stop signal received, ending Speech API stream")
+                            break
+                            
+                        response_count += 1
+                        if response_count % 10 == 0:
+                            print(f"📥 Received {response_count} responses from Vertex AI")
                         
-                        alternative = result.alternatives[0]
-                        transcript = alternative.transcript
-                        confidence = alternative.confidence if result.is_final else 0.0
+                        for result in response.results:
+                            if not result.alternatives:
+                                continue
+                            
+                            alternative = result.alternatives[0]
+                            transcript = alternative.transcript
+                            confidence = alternative.confidence if result.is_final else 0.0
+                            
+                            # Send result to client (schedule in event loop)
+                            asyncio.run_coroutine_threadsafe(
+                                websocket.send_json({
+                                    "transcript": transcript,
+                                    "is_final": result.is_final,
+                                    "confidence": confidence,
+                                    "language_code": result.language_code,
+                                    "timestamp": datetime.now(timezone.utc).isoformat()
+                                }),
+                                loop
+                            )
+                            
+                            if result.is_final:
+                                print(f"✅ FINAL transcript: {transcript[:100]}..." if len(transcript) > 100 else f"✅ FINAL transcript: {transcript}")
+                                print(f"   Confidence: {confidence:.2f}, Language: {result.language_code}")
+                    
+                    # Stream ended naturally (silence detected) - restart if not stopped
+                    if not processing_complete.is_set():
+                        print(f"🔄 Speech API stream ended, restarting for continuous transcription...")
+                        continue  # Restart the loop
+                    else:
+                        print(f"🏁 Speech API stream ended - session stopped")
+                        break
                         
-                        # Send result to client (schedule in event loop)
-                        asyncio.run_coroutine_threadsafe(
-                            websocket.send_json({
-                                "transcript": transcript,
-                                "is_final": result.is_final,
-                                "confidence": confidence,
-                                "language_code": result.language_code,
-                                "timestamp": datetime.now(timezone.utc).isoformat()
-                            }),
-                            loop
-                        )
+                except Exception as e:
+                    if processing_complete.is_set():
+                        print(f"ℹ️  Exception during shutdown (expected): {type(e).__name__}")
+                        break
                         
-                        if result.is_final:
-                            print(f"✅ FINAL transcript: {transcript[:100]}..." if len(transcript) > 100 else f"✅ FINAL transcript: {transcript}")
-                            print(f"   Confidence: {confidence:.2f}, Language: {result.language_code}")
-                
-                print(f"🏁 Speech API stream ended normally for session {session_id}")
-            except Exception as e:
-                error_type = type(e).__name__
-                error_msg = str(e)
-                print(f"❌ Speech processing error ({error_type}): {error_msg}")
-                import traceback
-                print("Full traceback:")
-                traceback.print_exc()
-                
-                # Send user-friendly error to client
-                user_message = "Transcription service error. Please try again."
-                if "credentials" in error_msg.lower():
-                    user_message = "Authentication error with speech service. Please contact support."
-                elif "quota" in error_msg.lower():
-                    user_message = "Speech service quota exceeded. Please try again later."
-                elif "network" in error_msg.lower() or "connection" in error_msg.lower():
-                    user_message = "Network error connecting to speech service. Please check your connection."
-                elif "encoding" in error_msg.lower() or "format" in error_msg.lower():
-                    user_message = "Audio format error. Please try refreshing the page."
-                
-                asyncio.run_coroutine_threadsafe(
-                    websocket.send_json({
-                        "error": user_message,
-                        "detail": f"{error_type}: {error_msg[:200]}"  # Truncate long error messages
-                    }),
-                    loop
-                )
-            finally:
-                print(f"🧹 Speech processing thread cleanup for session {session_id}")
-                processing_complete.set()
+                    error_type = type(e).__name__
+                    error_msg = str(e)
+                    print(f"❌ Speech processing error ({error_type}): {error_msg}")
+                    import traceback
+                    print("Full traceback:")
+                    traceback.print_exc()
+                    
+                    # Send user-friendly error to client
+                    user_message = "Transcription service error. Please try again."
+                    if "credentials" in error_msg.lower():
+                        user_message = "Authentication error with speech service. Please contact support."
+                    elif "quota" in error_msg.lower():
+                        user_message = "Speech service quota exceeded. Please try again later."
+                    elif "network" in error_msg.lower() or "connection" in error_msg.lower():
+                        user_message = "Network error connecting to speech service. Please check your connection."
+                    elif "encoding" in error_msg.lower() or "format" in error_msg.lower():
+                        user_message = "Audio format error. Please try refreshing the page."
+                    
+                    asyncio.run_coroutine_threadsafe(
+                        websocket.send_json({
+                            "error": user_message,
+                            "detail": f"{error_type}: {error_msg[:200]}"  # Truncate long error messages
+                        }),
+                        loop
+                    )
+                    
+                    # Wait a bit before retrying on error
+                    if not processing_complete.is_set():
+                        print(f"⏸️  Waiting 2 seconds before retry...")
+                        processing_complete.wait(timeout=2.0)
+            
+            print(f"🧹 Speech processing thread cleanup for session {session_id} ({stream_count} streams processed)")
+            processing_complete.set()  # Ensure it's set
         
         # Start processing thread
         processing_thread = threading.Thread(
