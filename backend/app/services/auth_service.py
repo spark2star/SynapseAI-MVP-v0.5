@@ -555,6 +555,6 @@ class AuthenticationService:
         )
 
 
-def get_auth_service(db: Session) -> AuthenticationService:
+def get_auth_service(db: Session = Depends(get_db)) -> AuthenticationService:
     """Dependency to get authentication service."""
     return AuthenticationService(db)
