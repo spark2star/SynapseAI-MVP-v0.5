@@ -186,7 +186,7 @@ async def list_users(
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     role: Optional[str] = Query(None, description="Filter by user role"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
     current_user_token: Dict[str, Any] = Depends(require_any_role(["admin", "doctor"]))
 ):
     """
@@ -279,7 +279,7 @@ async def list_users(
 async def get_user_by_id(
     user_id: str,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
     current_user_token: Dict[str, Any] = Depends(require_any_role(["admin", "doctor"]))
 ):
     """
