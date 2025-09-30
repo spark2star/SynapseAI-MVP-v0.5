@@ -81,7 +81,7 @@ def get_contact_submissions(
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db)
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get contact form submissions (admin endpoint)
     """
@@ -125,7 +125,7 @@ def get_contact_submissions(
 def get_contact_submission(
     submission_id: str,
     db: Session = Depends(get_db)
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get a specific contact form submission (admin endpoint)
     """
