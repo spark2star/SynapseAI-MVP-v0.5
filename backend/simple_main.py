@@ -1681,52 +1681,90 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
             )
         )
         
-        # Audio stream generator
-        async def audio_stream_generator():
+        # Use a queue to bridge async WebSocket and sync Speech API
+        import queue
+        import threading
+        
+        audio_queue = queue.Queue()
+        processing_complete = threading.Event()
+        
+        # Audio stream generator (synchronous)
+        def audio_stream_generator():
             # Send config first
             yield speech.StreamingRecognizeRequest(
                 recognizer=f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/{settings.VERTEX_AI_LOCATION}/recognizers/_",
                 streaming_config=streaming_config
             )
             
-            # Then stream audio
-            try:
-                while True:
-                    audio_chunk = await asyncio.wait_for(
-                        websocket.receive_bytes(),
-                        timeout=300.0  # 5 minutes
-                    )
-                    if not audio_chunk or len(audio_chunk) == 0:
+            # Then stream audio from queue
+            while not processing_complete.is_set():
+                try:
+                    audio_chunk = audio_queue.get(timeout=1.0)
+                    if audio_chunk is None:  # Sentinel value to stop
                         break
-                    yield speech.StreamingRecognizeRequest(audio=audio_chunk)
-            except asyncio.TimeoutError:
-                print(f"Audio stream timeout for session {session_id}")
-            except WebSocketDisconnect:
-                print(f"WebSocket disconnected for session {session_id}")
-        
-        # Process responses
-        responses = client.streaming_recognize(requests=audio_stream_generator())
-        
-        for response in responses:
-            for result in response.results:
-                if not result.alternatives:
+                    if len(audio_chunk) > 0:
+                        yield speech.StreamingRecognizeRequest(audio=audio_chunk)
+                except queue.Empty:
                     continue
+        
+        # Process responses in a separate thread
+        def process_speech_responses():
+            try:
+                responses = client.streaming_recognize(requests=audio_stream_generator())
                 
-                alternative = result.alternatives[0]
-                transcript = alternative.transcript
-                confidence = alternative.confidence if result.is_final else 0.0
-                
-                # Send result to client
-                await websocket.send_json({
-                    "transcript": transcript,
-                    "is_final": result.is_final,
-                    "confidence": confidence,
-                    "language_code": result.language_code,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-                
-                if result.is_final:
-                    print(f"📝 Final transcript: {transcript} (confidence: {confidence:.2f})")
+                for response in responses:
+                    for result in response.results:
+                        if not result.alternatives:
+                            continue
+                        
+                        alternative = result.alternatives[0]
+                        transcript = alternative.transcript
+                        confidence = alternative.confidence if result.is_final else 0.0
+                        
+                        # Send result to client (schedule in event loop)
+                        asyncio.run_coroutine_threadsafe(
+                            websocket.send_json({
+                                "transcript": transcript,
+                                "is_final": result.is_final,
+                                "confidence": confidence,
+                                "language_code": result.language_code,
+                                "timestamp": datetime.now(timezone.utc).isoformat()
+                            }),
+                            asyncio.get_event_loop()
+                        )
+                        
+                        if result.is_final:
+                            print(f"📝 Final transcript: {transcript} (confidence: {confidence:.2f})")
+            except Exception as e:
+                print(f"Speech processing error: {str(e)}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                processing_complete.set()
+        
+        # Start processing thread
+        processing_thread = threading.Thread(target=process_speech_responses)
+        processing_thread.start()
+        
+        # Receive audio from WebSocket and put in queue
+        try:
+            while not processing_complete.is_set():
+                audio_chunk = await asyncio.wait_for(
+                    websocket.receive_bytes(),
+                    timeout=1.0
+                )
+                if not audio_chunk or len(audio_chunk) == 0:
+                    break
+                audio_queue.put(audio_chunk)
+        except asyncio.TimeoutError:
+            pass  # Normal timeout, check if processing is complete
+        except WebSocketDisconnect:
+            print(f"WebSocket disconnected for session {session_id}")
+        finally:
+            # Signal end of audio stream
+            audio_queue.put(None)
+            processing_complete.set()
+            processing_thread.join(timeout=5.0)
         
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for session {session_id}")
