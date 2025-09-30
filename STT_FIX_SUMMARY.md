@@ -113,36 +113,26 @@ Backend:
 
 ## 🔜 **NEXT: FIX PRODUCTION BACKEND**
 
-**For Claude Opus 4.1:**
+The production backend (`backend/app/main.py`) has some import and dependency errors that need to be resolved to switch from `simple_main.py` to the full production backend.
 
-I've created a comprehensive guide for you to hand off to Opus 4.1:
+**Known Issues:**
+- Import errors (circular imports, missing imports)
+- Pydantic V1 → V2 migration incomplete (some `regex` → `pattern` changes needed)
+- FastAPI `Annotated` type hint issues in some endpoints
 
-📄 **File**: `OPUS_FIX_PRODUCTION_BACKEND.md`
+**Reference:**
+- `backend/simple_main.py` - Currently working with real JWT, Vertex AI STT
+- Use it as a reference for correct patterns
 
-**What to give Opus 4.1:**
-1. The entire `backend/app/` directory (production backend code)
-2. The `OPUS_FIX_PRODUCTION_BACKEND.md` file (instructions)
-3. Reference `backend/simple_main.py` (working example)
-
-**Opus 4.1's Task:**
-- Fix all import errors in `app/main.py`
-- Migrate any remaining Pydantic V1 → V2 syntax
-- Fix FastAPI dependency annotations
-- Resolve circular imports
-- Get `uvicorn app.main:app` working
-
-**Why hand it to Opus 4.1:**
-- The production backend has complex dependencies
-- It needs systematic import debugging
-- Opus 4.1 excels at large-scale refactoring
-- It can handle the Pydantic V2 migration thoroughly
+**Goal:**
+Get `uvicorn app.main:app --reload` running successfully to enable full feature set (profiles, audit logs, RBAC, etc.)
 
 ---
 
 ## 📋 **REMAINING TODOS**
 
 ### HIGH PRIORITY:
-- [ ] Fix production backend (`app/main.py`) - **Hand to Opus 4.1**
+- [ ] Fix production backend (`app/main.py`) - Import/dependency errors
 - [ ] Profile endpoint 404 error
 - [ ] Email field not typeable
 - [ ] Gemini report formatting errors (**)

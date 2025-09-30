@@ -81,3 +81,4 @@ class PractitionerProfileUpdateResponse(BaseModel):
     success: bool = Field(..., description="Whether the update was successful")
     message: str = Field(..., description="Response message")
     data: PractitionerProfileRead = Field(..., description="Updated profile data")
+
