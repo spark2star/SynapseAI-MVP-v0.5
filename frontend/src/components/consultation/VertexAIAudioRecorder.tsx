@@ -115,7 +115,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
             return
         }
 
-        const token = localStorage.getItem('accessToken')
+        const token = localStorage.getItem('access_token')  // Fixed: underscore not camelCase
         if (!token) {
             toast.error('Authentication required')
             console.error('[VertexAI] No access token found')
@@ -454,23 +454,23 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
             {/* Audio Level & Stats */}
             {isRecording && (
-                <div className="space-y-3 mb-4">
-                    {/* Audio Level Bar */}
+                <div className="space-y-2 mb-3">
+                    {/* Audio Level Bar - Compact */}
                     <div>
-                        <div className="flex items-center justify-between text-sm mb-1">
+                        <div className="flex items-center justify-between text-xs mb-1">
                             <span className="text-gray-600 dark:text-gray-400">Audio Level</span>
                             <span className="text-gray-900 dark:text-white font-medium">{Math.round(audioLevel)}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                             <div
-                                className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-100"
+                                className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-100"
                                 style={{ width: `${audioLevel}%` }}
                             />
                         </div>
                     </div>
 
                     {/* Language & Confidence */}
-                    <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-4 text-xs">
                         <div className="flex items-center gap-2">
                             <span className="text-gray-600 dark:text-gray-400">Language:</span>
                             <span className="font-medium text-gray-900 dark:text-white">
@@ -489,12 +489,49 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
                 </div>
             )}
 
-            {/* Info Message */}
-            {!isRecording && (
-                <div className="text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                    ✨ Using Vertex AI Speech-to-Text with automatic multi-language detection (Hindi, Marathi, English)
-                </div>
-            )}
+            {/* Control Buttons */}
+            <div className="flex items-center gap-3 mb-4">
+                {isRecording ? (
+                    <>
+                        {!isPaused ? (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        setIsPaused(true)
+                                        onPause()
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors"
+                                >
+                                    <PauseIcon className="w-4 h-4" />
+                                    <span className="text-sm font-medium">Pause</span>
+                                </button>
+                                <button
+                                    onClick={stopRecording}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                                >
+                                    <StopIcon className="w-4 h-4" />
+                                    <span className="text-sm font-medium">Stop</span>
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    setIsPaused(false)
+                                    onResume()
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                            >
+                                <PlayIcon className="w-4 h-4" />
+                                <span className="text-sm font-medium">Resume</span>
+                            </button>
+                        )}
+                    </>
+                ) : (
+                    <div className="text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 w-full">
+                        ✨ Using Vertex AI Speech-to-Text with automatic multi-language detection (Hindi, Marathi, English)
+                    </div>
+                )}
+            </div>
         </div>
     )
 })
