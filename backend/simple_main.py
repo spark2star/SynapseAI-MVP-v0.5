@@ -1653,7 +1653,7 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         
         client = speech.SpeechClient(credentials=credentials)
         
-        # Configure recognition
+        # Configure recognition (Speech V2 API)
         recognition_config = speech.RecognitionConfig(
             auto_decoding_config=speech.AutoDetectDecodingConfig(),
             language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
@@ -1661,12 +1661,9 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
             features=speech.RecognitionFeatures(
                 enable_automatic_punctuation=settings.GOOGLE_STT_ENABLE_PUNCTUATION,
                 enable_word_time_offsets=settings.GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS,
-                enable_word_confidence=settings.GOOGLE_STT_ENABLE_WORD_CONFIDENCE,
-                diarization_config=speech.SpeakerDiarizationConfig(
-                    enable_speaker_diarization=settings.GOOGLE_STT_ENABLE_DIARIZATION,
-                    min_speaker_count=1,
-                    max_speaker_count=settings.GOOGLE_STT_DIARIZATION_SPEAKER_COUNT
-                )
+                enable_word_confidence=settings.GOOGLE_STT_ENABLE_WORD_CONFIDENCE
+                # Note: Diarization is disabled in config.py (GOOGLE_STT_ENABLE_DIARIZATION = False)
+                # Speech V2 API doesn't require diarization_config if disabled
             )
         )
         
