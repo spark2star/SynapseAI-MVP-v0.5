@@ -117,8 +117,20 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
         const token = localStorage.getItem('access_token')  // Fixed: underscore not camelCase
         if (!token) {
-            toast.error('Authentication required')
-            console.error('[VertexAI] No access token found')
+            const errorMsg = 'Please log in again - authentication token not found'
+            toast.error(errorMsg)
+            console.error('[VertexAI] No access token found in localStorage')
+            console.error('[VertexAI] Available keys:', Object.keys(localStorage))
+            onStop()  // Stop the recording attempt
+            return
+        }
+
+        // Verify token looks valid (basic check)
+        if (token.length < 20 || !token.includes('.')) {
+            const errorMsg = 'Invalid authentication token - please log in again'
+            toast.error(errorMsg)
+            console.error('[VertexAI] Token appears invalid:', token.substring(0, 20) + '...')
+            onStop()  // Stop the recording attempt
             return
         }
 
@@ -126,6 +138,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
         const wsUrl = `${WS_URL}/ws/transcribe?token=${token}&session_id=${sessionId}`
         console.log('[VertexAI] Connecting to WebSocket:', wsUrl.replace(token, 'TOKEN'))
+        console.log('[VertexAI] Token length:', token.length, 'chars')
 
         const ws = new WebSocket(wsUrl)
         ws.binaryType = 'arraybuffer'
