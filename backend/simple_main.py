@@ -14,6 +14,7 @@ import numpy as np
 from google.cloud import speech
 from google.oauth2 import service_account
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
+from fastapi.websockets import WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -1661,20 +1662,16 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         client = speech.SpeechClient(credentials=credentials)
         
         # Configure recognition (Speech V2 API)
-        # Note: Frontend sends audio in WebM Opus format
-        # We need to explicitly specify the encoding (auto-detect fails)
-        explicit_decoding_config = speech.ExplicitDecodingConfig(
-            encoding=speech.ExplicitDecodingConfig.AudioEncoding.WEBM_OPUS,
-            sample_rate_hertz=48000,  # Opus default sample rate
-            audio_channel_count=1  # Mono
-        )
-        
+        # Note: Speech V2 API ExplicitDecodingConfig only supports LINEAR16, MULAW, ALAW
+        # For WebM/Opus audio from frontend, we MUST use AutoDetectDecodingConfig
+        # Reference: https://cloud.google.com/speech-to-text/v2/docs/reference/rpc/google.cloud.speech.v2
         recognition_config = speech.RecognitionConfig(
-            explicit_decoding_config=explicit_decoding_config,
+            auto_decoding_config=speech.AutoDetectDecodingConfig(),
             language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
             model=settings.GOOGLE_STT_MODEL
             # Note: Default recognizer (_) doesn't support advanced features like punctuation
         )
+        print(f"📋 Recognition config: model={settings.GOOGLE_STT_MODEL}, languages={[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES})")
         
         streaming_config = speech.StreamingRecognitionConfig(
             config=recognition_config,
@@ -1694,28 +1691,42 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         def audio_stream_generator():
             # Send config first
             # Note: Speech V2 API requires 'global' location for streaming recognition
+            print(f"🎤 Starting audio stream generator for session {session_id}")
             yield speech.StreamingRecognizeRequest(
                 recognizer=f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/global/recognizers/_",
                 streaming_config=streaming_config
             )
+            print(f"✅ Config request sent to Vertex AI")
             
             # Then stream audio from queue
+            chunk_count = 0
             while not processing_complete.is_set():
                 try:
                     audio_chunk = audio_queue.get(timeout=1.0)
                     if audio_chunk is None:  # Sentinel value to stop
+                        print(f"📊 Audio stream ended. Total chunks sent: {chunk_count}")
                         break
                     if len(audio_chunk) > 0:
+                        chunk_count += 1
+                        if chunk_count % 20 == 0:  # Log every 20 chunks (~5 seconds)
+                            print(f"🎵 Sent {chunk_count} audio chunks ({len(audio_chunk)} bytes each)")
                         yield speech.StreamingRecognizeRequest(audio=audio_chunk)
                 except queue.Empty:
                     continue
         
         # Process responses in a separate thread
         def process_speech_responses():
+            response_count = 0
             try:
+                print(f"🚀 Starting Speech API streaming_recognize for session {session_id}")
                 responses = client.streaming_recognize(requests=audio_stream_generator())
+                print(f"✅ Speech API stream established, waiting for responses...")
                 
                 for response in responses:
+                    response_count += 1
+                    if response_count % 10 == 0:
+                        print(f"📥 Received {response_count} responses from Vertex AI")
+                    
                     for result in response.results:
                         if not result.alternatives:
                             continue
@@ -1737,19 +1748,51 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                         )
                         
                         if result.is_final:
-                            print(f"📝 Final transcript: {transcript} (confidence: {confidence:.2f})")
+                            print(f"✅ FINAL transcript: {transcript[:100]}..." if len(transcript) > 100 else f"✅ FINAL transcript: {transcript}")
+                            print(f"   Confidence: {confidence:.2f}, Language: {result.language_code}")
+                
+                print(f"🏁 Speech API stream ended normally for session {session_id}")
             except Exception as e:
-                print(f"Speech processing error: {str(e)}")
+                error_type = type(e).__name__
+                error_msg = str(e)
+                print(f"❌ Speech processing error ({error_type}): {error_msg}")
                 import traceback
+                print("Full traceback:")
                 traceback.print_exc()
+                
+                # Send user-friendly error to client
+                user_message = "Transcription service error. Please try again."
+                if "credentials" in error_msg.lower():
+                    user_message = "Authentication error with speech service. Please contact support."
+                elif "quota" in error_msg.lower():
+                    user_message = "Speech service quota exceeded. Please try again later."
+                elif "network" in error_msg.lower() or "connection" in error_msg.lower():
+                    user_message = "Network error connecting to speech service. Please check your connection."
+                elif "encoding" in error_msg.lower() or "format" in error_msg.lower():
+                    user_message = "Audio format error. Please try refreshing the page."
+                
+                asyncio.run_coroutine_threadsafe(
+                    websocket.send_json({
+                        "error": user_message,
+                        "detail": f"{error_type}: {error_msg[:200]}"  # Truncate long error messages
+                    }),
+                    asyncio.get_event_loop()
+                )
             finally:
+                print(f"🧹 Speech processing thread cleanup for session {session_id}")
                 processing_complete.set()
         
         # Start processing thread
-        processing_thread = threading.Thread(target=process_speech_responses)
+        processing_thread = threading.Thread(
+            target=process_speech_responses, 
+            daemon=True, 
+            name=f"Speech-{session_id}"
+        )
         processing_thread.start()
+        print(f"✅ Speech processing thread started for session {session_id}")
         
         # Receive audio from WebSocket and put in queue
+        audio_chunks_received = 0
         try:
             while not processing_complete.is_set():
                 audio_chunk = await asyncio.wait_for(
@@ -1757,17 +1800,35 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                     timeout=1.0
                 )
                 if not audio_chunk or len(audio_chunk) == 0:
-                    break
+                    print(f"⚠️  Received empty audio chunk, ignoring")
+                    continue
+                
+                audio_chunks_received += 1
+                if audio_chunks_received % 40 == 0:  # Log every 40 chunks (~10 seconds)
+                    print(f"📨 Received {audio_chunks_received} audio chunks from frontend ({len(audio_chunk)} bytes each)")
+                
                 audio_queue.put(audio_chunk)
         except asyncio.TimeoutError:
             pass  # Normal timeout, check if processing is complete
         except WebSocketDisconnect:
-            print(f"WebSocket disconnected for session {session_id}")
+            print(f"🔌 WebSocket disconnected for session {session_id}")
+        except Exception as e:
+            error_type = type(e).__name__
+            print(f"❌ WebSocket receive error ({error_type}): {e}")
         finally:
+            print(f"🧹 Cleaning up WebSocket connection for session {session_id}")
+            print(f"📊 Total audio chunks received: {audio_chunks_received}")
             # Signal end of audio stream
             audio_queue.put(None)
             processing_complete.set()
-            processing_thread.join(timeout=5.0)
+            # Wait for speech thread to finish (with timeout)
+            print(f"⏳ Waiting for speech thread to finish...")
+            processing_thread.join(timeout=10.0)
+            if processing_thread.is_alive():
+                print(f"⚠️  Speech thread still running after timeout for session {session_id}")
+            else:
+                print(f"✅ Speech thread finished cleanly for session {session_id}")
+            print(f"🔌 WebSocket closed for session {session_id}")
         
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for session {session_id}")
