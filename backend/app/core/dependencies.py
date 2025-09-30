@@ -3,7 +3,7 @@ Dependencies for FastAPI endpoints.
 Implements authentication, authorization, and common dependencies.
 """
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, WebSocket
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
@@ -316,3 +316,64 @@ class CommonQueryParams:
         self.limit = limit
         self.sort_by = sort_by
         self.sort_order = sort_order
+
+
+# WebSocket Authentication
+async def get_current_user_from_websocket(
+    websocket: WebSocket,
+    token: str,
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Extract and validate JWT token from WebSocket query parameters.
+    
+    Usage: ws://localhost:8000/ws/transcribe?token=<jwt_token>
+    
+    Args:
+        websocket: WebSocket connection
+        token: JWT token from query parameters
+        db: Database session
+        
+    Returns:
+        Authenticated User object
+        
+    Raises:
+        HTTPException: If authentication fails (will close WebSocket)
+    """
+    if not token:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token missing"
+        )
+    
+    try:
+        payload = jwt_manager.verify_token(token, token_type="access")
+        user_id: str = payload.get("sub")
+        
+        if user_id is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload"
+            )
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if user is None or not user.is_active:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive"
+            )
+        
+        logger.info(f"WebSocket authenticated for user {user.id}")
+        return user
+    
+    except Exception as e:
+        logger.error(f"WebSocket authentication failed: {str(e)}")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authentication failed: {str(e)}"
+        )

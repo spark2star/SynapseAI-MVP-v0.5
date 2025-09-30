@@ -44,13 +44,19 @@ class Settings(BaseSettings):
     GCP_CREDENTIALS_PATH: str = "gcp-credentials.json"
     GCP_PROJECT_ID: str = "synapse-product-1"
     
-    # Google STT for Mental Health (Multi-language)
-    GOOGLE_STT_MODEL: str = "latest_long"
-    GOOGLE_STT_PRIMARY_LANGUAGE: str = "mr-IN"  # Marathi (India)
-    GOOGLE_STT_ALTERNATE_LANGUAGES: list = ["en-IN", "hi-IN"]  # English (India), Hindi (India)
+    # Google STT for Healthcare (Multi-language with code-switching)
+    GOOGLE_STT_MODEL: str = "latest_long"  # Use 'chirp' for multilingual
+    GOOGLE_STT_PRIMARY_LANGUAGE: str = "hi-IN"  # Hindi (India) - Primary
+    GOOGLE_STT_ALTERNATE_LANGUAGES: list = ["mr-IN", "en-IN"]  # Marathi, English
     GOOGLE_STT_SAMPLE_RATE: int = 48000
+    GOOGLE_STT_ENCODING: str = "WEBM_OPUS"
     GOOGLE_STT_ENABLE_WORD_CONFIDENCE: bool = True
     GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS: bool = True
+    GOOGLE_STT_ENABLE_PUNCTUATION: bool = True
+    GOOGLE_STT_ENABLE_DIARIZATION: bool = True
+    GOOGLE_STT_DIARIZATION_SPEAKER_COUNT: int = 2  # Doctor + Patient
+    GOOGLE_STT_INTERIM_RESULTS: bool = True
+    GOOGLE_STT_PROFANITY_FILTER: bool = False  # Medical terms may be flagged
     
     # Gemini AI (Vertex AI)
     GOOGLE_CLOUD_PROJECT: str = "synapse-product-1"

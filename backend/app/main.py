@@ -17,6 +17,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.core.database import create_tables, db_health
 from app.api.api_v1.api import api_router
+from app.api.websocket.transcribe import router as transcribe_router
 from app.core.security import SecurityHeaders
 from app.core.audit import audit_logger
 from app.core.exceptions import register_exception_handlers
@@ -161,6 +162,9 @@ async def health_check():
 
 # Include API routes
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# Include WebSocket routes
+app.include_router(transcribe_router, prefix="/ws", tags=["WebSocket Transcription"])
 
 # Mount static files directory for logo uploads
 static_dir = Path("./static")
