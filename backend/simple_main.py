@@ -1,5 +1,6 @@
 """
 Simple FastAPI app with basic authentication and STT testing.
+NOW GENERATES REAL JWT TOKENS for WebSocket authentication!
 """
 
 import asyncio
@@ -17,8 +18,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+# Import REAL JWT manager from production backend
+from app.core.security import JWTManager
+
 # Load environment variables
 load_dotenv()
+
+# Initialize JWT manager for REAL token generation
+jwt_manager = JWTManager()
 
 # Initialize Google Cloud Speech client with proper path
 # Use relative path that works in both development and Docker container
@@ -87,13 +94,13 @@ async def api_health_check():
 async def login(login_data: LoginRequest):
     """
     Temporary login endpoint for testing.
-    Accepts demo credentials and returns mock tokens.
+    NOW GENERATES REAL JWT TOKENS for WebSocket authentication!
     """
     # Demo credentials
     demo_users = {
-        "doctor@demo.com": {"password": "password123", "role": "doctor", "name": "Dr. Smith"},
-        "admin@demo.com": {"password": "password123", "role": "admin", "name": "Admin User"},
-        "reception@demo.com": {"password": "password123", "role": "receptionist", "name": "Reception"}
+        "doctor@demo.com": {"password": "password123", "role": "doctor", "name": "Dr. Smith", "id": "user-doctor-1"},
+        "admin@demo.com": {"password": "password123", "role": "admin", "name": "Admin User", "id": "user-admin-1"},
+        "reception@demo.com": {"password": "password123", "role": "receptionist", "name": "Reception", "id": "user-reception-1"}
     }
     
     if login_data.email not in demo_users:
@@ -103,13 +110,26 @@ async def login(login_data: LoginRequest):
     if user_data["password"] != login_data.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Generate REAL JWT tokens using the production JWT manager
+    user_id = user_data["id"]
+    access_token = jwt_manager.create_access_token(
+        data={"sub": user_id, "email": login_data.email, "role": user_data["role"]}
+    )
+    refresh_token = jwt_manager.create_refresh_token(
+        data={"sub": user_id}
+    )
+    
+    print(f"✅ Generated REAL JWT for {login_data.email}")
+    print(f"   Access token: {access_token[:50]}...")
+    
     return {
         "status": "success", 
         "data": {
-            "access_token": "demo-jwt-token-12345",
-            "refresh_token": "demo-refresh-token-67890",
+            "access_token": access_token,  # REAL JWT TOKEN!
+            "refresh_token": refresh_token,  # REAL REFRESH TOKEN!
             "token_type": "bearer",
-            "user_id": f"demo-user-{user_data['role']}",
+            "expires_in": 3600,  # 1 hour
+            "user_id": user_id,
             "role": user_data["role"],
             "email": login_data.email,
             "name": user_data["name"]

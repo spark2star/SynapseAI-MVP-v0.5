@@ -193,7 +193,9 @@ start_backend() {
     log "🖥️  Starting FastAPI backend on port 8000..."
     # Note: Using simple_main temporarily due to auth.py caching issue
     # All backend code is complete and ready - just needs cache resolution
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
+    # Temporarily using simple_main for Vertex AI STT testing (generates real JWT now)
+    # TODO: Switch back to app.main:app once all backend errors are fixed
+    uvicorn simple_main:app --host 0.0.0.0 --port 8000 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
     BACKEND_PID=$!
     
     # Wait a moment for backend to start
