@@ -15,6 +15,7 @@ import {
     ExclamationTriangleIcon
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
+import { symptomAPI } from '@/services/symptoms'
 
 interface Symptom {
     id: string
@@ -62,7 +63,7 @@ export default function Stage2Form({
     const [newSymptomName, setNewSymptomName] = useState('')
     const [collapsedSymptoms, setCollapsedSymptoms] = useState<Set<string>>(new Set())
 
-    // Mock search function - replace with actual API call
+    // Search symptoms using unified API (global + custom)
     const searchSymptoms = async (query: string) => {
         if (!query.trim() || query.length < 2) {
             setSearchResults([])
@@ -71,83 +72,18 @@ export default function Stage2Form({
 
         setIsSearching(true)
         try {
-            // Call the actual backend API
-            const limitValue = 5 // Default limit for search results
-            const response = await fetch(`http://127.0.0.1:8000/api/v1/intake/symptoms?q=${encodeURIComponent(query)}&limit=${limitValue}`)
-            if (!response.ok) {
-                throw new Error('Failed to search symptoms')
-            }
-            const result = await response.json()
-
-            if (result.status === 'success') {
-                setSearchResults(result.data.symptoms || [])
-            } else {
-                throw new Error(result.message || 'Failed to search symptoms')
-            }
-
-            // Fallback mock results if API fails
-            const mockResults: Symptom[] = [
-                {
-                    id: '1',
-                    name: 'Anxiety',
-                    description: 'Feelings of worry, nervousness, or unease',
-                    categories: ['ICD11-6B00'],
-                    source: 'master',
-                    aliases: ['Worry', 'Nervousness']
-                },
-                {
-                    id: '2',
-                    name: 'Depressed Mood',
-                    description: 'Persistent feelings of sadness or emptiness',
-                    categories: ['ICD11-6A70'],
-                    source: 'master'
-                },
-                {
-                    id: '3',
-                    name: 'Insomnia',
-                    description: 'Difficulty falling or staying asleep',
-                    categories: ['ICD11-7A00'],
-                    source: 'master'
-                }
-            ].filter(symptom =>
-                symptom.name.toLowerCase().includes(query.toLowerCase()) ||
-                symptom.aliases?.some(alias => alias.toLowerCase().includes(query.toLowerCase()))
-            )
-
-            // Mock results handled in catch block
+            const data = await symptomAPI.search(query)
+            const mapped: Symptom[] = (data || []).map((r, idx) => ({
+                id: String(r.source_id ?? `g-${idx}-${r.name}`),
+                name: r.name,
+                description: undefined,
+                categories: r.category ? [r.category] : [],
+                source: r.type === 'custom' ? 'user' : 'master'
+            }))
+            setSearchResults(mapped)
         } catch (error) {
             console.error('Symptom search error:', error)
-            // Fall back to mock results on API failure
-            const mockResults: Symptom[] = [
-                {
-                    id: '1',
-                    name: 'Anxiety',
-                    description: 'Feelings of worry, nervousness, or unease',
-                    categories: ['ICD11-6B00'],
-                    source: 'master',
-                    aliases: ['Worry', 'Nervousness']
-                },
-                {
-                    id: '2',
-                    name: 'Depressed Mood',
-                    description: 'Persistent feelings of sadness or emptiness',
-                    categories: ['ICD11-6A70'],
-                    source: 'master'
-                },
-                {
-                    id: '3',
-                    name: 'Insomnia',
-                    description: 'Difficulty falling or staying asleep',
-                    categories: ['ICD11-7A00'],
-                    source: 'master'
-                }
-            ].filter(symptom =>
-                symptom.name.toLowerCase().includes(query.toLowerCase()) ||
-                symptom.aliases?.some(alias => alias.toLowerCase().includes(query.toLowerCase()))
-            )
-
-            setSearchResults(mockResults)
-            toast.error('Using offline symptom database - please check connection')
+            toast.error('Symptom search failed')
         } finally {
             setIsSearching(false)
         }
@@ -334,14 +270,8 @@ export default function Stage2Form({
                                                 </div>
                                             )}
                                             <div className="flex items-center gap-2 mt-2">
-                                                <span className={`text-xs px-2 py-1 rounded font-medium ${symptom.source === 'medical_db' ? 'bg-green-100 text-green-800' :
-                                                        symptom.source === 'icd10' || symptom.source === 'icd11' ? 'bg-blue-100 text-blue-800' :
-                                                            'bg-purple-100 text-purple-800'
-                                                    }`}>
-                                                    {symptom.source === 'medical_db' ? 'Medical Database' :
-                                                        symptom.source === 'icd10' ? 'ICD-10' :
-                                                            symptom.source === 'icd11' ? 'ICD-11' :
-                                                                'Custom'}
+                                                <span className="text-xs px-2 py-1 rounded font-medium bg-blue-100 text-blue-800">
+                                                    {(symptom.categories && symptom.categories[0]) || 'Symptom'}
                                                 </span>
                                             </div>
                                         </div>
@@ -494,8 +424,8 @@ function SymptomCard({ symptom, onUpdate, onRemove }: SymptomCardProps) {
                     </h4>
                     <div className="flex items-center gap-2 mt-1">
                         <span className={`text-xs px-2 py-1 rounded font-medium ${symptom.symptom_source === 'medical_db' ? 'bg-green-100 text-green-800' :
-                                symptom.symptom_source === 'icd10' || symptom.symptom_source === 'icd11' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-purple-100 text-purple-800'
+                            symptom.symptom_source === 'icd10' || symptom.symptom_source === 'icd11' ? 'bg-blue-100 text-blue-800' :
+                                'bg-purple-100 text-purple-800'
                             }`}>
                             {symptom.symptom_source === 'medical_db' ? 'Medical Database' :
                                 symptom.symptom_source === 'icd10' ? 'ICD-10' :

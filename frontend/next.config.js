@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Enable React strict mode for better development experience
-    reactStrictMode: true,
+    // Disable React strict mode to prevent double-mounting during development
+    // (was causing WebSocket disconnects due to mount/unmount/remount cycle)
+    reactStrictMode: false,
 
     // Disable x-powered-by header for security
     poweredByHeader: false,

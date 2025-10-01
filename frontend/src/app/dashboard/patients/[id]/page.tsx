@@ -28,9 +28,13 @@ import VertexAIAudioRecorder from '@/components/consultation/VertexAIAudioRecord
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
+import SessionSummaryModal from '@/components/session/SessionSummaryModal'
+import ReportView from '@/components/report/ReportView'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
+// SymptomAssessment intentionally not imported here; feature lives in new patient registration only
 import { useAuthStore } from '@/store/authStore'
 import apiService from '@/services/api'
+import type { MedicationItem } from '@/types/report'
 
 interface Patient {
     id: string
@@ -86,6 +90,15 @@ export default function PatientDetailPage() {
     const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('')
     // Removed selectedLanguage - Vertex AI auto-detects language
     const audioRecorderRef = useRef<{ stopRecording: () => void }>(null)
+    const isStoppingRef = useRef(false) // Prevent multiple simultaneous stop calls
+
+    // Phase 1 MVP: Post-session workflow state
+    const [showSessionSummaryModal, setShowSessionSummaryModal] = useState(false)
+    const [currentReportId, setCurrentReportId] = useState<number | null>(null)
+    const [viewingReport, setViewingReport] = useState(false)
+    const [lastMedicationPlan, setLastMedicationPlan] = useState<MedicationItem[]>([])
+    const [lastAdditionalNotes, setLastAdditionalNotes] = useState<string>('')
+    const [pendingTranscriptForReport, setPendingTranscriptForReport] = useState<string>('')
 
     useEffect(() => {
         if (patientId) {
@@ -93,6 +106,17 @@ export default function PatientDetailPage() {
             fetchConsultationSessions()
         }
     }, [patientId])
+
+    // Listen for request to open SessionSummaryModal from EditableTranscript
+    useEffect(() => {
+        const handler = (e: any) => {
+            const text = e?.detail?.transcript || finalTranscription
+            setPendingTranscriptForReport(text)
+            setShowSessionSummaryModal(true)
+        }
+        window.addEventListener('open-session-summary-modal', handler)
+        return () => window.removeEventListener('open-session-summary-modal', handler)
+    }, [finalTranscription])
 
     // Auto-trigger follow-up session if coming from dashboard
     useEffect(() => {
@@ -214,73 +238,163 @@ export default function PatientDetailPage() {
     }
 
     const stopConsultation = async () => {
+        // Prevent multiple simultaneous calls
+        if (isStoppingRef.current) {
+            console.log('⚠️ Stop already in progress, ignoring duplicate call')
+            return
+        }
+
         try {
-            if (currentSession) {
-                console.log('🏁 Starting consultation stop sequence...')
-                console.log('🔍 PRE-STOP STATE:', {
+            if (!currentSession || !isRecording) {
+                console.log('⚠️ Cannot stop: no session or not recording')
+                return
+            }
+
+            isStoppingRef.current = true  // Lock to prevent re-entry
+
+            console.log('🏁 Starting consultation stop sequence...')
+            console.log('🔍 PRE-STOP STATE:', {
+                currentSession,
+                isRecording,
+                finalTranscription: finalTranscription.slice(-50),
+                liveTranscription: liveTranscription.slice(-30)
+            })
+
+            // Set recording to false FIRST to prevent re-entry
+            setIsRecording(false)
+            console.log('🛑 Recording state set to false - should trigger loading UI')
+
+            // Then stop AudioRecorder component (this will call onStop() but isRecording is now false)
+            if (audioRecorderRef.current) {
+                console.log('🛑 Calling AudioRecorder.stopRecording() to fully stop STT & microphone')
+                audioRecorderRef.current.stopRecording()
+            }
+
+            // Give a moment for state to propagate to EditableTranscript
+            await new Promise(resolve => setTimeout(resolve, 200))
+            console.log('🔄 State propagation delay complete, calling API...')
+            console.log('🔍 MID-STOP STATE:', {
+                currentSession,
+                isRecording,
+                finalTranscription: finalTranscription.slice(-50)
+            })
+
+            const response = await apiService.post(`/consultation/${currentSession}/stop`)
+
+            if (response.status === 'success') {
+                const newSession: ConsultationSession = {
+                    id: `session-${currentSession}-${Date.now()}`,  // Unique ID using session + timestamp
+                    session_id: currentSession,
+                    session_type: 'consultation',
+                    status: 'completed',
+                    started_at: new Date().toISOString(),
+                    ended_at: new Date().toISOString(),
+                    duration_minutes: Math.round(recordingDuration / 60),
+                    chief_complaint: chiefComplaint,
+                    has_transcription: !!finalTranscription,
+                    created_at: new Date().toISOString()
+                }
+
+                setSessions(prev => [newSession, ...prev])
+
+                // Don't reset currentSession immediately - let user see processing/options first
+                // setCurrentSession(null) // Commented out to keep component mounted
+                console.log('💾 Keeping currentSession active for post-recording UI:', currentSession)
+                setChiefComplaint('')
+                setRecordingDuration(0)
+
+                // Phase 1 MVP: Show post-session modal instead of just toast
+                console.log('✅ Session saved, showing post-session workflow')
+                console.log('🔍 POST-STOP STATE:', {
                     currentSession,
                     isRecording,
                     finalTranscription: finalTranscription.slice(-50),
-                    liveTranscription: liveTranscription.slice(-30)
+                    componentShouldRender: !!currentSession
                 })
 
-                // CRITICAL: Stop AudioRecorder component first
-                if (audioRecorderRef.current) {
-                    console.log('🛑 Calling AudioRecorder.stopRecording() to fully stop STT & microphone')
-                    audioRecorderRef.current.stopRecording()
-                }
-
-                // Then update state immediately to trigger UI changes
-                setIsRecording(false)
-                console.log('🛑 Recording state set to false - should trigger loading UI')
-
-                // Give a moment for state to propagate to EditableTranscript
-                await new Promise(resolve => setTimeout(resolve, 200))
-                console.log('🔄 State propagation delay complete, calling API...')
-                console.log('🔍 MID-STOP STATE:', {
-                    currentSession,
-                    isRecording,
-                    finalTranscription: finalTranscription.slice(-50)
-                })
-
-                const response = await apiService.post(`/consultation/${currentSession}/stop`)
-
-                if (response.status === 'success') {
-                    const newSession: ConsultationSession = {
-                        id: 'session-new',
-                        session_id: currentSession,
-                        session_type: 'consultation',
-                        status: 'completed',
-                        started_at: new Date().toISOString(),
-                        ended_at: new Date().toISOString(),
-                        duration_minutes: Math.round(recordingDuration / 60),
-                        chief_complaint: chiefComplaint,
-                        has_transcription: !!finalTranscription,
-                        created_at: new Date().toISOString()
-                    }
-
-                    setSessions(prev => [newSession, ...prev])
-
-                    // Don't reset currentSession immediately - let user see processing/options first
-                    // setCurrentSession(null) // Commented out to keep component mounted
-                    console.log('💾 Keeping currentSession active for post-recording UI:', currentSession)
-                    setChiefComplaint('')
-                    setRecordingDuration(0)
-
-                    toast.success('Consultation session completed')
-                    console.log('✅ Session saved, keeping transcript component mounted for user actions')
-                    console.log('🔍 POST-STOP STATE:', {
-                        currentSession,
-                        isRecording,
-                        finalTranscription: finalTranscription.slice(-50),
-                        componentShouldRender: !!currentSession
-                    })
-                }
+                // Do not open medication/progress modal automatically.
             }
         } catch (error) {
             console.error('Error stopping consultation:', error)
             toast.error('Failed to stop consultation')
+        } finally {
+            // Release lock after completion (success or error)
+            isStoppingRef.current = false
+            console.log('🔓 Stop lock released')
         }
+    }
+
+    // Phase 1 MVP: Post-session workflow handlers
+    const handleReportGenerated = async (reportId: number) => {
+        console.log('📄 Report generated with ID:', reportId)
+        try {
+            setIsGeneratingReport(true)
+            setCurrentReportId(reportId)
+            setShowSessionSummaryModal(false)
+
+            // Fetch report details from backend and adapt to MedicalReportDisplay shape
+            const resp = await apiService.get(`/reports/${reportId}`)
+            const data = (resp as any)?.data || (resp as any)
+            if (data) {
+                // Build medication summary for display and PDF (italics in preview via markdown)
+                const meds = (data.medication_plan || []).map((m: any) => {
+                    const base = `${m.drug_name} ${m.dosage} – ${m.frequency}`
+                    const route = m.route ? ` (${m.route})` : ''
+                    const instr = m.instructions ? ` — ${m.instructions}` : ''
+                    return `*${base}${route}${instr}*`
+                }).join('\n')
+
+                const adapted = {
+                    report: data.report_content,
+                    session_id: data.session_id,
+                    session_type: 'follow_up',
+                    model_used: '',
+                    transcription_length: data.transcription_length,
+                    generated_at: data.created_at,
+                    patient_name: patient?.full_name || undefined,
+                    doctor_name: (user as any)?.name || undefined
+                }
+                // If report doesn't contain a medication/treatment section, append one
+                if (!/##\s*(medication|treatment)/i.test(adapted.report) && meds) {
+                    adapted.report += `\n\n## MEDICATION & TREATMENT\n${meds}`
+                }
+                // Persist last medications (state + localStorage)
+                const medsList: MedicationItem[] = (data.medication_plan || [])
+                setLastMedicationPlan(medsList)
+                try {
+                    if (currentSession) {
+                        window.localStorage.setItem(`last_meds_${currentSession}`, JSON.stringify(medsList))
+                    }
+                } catch (_) { }
+
+                setGeneratedReport(adapted)
+                setViewingReport(false)
+                toast.success('Report generated successfully!')
+                // Smooth scroll to report card
+                setTimeout(() => {
+                    const el = document.getElementById('medical-report-card')
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 100)
+            } else {
+                toast.error('Failed to load generated report')
+            }
+        } catch (e) {
+            console.error('Failed to fetch generated report:', e)
+            toast.error('Failed to fetch generated report')
+        } finally {
+            setIsGeneratingReport(false)
+        }
+    }
+
+    const handleBackFromReport = () => {
+        setViewingReport(false)
+        setCurrentReportId(null)
+        // Could optionally show the transcript again or navigate somewhere
+    }
+
+    const handleCloseSessionModal = () => {
+        setShowSessionSummaryModal(false)
+        // Just close modal, session stays active so user can still see transcript
     }
 
     const formatDuration = (seconds: number) => {
@@ -523,7 +637,10 @@ export default function PatientDetailPage() {
                     <MedicalReportDisplay
                         reportData={generatedReport}
                         isGenerating={isGeneratingReport}
-                        onGenerateNew={() => handleGenerateReport(finalTranscription)}
+                        onGenerateNew={() => {
+                            // Re-open modal with last-used values for quick edit
+                            setShowSessionSummaryModal(true)
+                        }}
                     />
                 )}
 
@@ -810,6 +927,41 @@ export default function PatientDetailPage() {
                     )}
                 </div>
             </div>
+
+            {/* Symptom Assessment removed on patient page per requirement (kept only in new patient registration) */}
+
+            {/* Phase 1 MVP: Post-Session Workflow Components */}
+
+            {/* Session Summary Modal - Phase 1 MVP */}
+            {showSessionSummaryModal && (
+                <SessionSummaryModal
+                    isOpen={showSessionSummaryModal}
+                    onClose={handleCloseSessionModal}
+                    sessionId={currentSession || ''}
+                    transcription={pendingTranscriptForReport || finalTranscription}
+                    onReportGenerated={handleReportGenerated}
+                    initialMedications={
+                        (currentSession && (() => {
+                            try {
+                                const raw = window.localStorage.getItem(`last_meds_${currentSession}`)
+                                return raw ? JSON.parse(raw) : lastMedicationPlan
+                            } catch { return lastMedicationPlan }
+                        })()) || lastMedicationPlan
+                    }
+                    initialNotes={lastAdditionalNotes}
+                />
+            )}
+
+            {/* Report View - Phase 1 MVP */}
+            {viewingReport && currentReportId && (
+                <div className="fixed inset-0 bg-white dark:bg-neutral-900 z-50">
+                    <ReportView
+                        reportId={currentReportId}
+                        onBack={handleBackFromReport}
+                    />
+                </div>
+            )}
+
         </div>
     )
 }

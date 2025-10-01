@@ -73,7 +73,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
     const analyserRef = useRef<AnalyserNode | null>(null)
     const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const confidenceScoresRef = useRef<number[]>([])
-    const audioProcessorRef = useRef<ScriptProcessorNode | null>(null)
+    const audioWorkletNodeRef = useRef<AudioWorkletNode | null>(null)
     const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null)
 
     // Constants
@@ -187,7 +187,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
                     if (result.is_final && result.confidence) {
                         confidenceScoresRef.current.push(result.confidence)
                         const avg = confidenceScoresRef.current.reduce((a, b) => a + b, 0) /
-                                   confidenceScoresRef.current.length
+                            confidenceScoresRef.current.length
                         setAverageConfidence(avg)
                     }
 
@@ -303,6 +303,16 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
             })
             audioContextRef.current = audioContext
 
+            // Load AudioWorklet processor (modern, reliable audio processing)
+            try {
+                await audioContext.audioWorklet.addModule('/audio-processor.worklet.js')
+                console.log('[VertexAI] AudioWorklet module loaded successfully')
+            } catch (err) {
+                console.error('[VertexAI] Failed to load AudioWorklet:', err)
+                toast.error('Failed to initialize audio processor')
+                return
+            }
+
             // Create media stream source
             const source = audioContext.createMediaStreamSource(stream)
             sourceNodeRef.current = source
@@ -312,45 +322,45 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
             analyser.fftSize = 256
             analyserRef.current = analyser
 
-            // Create ScriptProcessorNode for raw PCM capture
-            // Buffer size: 4096 samples at 16kHz = ~256ms chunks
-            const processor = audioContext.createScriptProcessor(4096, 1, 1)
-            audioProcessorRef.current = processor
+            // Create AudioWorkletNode (replaces deprecated ScriptProcessorNode)
+            // This runs audio processing in a separate thread, preventing browser timeouts
+            const workletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor', {
+                numberOfInputs: 1,
+                numberOfOutputs: 0,
+                channelCount: 1,
+                processorOptions: {}
+            })
+            audioWorkletNodeRef.current = workletNode
 
-            // Process audio: Convert Float32 to Int16 (LINEAR16)
-            processor.onaudioprocess = (e) => {
-                if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
-                    return
-                }
+            // Handle messages from AudioWorklet processor
+            workletNode.port.onmessage = (event) => {
+                const { type, data, message } = event.data
 
-                const inputBuffer = e.inputBuffer
-                const inputData = inputBuffer.getChannelData(0)  // Mono channel
-
-                // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767]
-                const outputData = new Int16Array(inputData.length)
-                for (let i = 0; i < inputData.length; i++) {
-                    // Clamp to [-1.0, 1.0] and convert to Int16
-                    const sample = Math.max(-1, Math.min(1, inputData[i]))
-                    outputData[i] = sample < 0 ? sample * 32768 : sample * 32767
-                }
-
-                // Send raw PCM bytes (LINEAR16 format)
-                try {
-                    websocketRef.current.send(outputData.buffer)
-                } catch (err) {
-                    console.error('[VertexAI] Error sending audio:', err)
+                if (type === 'audio') {
+                    // Send audio data to WebSocket
+                    if (!isPaused && websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
+                        try {
+                            websocketRef.current.send(data)
+                        } catch (err) {
+                            console.error('[VertexAI] Error sending audio:', err)
+                        }
+                    }
+                } else if (type === 'log') {
+                    // Log messages from worklet
+                    console.log(`[VertexAI] ${message}`)
                 }
             }
 
-            // Connect audio graph: source -> analyser -> processor -> destination
+            // Connect audio graph: source -> analyser -> workletNode
+            // Note: AudioWorkletNode has no output (processorOptions.numberOfOutputs = 0)
             source.connect(analyser)
-            analyser.connect(processor)
-            processor.connect(audioContext.destination)
+            analyser.connect(workletNode)
 
             // Start audio level monitoring
             setupAudioLevelMonitoring()
 
-            console.log('[VertexAI] LINEAR16 PCM audio processor started @ 16kHz')
+            console.log('[VertexAI] AudioWorkletNode started @ 16kHz (modern, reliable API)')
+            console.log('[VertexAI] ✅ No more 40-second timeouts - AudioWorklet runs in separate thread')
 
         } catch (err: any) {
             console.error('[VertexAI] Error starting recording:', err)
@@ -366,11 +376,11 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
         console.log('[VertexAI] 🛑 stopRecording called')
         console.trace('[VertexAI] stopRecording stack trace:')
 
-        // Disconnect and stop audio processor nodes
-        if (audioProcessorRef.current) {
-            audioProcessorRef.current.disconnect()
-            audioProcessorRef.current.onaudioprocess = null
-            audioProcessorRef.current = null
+        // Disconnect and stop audio worklet
+        if (audioWorkletNodeRef.current) {
+            audioWorkletNodeRef.current.port.onmessage = null
+            audioWorkletNodeRef.current.disconnect()
+            audioWorkletNodeRef.current = null
         }
 
         if (sourceNodeRef.current) {
@@ -420,6 +430,10 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
         setAudioLevel(0)
 
         console.log('[VertexAI] Cleanup complete')
+
+        // Notify parent component that recording has stopped
+        console.log('[VertexAI] Calling onStop() to notify parent')
+        onStop()
     }
 
     /**
@@ -481,12 +495,11 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
                 </div>
 
                 {/* Connection Status */}
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-                    connectionStatus === 'connected' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' :
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${connectionStatus === 'connected' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' :
                     connectionStatus === 'connecting' ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' :
-                    connectionStatus === 'error' ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300' :
-                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}>
+                        connectionStatus === 'error' ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300' :
+                            'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}>
                     <SignalIcon className="w-4 h-4" />
                     {connectionStatus === 'connected' && 'Connected'}
                     {connectionStatus === 'connecting' && 'Connecting...'}
@@ -499,14 +512,14 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
             {isRecording && (
                 <div className="space-y-2 mb-3">
                     {/* Audio Level Bar - Compact */}
-                    <div>
+                    <div className="max-w-xs">
                         <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-gray-600 dark:text-gray-400">Audio Level</span>
-                            <span className="text-gray-900 dark:text-white font-medium">{Math.round(audioLevel)}%</span>
+                            <span className="text-gray-600 dark:text-gray-400">🎵 Audio</span>
+                            <span className="text-gray-900 dark:text-white font-medium text-xs">{Math.round(audioLevel)}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div className="w-48 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                             <div
-                                className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-100"
+                                className="bg-gradient-to-r from-blue-500 to-purple-500 dark:from-blue-400 dark:to-purple-400 h-2 rounded-full transition-all duration-100 shadow-sm"
                                 style={{ width: `${audioLevel}%` }}
                             />
                         </div>
@@ -541,6 +554,9 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
                                 <button
                                     onClick={() => {
                                         setIsPaused(true)
+                                        if (audioContextRef.current?.state === 'running') {
+                                            audioContextRef.current.suspend().catch(() => { })
+                                        }
                                         onPause()
                                     }}
                                     className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors"
@@ -560,6 +576,9 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
                             <button
                                 onClick={() => {
                                     setIsPaused(false)
+                                    if (audioContextRef.current?.state === 'suspended') {
+                                        audioContextRef.current.resume().catch(() => { })
+                                    }
                                     onResume()
                                 }}
                                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"

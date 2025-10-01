@@ -29,7 +29,7 @@ export default function Logo({ size = 'md', className = '', showText = true }: L
       {/* Logo Image - Transparent PNG (380x364) with true alpha channel for perfect blending */}
       <div className={`relative ${sizeClasses[size]} flex-shrink-0`}>
         <Image
-          src="/logo-no-bg.png"
+          src="/Logo-MVP-v0.5.png"
           alt="SynapseAI Logo"
           fill
           sizes="(max-width: 768px) 48px, 56px"

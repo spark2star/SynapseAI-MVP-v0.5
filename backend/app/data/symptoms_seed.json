@@ -1,0 +1,112 @@
+[
+    {
+        "code": "F32",
+        "name": "Major Depressive Episode",
+        "category": "Mood & Affective"
+    },
+    {
+        "code": null,
+        "name": "Anhedonia (loss of pleasure)",
+        "category": "Mood & Affective"
+    },
+    {
+        "code": null,
+        "name": "Low mood most of the day",
+        "category": "Mood & Affective"
+    },
+    {
+        "code": "F41.1",
+        "name": "Generalized Anxiety—excessive worry",
+        "category": "Anxiety & Fear-Based"
+    },
+    {
+        "code": null,
+        "name": "Restlessness or feeling keyed up",
+        "category": "Anxiety & Fear-Based"
+    },
+    {
+        "code": "F51.0",
+        "name": "Insomnia—initial (sleep onset)",
+        "category": "Sleep & Circadian"
+    },
+    {
+        "code": null,
+        "name": "Insomnia—middle (maintenance)",
+        "category": "Sleep & Circadian"
+    },
+    {
+        "code": null,
+        "name": "Early morning awakening",
+        "category": "Sleep & Circadian"
+    },
+    {
+        "code": null,
+        "name": "Memory problems",
+        "category": "Cognitive & Executive"
+    },
+    {
+        "code": null,
+        "name": "Executive dysfunction",
+        "category": "Cognitive & Executive"
+    },
+    {
+        "code": null,
+        "name": "Self-harm behaviors",
+        "category": "Behavioral & Functional"
+    },
+    {
+        "code": null,
+        "name": "Social withdrawal",
+        "category": "Behavioral & Functional"
+    },
+    {
+        "code": "6A20",
+        "name": "Schizophrenia spectrum symptoms",
+        "category": "Psychotic & Thought"
+    },
+    {
+        "code": null,
+        "name": "Auditory hallucinations",
+        "category": "Psychotic & Thought"
+    },
+    {
+        "code": null,
+        "name": "Paranoid delusions",
+        "category": "Psychotic & Thought"
+    },
+    {
+        "code": "6A05",
+        "name": "ADHD—attention difficulties",
+        "category": "Neurodevelopmental"
+    },
+    {
+        "code": null,
+        "name": "Attention difficulties",
+        "category": "Neurodevelopmental"
+    },
+    {
+        "code": null,
+        "name": "Fatigue (low energy)",
+        "category": "Somatic & Physical"
+    },
+    {
+        "code": "F50",
+        "name": "Restrictive eating",
+        "category": "Eating & Body Image"
+    },
+    {
+        "code": null,
+        "name": "Binge eating episodes",
+        "category": "Eating & Body Image"
+    },
+    {
+        "code": null,
+        "name": "Compulsive rituals",
+        "category": "Behavioral & Functional"
+    },
+    {
+        "code": null,
+        "name": "Food preoccupation",
+        "category": "Eating & Body Image"
+    }
+]

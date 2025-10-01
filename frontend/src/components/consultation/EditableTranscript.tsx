@@ -578,7 +578,11 @@ export default function EditableTranscript({
                             <Button
                                 onClick={() => {
                                     console.log('🚀 Generate report button clicked, combinedText:', combinedText)
-                                    handleGenerateReport()
+                                    // When clinician clicks generate, open the medication/progress modal
+                                    const event = new CustomEvent('open-session-summary-modal', {
+                                        detail: { transcript: combinedText }
+                                    })
+                                    window.dispatchEvent(event)
                                 }}
                                 variant="primary"
                                 size="sm"

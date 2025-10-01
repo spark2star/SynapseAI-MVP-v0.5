@@ -12,14 +12,17 @@ import {
     UserIcon
 } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/Button'
+import { jsPDF } from 'jspdf'
 
 interface ReportData {
     report: string
     session_id: string
     session_type: string
-    model_used: string
+    model_used?: string
     transcription_length: number
     generated_at: string
+    patient_name?: string
+    doctor_name?: string
 }
 
 interface MedicalReportDisplayProps {
@@ -54,28 +57,165 @@ export default function MedicalReportDisplay({
         }
     }
 
+    /**
+     * Convert markdown to HTML (basic support for bold, lists, line breaks)
+     */
+    const renderMarkdownToHTML = (markdown: string): string => {
+        let html = markdown
+
+        // Convert **bold** to <strong>bold</strong>
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+
+        // Convert bullet points (* item) to proper list items
+        html = html.replace(/^\*\s+(.+)$/gm, '<li>$1</li>')
+
+        // Wrap consecutive <li> tags in <ul>
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul class="list-disc pl-5 space-y-1">${match}</ul>`)
+
+        // Convert newlines to <br> (but not within <ul> or already processed)
+        html = html.replace(/\n(?!<\/?(ul|li))/g, '<br>')
+
+        return html
+    }
+
     const formatReportSections = (reportText: any) => {
-        // Ensure we have a string to work with
-        const textToFormat = typeof reportText === 'string' ? reportText : JSON.stringify(reportText, null, 2)
+        const textToFormat = typeof reportText === 'string' ? reportText : (reportText ? JSON.stringify(reportText, null, 2) : '')
+        if (!textToFormat) return []
 
-        if (!textToFormat || typeof textToFormat !== 'string') {
-            return []
-        }
+        // Split BEFORE lines that start with "## ", preserving the header in each chunk
+        const chunks = textToFormat.split(/\n(?=##\s+)/).filter(Boolean)
 
-        // Split report into sections based on ## headers
-        const sections = textToFormat.split(/\n## /).filter(section => section.trim())
-
-        return sections.map((section, index) => {
-            const lines = section.trim().split('\n')
-            const title = lines[0].replace(/^## /, '').trim()
+        return chunks.map((chunk, index) => {
+            const lines = chunk.trim().split('\n')
+            const headerLine = lines[0] || ''
+            const title = headerLine.replace(/^##\s+/, '').trim() || 'Section'
             const content = lines.slice(1).join('\n').trim()
-
-            return { title, content, index }
+            return {
+                title,
+                content,
+                contentHTML: renderMarkdownToHTML(content),
+                index
+            }
         })
     }
 
+    const handleDownloadPDF = async () => {
+        if (!reportData) return
+
+        // PDF setup: A4, generous margins, black text only
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const pageWidth = 210
+        const pageHeight = 297
+        const margin = 18
+        const contentWidth = pageWidth - margin * 2
+        let cursorY = margin
+
+        const addPageIfNeeded = (nextBlockHeight: number) => {
+            if (cursorY + nextBlockHeight > pageHeight - margin) {
+                pdf.addPage()
+                cursorY = margin
+            }
+        }
+
+        const writeHeading = (text: string) => {
+            pdf.setFont('helvetica', 'bold')
+            pdf.setFontSize(16)
+            const lines = pdf.splitTextToSize(text, contentWidth)
+            addPageIfNeeded(lines.length * 8 + 2)
+            pdf.text(lines, margin, cursorY)
+            cursorY += lines.length * 8 + 4
+        }
+
+        const writeSubHeading = (label: string, value?: string) => {
+            pdf.setFont('helvetica', 'normal')
+            pdf.setFontSize(10)
+            const text = value ? `${label}: ${value}` : label
+            const lines = pdf.splitTextToSize(text, contentWidth)
+            addPageIfNeeded(lines.length * 6)
+            pdf.text(lines, margin, cursorY)
+            cursorY += lines.length * 6
+        }
+
+        const writeSectionTitle = (text: string) => {
+            pdf.setFont('helvetica', 'bold')
+            pdf.setFontSize(13)
+            addPageIfNeeded(10)
+            pdf.text(text.toUpperCase(), margin, cursorY)
+            cursorY += 6
+            pdf.setDrawColor(0)
+            pdf.setLineWidth(0.3)
+            pdf.line(margin, cursorY, pageWidth - margin, cursorY)
+            cursorY += 4
+        }
+
+        const writeParagraph = (text: string, indent = 0) => {
+            pdf.setFont('helvetica', 'normal')
+            pdf.setFontSize(11)
+            const lines = pdf.splitTextToSize(text, contentWidth - indent)
+            lines.forEach((line: string) => {
+                addPageIfNeeded(7)
+                pdf.text(line, margin + indent, cursorY)
+                cursorY += 6
+            })
+            cursorY += 2
+        }
+
+        const writeBullet = (text: string) => {
+            pdf.setFont('helvetica', 'normal')
+            pdf.setFontSize(11)
+            const bullet = '• '
+            const wrapped = pdf.splitTextToSize(text, contentWidth - 6 - 4)
+            addPageIfNeeded((wrapped.length + 1) * 6)
+            pdf.text(bullet, margin, cursorY)
+            const first = wrapped.shift() || ''
+            pdf.text(first, margin + 6, cursorY)
+            cursorY += 6
+            wrapped.forEach((line: string) => {
+                pdf.text(line, margin + 6, cursorY)
+                cursorY += 6
+            })
+        }
+
+        // Header
+        writeHeading('Clinical Summary Report')
+        writeSubHeading('Patient', reportData.patient_name || 'Patient')
+        writeSubHeading('Clinician', reportData.doctor_name || 'Doctor')
+        writeSubHeading('Session ID', reportData.session_id)
+        writeSubHeading('Generated', new Date(reportData.generated_at).toLocaleString())
+        cursorY += 2
+
+        // Body from markdown sections
+        // Convert markdown **bold** markers to plain emphasis for PDF
+        const normalizedReport = (reportData.report || '').replace(/\*\*(.+?)\*\*/g, '$1')
+        const sections = formatReportSections(normalizedReport)
+        sections.forEach((section) => {
+            writeSectionTitle(section.title)
+            const raw = section.content || ''
+            const lines = raw.split('\n').filter(l => l.trim().length > 0)
+            lines.forEach((l) => {
+                const trimmed = l.trim()
+                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    writeBullet(trimmed.replace(/^[-*]\s+/, ''))
+                } else {
+                    writeParagraph(trimmed)
+                }
+            })
+            cursorY += 2
+        })
+
+        // Footer disclaimer
+        pdf.setFont('helvetica', 'italic')
+        pdf.setFontSize(9)
+        const disclaimer = 'This report was generated with AI assistance and should be reviewed by the clinician.'
+        const dLines = pdf.splitTextToSize(disclaimer, contentWidth)
+        addPageIfNeeded(dLines.length * 5)
+        pdf.text(dLines, margin, pageHeight - margin)
+
+        pdf.save(`${reportData.session_id}_Report.pdf`)
+    }
+
     return (
-        <div className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-green-200 dark:border-green-800 shadow-lg">
+        <div id="medical-report-card" className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-green-200 dark:border-green-800 shadow-lg">
             {/* Header */}
             <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 bg-green-50 dark:bg-green-900/20">
                 <div className="flex items-center justify-between">
@@ -89,10 +229,6 @@ export default function MedicalReportDisplay({
                             </h3>
                             {reportData && (
                                 <p className="text-sm text-green-700 dark:text-green-300 flex items-center gap-4">
-                                    <span className="flex items-center gap-1">
-                                        <SparklesIcon className="h-4 w-4" />
-                                        {reportData.model_used}
-                                    </span>
                                     <span className="flex items-center gap-1">
                                         <CalendarIcon className="h-4 w-4" />
                                         {formatDateTime(reportData.generated_at)}
@@ -137,6 +273,16 @@ export default function MedicalReportDisplay({
                             >
                                 <SparklesIcon className="h-4 w-4" />
                                 Regenerate Report
+                            </Button>
+                        )}
+                        {!isGenerating && reportData && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={handleDownloadPDF}
+                                className="ml-2"
+                            >
+                                Download PDF
                             </Button>
                         )}
                     </div>
@@ -214,9 +360,10 @@ export default function MedicalReportDisplay({
                                                     <div className={`w-2 h-2 ${colors.border.replace('border-', 'bg-')} rounded-full`}></div>
                                                     {section.title}
                                                 </h4>
-                                                <div className="text-neutral-700 dark:text-neutral-300 whitespace-pre-line leading-relaxed">
-                                                    {section.content}
-                                                </div>
+                                                <div
+                                                    className="text-neutral-700 dark:text-neutral-300 leading-relaxed"
+                                                    dangerouslySetInnerHTML={{ __html: section.contentHTML }}
+                                                />
                                             </div>
                                         )
                                     })}

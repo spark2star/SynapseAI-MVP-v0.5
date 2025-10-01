@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     
     # Google STT for Healthcare (Multi-language with code-switching)
     GOOGLE_STT_MODEL: str = "latest_long"  # Use 'chirp' for multilingual
-    GOOGLE_STT_PRIMARY_LANGUAGE: str = "hi-IN"  # Hindi (India) - Primary
-    GOOGLE_STT_ALTERNATE_LANGUAGES: list = ["mr-IN", "en-IN"]  # Marathi, English
+    GOOGLE_STT_PRIMARY_LANGUAGE: str = "hi-IN"  # Hindi (India) - Listed first for priority
+    GOOGLE_STT_ALTERNATE_LANGUAGES: list = ["hi-IN", "mr-IN", "en-IN"]  # All languages equal (Hindi, Marathi, English)
     GOOGLE_STT_SAMPLE_RATE: int = 48000
     GOOGLE_STT_ENCODING: str = "WEBM_OPUS"
     GOOGLE_STT_ENABLE_WORD_CONFIDENCE: bool = True

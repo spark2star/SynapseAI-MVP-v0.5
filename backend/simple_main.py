@@ -14,6 +14,7 @@ import numpy as np
 from google.cloud import speech
 from google.oauth2 import service_account
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
+from fastapi import Request, Depends
 from fastapi.websockets import WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -149,6 +150,26 @@ async def get_current_user():
         "name": "Dr. Smith"
         }
     }
+
+# ---------------------------------------------------------------------------
+# Helper: Get current user from Authorization header (Bearer token)
+# ---------------------------------------------------------------------------
+class CurrentUser(BaseModel):
+    id: str
+    email: str
+
+def get_current_user_from_request(request: Request) -> CurrentUser:
+    auth_header = request.headers.get('Authorization') or request.headers.get('authorization')
+    if not auth_header or not auth_header.lower().startswith('bearer '):
+        # In demo, return a default user to avoid blocking
+        return CurrentUser(id="user-doctor-1", email="doctor@demo.com")
+    token = auth_header.split(' ', 1)[1]
+    try:
+        payload = jwt_manager.verify_token(token, token_type="access")
+        return CurrentUser(id=payload.get("sub", "user-doctor-1"), email=payload.get("email", "doctor@demo.com"))
+    except Exception:
+        # Fallback to demo
+        return CurrentUser(id="user-doctor-1", email="doctor@demo.com")
 
 @app.get("/api/v1/users/profile")
 async def get_user_profile():
@@ -538,6 +559,396 @@ except ImportError as e:
     print(f"⚠️ Could not import Gemini service: {e}")
     print("💡 Falling back to mock reports")
     gemini_service = None
+
+# ============================================================================
+# PHASE 1 MVP: POST-SESSION WORKFLOW
+# ============================================================================
+
+# In-memory storage for reports (MVP - will migrate to DB later)
+reports_storage = {}
+report_id_counter = 1
+
+class MedicationItem(BaseModel):
+    drug_name: str
+    dosage: str
+    frequency: str
+    route: str = "Oral"
+    instructions: str = ""
+
+class SessionReportRequest(BaseModel):
+    session_id: str
+    transcription: str
+    medication_plan: list[MedicationItem]
+    additional_notes: str = ""
+    patient_progress: Optional[str] = None  # IMPROVING | STABLE | DETERIORATING
+
+@app.post("/api/v1/reports/generate-session")
+async def generate_session_report(request: SessionReportRequest):
+    """
+    Phase 1 MVP: Generate post-session report with medications.
+    This is the simplified version for quick implementation.
+    """
+    global report_id_counter
+    
+    try:
+        if not gemini_service:
+            raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
+        if not request.transcription or not request.transcription.strip():
+            raise HTTPException(status_code=400, detail="Transcription is required")
+        if not request.medication_plan or len(request.medication_plan) == 0:
+            raise HTTPException(status_code=400, detail="At least one medication is required")
+        
+        print(f"📋 Generating session report for {request.session_id}")
+        print(f"💊 Medications: {len(request.medication_plan)}")
+        print(f"📝 Transcript length: {len(request.transcription)} chars")
+        
+        # Format medication plan for AI prompt
+        med_plan_text = "\n".join([
+            f"- {med.drug_name} {med.dosage} - {med.frequency}"
+            + (f" ({med.route})" if med.route else "")
+            + (f"\n  Instructions: {med.instructions}" if med.instructions else "")
+            for med in request.medication_plan
+        ])
+        
+        # Build additional notes section separately to avoid backslashes inside f-string expressions
+        additional_notes_section = ""
+        if request.additional_notes:
+            additional_notes_section = (
+                "**ADDITIONAL CLINICAL NOTES:**\n" + request.additional_notes + "\n"
+            )
+        
+        # Enhanced prompt with medication context and progress
+        enhanced_prompt = f"""Generate a concise clinical summary for a mental health follow-up session.
+
+**CRITICAL INSTRUCTIONS:**
+1. Use ONLY the medication plan provided below - DO NOT modify or add medications
+2. Be concise - each section should be 2-4 sentences maximum
+3. Extract information ONLY from the transcript provided
+
+**TRANSCRIPT:**
+{request.transcription}
+
+**CLINICAL PROGRESS ASSESSMENT:**
+{request.patient_progress or 'Not specified'}
+
+**MEDICATION PLAN (USE EXACTLY AS PROVIDED):**
+{med_plan_text}
+
+{additional_notes_section}
+
+**OUTPUT FORMAT:**
+Generate a structured report with these sections:
+
+## CHIEF COMPLAINT
+[One sentence summary of main concern]
+
+## CURRENT STATUS
+[2-3 sentences about patient's current condition and any changes since last visit]
+
+## MENTAL STATUS EXAMINATION
+- **Mood:** [Patient's stated mood]
+- **Affect:** [Observed affect]
+- **Thought Process:** [Brief description]
+- **Suicidal Ideation:** [Explicitly state "Denied" or describe if present]
+- **Homicidal Ideation:** [Explicitly state "Denied" or describe if present]
+
+## ASSESSMENT
+[2-3 sentences of clinical assessment]
+
+## PLAN
+
+**Medication:**
+{med_plan_text}
+
+**Follow-up:**
+[When patient should return]
+
+Keep it professional, concise, and clinical."""
+        
+        # Queue background job to avoid frontend timeouts
+        report_id = report_id_counter
+        report_id_counter += 1
+
+        # Initialize placeholder entry
+        reports_storage[report_id] = {
+            "id": report_id,
+            "session_id": request.session_id,
+            "status": "generating",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "transcription_length": len(request.transcription),
+            "patient_progress": request.patient_progress or None,
+            "medication_plan": [med.dict() for med in request.medication_plan]
+        }
+
+        def _run_job():
+            try:
+                loop_result = asyncio.run(gemini_service.generate_medical_report(
+                    transcription=enhanced_prompt,
+                    session_type="follow_up"
+                ))
+                if loop_result.get("status") == "success":
+                    reports_storage[report_id].update({
+                        "status": "completed",
+                        "report_content": loop_result["report"],
+                        "model_used": loop_result.get("model_used", "gemini-2.5-flash")
+                    })
+                else:
+                    reports_storage[report_id].update({
+                        "status": "failed",
+                        "error": loop_result.get("error", "Unknown error")
+                    })
+            except Exception as e:  # noqa: BLE001
+                reports_storage[report_id].update({
+                    "status": "failed",
+                    "error": str(e)
+                })
+
+        threading.Thread(target=_run_job, daemon=True).start()
+
+        print(f"📝 Report job accepted: ID={report_id}")
+        return {"status": "accepted", "report_id": report_id, "session_id": request.session_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error generating session report: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/reports/{report_id}")
+async def get_report(report_id: int):
+    """
+    Phase 1 MVP: Retrieve generated report by ID.
+    """
+    try:
+        if report_id not in reports_storage:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report = reports_storage[report_id]
+        
+        return {
+            "status": "success",
+            "data": report
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error retrieving report: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/reports/{report_id}/status")
+async def get_report_status(report_id: int):
+    try:
+        if report_id not in reports_storage:
+            raise HTTPException(status_code=404, detail="Report not found")
+        item = reports_storage[report_id]
+        return {"status": "success", "data": {"status": item.get("status", "unknown")}}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error retrieving report: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# END PHASE 1 MVP
+# ============================================================================
+
+# ============================================================================
+# SYMPTOM ASSESSMENT - SIMPLE IN-MEMORY IMPLEMENTATION (MVP)
+# ============================================================================
+
+from typing import Optional, Literal, List
+
+class SymptomSearchResult(BaseModel):
+    name: str
+    type: Literal["global", "custom"]
+    source_id: Optional[int] = None
+    category: Optional[str] = None
+
+class AssignSymptomRequest(BaseModel):
+    symptom_name: str
+    is_custom: bool = False
+    intensity: Literal["Mild", "Moderate", "Severe"]
+    duration: str
+
+class PatientSymptomResponse(BaseModel):
+    id: int
+    patient_id: int
+    symptom_name: str
+    symptom_type: str
+    intensity: str
+    duration: str
+    recorded_at: str
+
+# Seed global symptoms (subset for demo)
+GLOBAL_SYMPTOMS: List[dict] = [
+    {"id": 1, "name": "Major Depressive Episode", "category": "Mood Disorder"},
+    {"id": 2, "name": "Recurrent Depressive Disorder", "category": "Mood Disorder"},
+    {"id": 3, "name": "Bipolar Disorder", "category": "Mood Disorder"},
+    {"id": 4, "name": "Anhedonia", "category": "Mood Disorder"},
+    {"id": 5, "name": "Insomnia", "category": "Sleep Disorder"},
+    {"id": 6, "name": "Panic Disorder", "category": "Anxiety Disorder"},
+    {"id": 7, "name": "Generalized Anxiety Disorder", "category": "Anxiety Disorder"},
+    {"id": 8, "name": "Excessive worry", "category": "Anxiety Disorder"},
+    {"id": 9, "name": "Restlessness", "category": "Anxiety Disorder"},
+    {"id": 10, "name": "Auditory hallucinations", "category": "Psychotic Disorder"},
+]
+
+# Optionally extend from JSON seed if available (keeps simple_main in sync with seeds)
+try:
+    base_dir = os.path.dirname(__file__)
+    seed_candidates = [
+        os.path.join(base_dir, 'data', 'symptoms_seed.json'),
+        os.path.join(base_dir, 'app', 'data', 'symptoms_seed.json')
+    ]
+    seed_path = next((p for p in seed_candidates if os.path.exists(p)), None)
+    if seed_path:
+        with open(seed_path, 'r', encoding='utf-8') as f:
+            seed_list = json.load(f)
+        if isinstance(seed_list, list):
+            existing = {s["name"].lower() for s in GLOBAL_SYMPTOMS}
+            for item in seed_list:
+                if isinstance(item, dict) and item.get("name") and item["name"].lower() not in existing:
+                    GLOBAL_SYMPTOMS.append({
+                        "id": len(GLOBAL_SYMPTOMS) + 1,
+                        "name": item["name"],
+                        "category": item.get("category")
+                    })
+            print(f"✅ Loaded extended symptoms: total={len(GLOBAL_SYMPTOMS)}")
+        else:
+            print("⚠️ symptoms_seed.json invalid format; expected list")
+    else:
+        print("ℹ️ symptoms_seed.json not found; using built-in symptom subset")
+except Exception as e:
+    print(f"⚠️ Failed to load symptoms_seed.json: {e}")
+
+# In-memory stores
+USER_CUSTOM_SYMPTOMS: dict[str, List[dict]] = {}
+PATIENT_SYMPTOMS: dict[int, List[dict]] = {}
+_CUSTOM_ID_COUNTER = 1000
+_PATIENT_SYMPTOM_ID = 1
+
+@app.get("/api/v1/symptoms/search", response_model=List[SymptomSearchResult])
+async def search_symptoms(q: str, request: Request):
+    """Robust search across names, categories, synonyms and fuzzy matches."""
+    import difflib
+    user = get_current_user_from_request(request)
+    term = q.strip().lower()
+    if len(term) < 2:
+        return []
+
+    # Build indices
+    names = [(s["name"], s.get("category"), s["id"]) for s in GLOBAL_SYMPTOMS]
+    categories = [s.get("category", "").lower() for s in GLOBAL_SYMPTOMS]
+
+    # Common synonyms and misspellings mapping -> candidate substrings
+    synonyms: dict[str, list[str]] = {
+        "adhd": ["adhd", "attention deficit", "attention deficits", "attention difficulties", "hyperactivity", "impulsivity"],
+        "attention deficits": ["attention deficit", "attention difficulties", "adhd"],
+        "attention defecits": ["attention deficit", "attention difficulties", "adhd"],
+        "eating": ["restrictive eating", "binge", "purging", "food", "body image"],
+        "fatigue": ["fatigue", "low energy", "tiredness"],
+        "sleep": ["insomnia", "hypersomnia", "early morning awakening", "nightmare", "sleep paralysis", "circadian"],
+        "trauma": ["ptsd", "post-traumatic", "flashbacks", "hypervigilance"],
+        "anxiety": ["generalized anxiety", "panic", "phobia", "health anxiety", "anticipatory"],
+        "depression": ["depressive", "low mood", "anhedonia"],
+    }
+
+    # Scoring helper
+    scores: dict[str, tuple[float, dict]] = {}
+
+    def add_result(name: str, cat: Optional[str], sid: Optional[int], score: float):
+        key = name.lower()
+        payload = {"name": name, "category": cat, "source_id": sid}
+        if key not in scores or score > scores[key][0]:
+            scores[key] = (score, payload)
+
+    # 1) Name exact/contains
+    for n, c, sid in names:
+        nl = n.lower()
+        if nl == term:
+            add_result(n, c, sid, 1.0)
+        elif term in nl:
+            add_result(n, c, sid, 0.9)
+
+    # 2) Category match (e.g., "eating", "sleep")
+    for n, c, sid in names:
+        cl = (c or "").lower()
+        if cl and term in cl:
+            add_result(n, c, sid, 0.78)
+
+    # 3) Synonyms
+    for key, alts in synonyms.items():
+        if term in key or any(term in a for a in alts):
+            # include all names that contain any alt
+            for n, c, sid in names:
+                nl = n.lower()
+                if (key in nl) or any(a in nl for a in alts):
+                    add_result(n, c, sid, 0.82)
+
+    # 4) Fuzzy match for typos
+    for n, c, sid in names:
+        ratio = difflib.SequenceMatcher(None, term, n.lower()).ratio()
+        if ratio >= 0.8:
+            add_result(n, c, sid, 0.76)
+
+    # 5) User custom
+    user_key = user.id
+    for c in USER_CUSTOM_SYMPTOMS.get(user_key, []):
+        nl = c["name"].lower()
+        if term in nl:
+            add_result(c["name"], None, c["id"], 0.7)
+
+    # Return top 20 sorted by score
+    sorted_payloads = [p for _, p in sorted(scores.values(), key=lambda x: x[0], reverse=True)][:20]
+    return [SymptomSearchResult(name=p["name"], type="global", source_id=p["source_id"], category=p.get("category")) for p in sorted_payloads]
+
+@app.post("/api/v1/patients/{patient_id}/symptoms", response_model=PatientSymptomResponse, status_code=201)
+async def assign_symptom_to_patient(patient_id: int, payload: AssignSymptomRequest, request: Request):
+    global _CUSTOM_ID_COUNTER, _PATIENT_SYMPTOM_ID
+    user = get_current_user_from_request(request)
+
+    if payload.is_custom:
+        user_key = user.id
+        USER_CUSTOM_SYMPTOMS.setdefault(user_key, [])
+        existing = next((c for c in USER_CUSTOM_SYMPTOMS[user_key] if c["name"].lower() == payload.symptom_name.strip().lower()), None)
+        if not existing:
+            _CUSTOM_ID_COUNTER += 1
+            USER_CUSTOM_SYMPTOMS[user_key].append({"id": _CUSTOM_ID_COUNTER, "name": payload.symptom_name.strip()})
+
+    PATIENT_SYMPTOMS.setdefault(patient_id, [])
+    record = {
+        "id": _PATIENT_SYMPTOM_ID,
+        "patient_id": patient_id,
+        "symptom_name": payload.symptom_name.strip(),
+        "symptom_type": "custom" if payload.is_custom else "global",
+        "intensity": payload.intensity,
+        "duration": payload.duration.strip(),
+        "recorded_at": datetime.now(timezone.utc).isoformat()
+    }
+    _PATIENT_SYMPTOM_ID += 1
+    PATIENT_SYMPTOMS[patient_id].insert(0, record)
+    return PatientSymptomResponse(**record)
+
+@app.get("/api/v1/patients/{patient_id}/symptoms", response_model=List[PatientSymptomResponse])
+async def get_patient_symptoms(patient_id: int, request: Request):
+    _ = get_current_user_from_request(request)
+    items = PATIENT_SYMPTOMS.get(patient_id, [])
+    return [PatientSymptomResponse(**i) for i in items]
+
+@app.delete("/api/v1/patient_symptoms/{patient_symptom_id}", status_code=204)
+async def delete_patient_symptom(patient_symptom_id: int, request: Request):
+    _ = get_current_user_from_request(request)
+    for pid, items in PATIENT_SYMPTOMS.items():
+        for i, rec in enumerate(items):
+            if rec["id"] == patient_symptom_id:
+                del items[i]
+                return
+    raise HTTPException(status_code=404, detail="Symptom assignment not found")
+
 
 @app.post("/api/v1/reports/insights")
 async def generate_clinical_insights_mock(request_data: dict):
@@ -1670,11 +2081,11 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                 sample_rate_hertz=16000,  # Standard for speech recognition
                 audio_channel_count=1  # Mono
             ),
-            language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
+            language_codes=settings.GOOGLE_STT_ALTERNATE_LANGUAGES,  # All languages equal (hi-IN, mr-IN, en-IN)
             model=settings.GOOGLE_STT_MODEL
             # Note: Default recognizer (_) doesn't support advanced features like punctuation
         )
-        print(f"📋 Recognition config: LINEAR16 @ 16kHz, model={settings.GOOGLE_STT_MODEL}, languages={[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES})")
+        print(f"📋 Recognition config: LINEAR16 @ 16kHz, model={settings.GOOGLE_STT_MODEL}, languages={settings.GOOGLE_STT_ALTERNATE_LANGUAGES}")
         
         streaming_config = speech.StreamingRecognitionConfig(
             config=recognition_config,
@@ -1705,22 +2116,24 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
             # Then stream audio from queue
             chunk_count = 0
             empty_count = 0
+            max_empty_before_warn = 120  # Allow 2 minutes of silence before warning
             while not processing_complete.is_set():
                 try:
-                    audio_chunk = audio_queue.get(timeout=1.0)
+                    audio_chunk = audio_queue.get(timeout=0.5)  # Shorter timeout for faster response
                     if audio_chunk is None:  # Sentinel value to stop
                         print(f"📊 Audio stream ended (sentinel received). Total chunks sent: {chunk_count}")
                         break
                     if len(audio_chunk) > 0:
                         chunk_count += 1
                         empty_count = 0  # Reset empty counter
-                        if chunk_count % 20 == 0:  # Log every 20 chunks (~5 seconds)
+                        if chunk_count % 40 == 0:  # Log every 40 chunks (~10 seconds)
                             print(f"🎵 Sent {chunk_count} audio chunks ({len(audio_chunk)} bytes each)")
                         yield speech.StreamingRecognizeRequest(audio=audio_chunk)
                 except queue.Empty:
                     empty_count += 1
-                    if empty_count % 5 == 0:  # Log every 5 seconds of no audio
-                        print(f"⏸️  No audio in queue for {empty_count} seconds (chunk_count: {chunk_count})")
+                    if empty_count >= max_empty_before_warn:
+                        print(f"⚠️  No audio received for {empty_count * 0.5:.1f} seconds! Check frontend audio capture.")
+                        # Don't break - keep waiting for audio
                     continue
             
             print(f"🛑 Generator exiting: processing_complete={processing_complete.is_set()}, chunks_sent={chunk_count}")
@@ -1791,6 +2204,16 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                     error_type = type(e).__name__
                     error_msg = str(e)
                     print(f"❌ Speech processing error ({error_type}): {error_msg}")
+                    
+                    # Handle timeout/aborted specifically - this might be recoverable
+                    if "timed out" in error_msg.lower() or "aborted" in error_type.lower():
+                        print(f"⚠️  Speech API stream timed out (no audio received for ~40 seconds)")
+                        print(f"⚠️  This usually means the frontend stopped sending audio")
+                        print(f"⚠️  Check: 1) Audio capture still running? 2) WebSocket still sending data?")
+                        if not processing_complete.is_set():
+                            print(f"🔄 Session still active - will retry when audio resumes...")
+                            continue  # Try again - frontend might still be connected
+                    
                     import traceback
                     print("Full traceback:")
                     traceback.print_exc()
@@ -1836,8 +2259,14 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         # NOTE: This loop runs independently of speech processing thread
         # It only exits when WebSocket disconnects or errors occur
         audio_chunks_received = 0
+        print(f"🎧 Starting WebSocket receive loop for session {session_id}")
         try:
+            loop_iterations = 0
             while True:  # ✅ Keep receiving until WebSocket closes
+                loop_iterations += 1
+                if loop_iterations % 50 == 0:
+                    print(f"🔄 WebSocket loop iteration #{loop_iterations}, received {audio_chunks_received} chunks")
+                
                 try:
                     audio_chunk = await asyncio.wait_for(
                         websocket.receive_bytes(),
@@ -1855,11 +2284,14 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                 except asyncio.TimeoutError:
                     # Normal timeout - check if we should continue
                     if processing_complete.is_set():
-                        print(f"ℹ️  Speech thread stopped, ending receive loop")
+                        print(f"ℹ️  Speech thread stopped, ending receive loop (processing_complete is set)")
                         break
-                    continue  # Keep receiving
+                    # Keep receiving
+                    continue
+            
+            print(f"🛑 WebSocket receive loop exited normally after {loop_iterations} iterations")
         except WebSocketDisconnect:
-            print(f"🔌 WebSocket disconnected by client for session {session_id}")
+            print(f"🔌 WebSocket disconnected by client for session {session_id} after {loop_iterations} iterations")
         except Exception as e:
             error_type = type(e).__name__
             print(f"❌ WebSocket receive error ({error_type}): {e}")

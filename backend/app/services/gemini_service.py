@@ -99,10 +99,18 @@ class GeminiService:
         return f"""
 You are an experienced mental health professional reviewing a follow-up consultation transcript. 
 
-IMPORTANT LANGUAGE CONTEXT:
-- The transcript contains code-mixed language (Hindi/Marathi words written in Roman English alongside English)
-- Examples: "bahut", "zyada", "pareshaan", "tension", "lagta", "chahta", "nahi", etc.
-- Understand the context and meaning, then provide your analysis entirely in professional English
+⚠️ CRITICAL LANGUAGE & CONTEXT INSTRUCTIONS:
+- This transcript is from a doctor speaking to a patient during a clinical consultation
+- The transcript contains multilingual content: **Hindi, Marathi, and English** (all written in Devanagari script)
+- Due to speech-to-text limitations, the transcript may contain:
+  * Misspelled words or incorrect transcriptions
+  * Missing words or phrases
+  * Grammatical errors
+  * Code-switching between languages mid-sentence
+- Your task is to UNDERSTAND THE CLINICAL INTENT despite these errors
+- **Minimize hallucinations** - only include information that is clearly present or strongly implied
+- Provide the entire report in professional English
+- Use **bold** (markdown **text**) for important clinical terms, diagnoses, medications, risk factors, and critical findings
 
 TRANSCRIPT TO ANALYZE:
 {transcription}
@@ -128,10 +136,11 @@ TASK: Generate a CONCISE follow-up mental health assessment report with the foll
 - Current medications (if mentioned)
 - Treatment compliance and concerns
 
-## RECOMMENDATIONS
-- Immediate intervention needs
-- Treatment adjustments suggested
-- Follow-up requirements
+## RISK ASSESSMENT & SIDE EFFECTS
+- side effects of medications
+- risk of suicide or self-harm
+- risk to others
+- protective factors
 
 GUIDELINES:
 1. Keep each section to 2-3 bullet points maximum
@@ -151,9 +160,18 @@ Provide a clean, structured report without extra formatting or placeholders.
         return f"""
 You are an experienced mental health professional conducting an initial consultation assessment.
 
-IMPORTANT LANGUAGE CONTEXT:
-- The transcript contains code-mixed language (Hindi/Marathi words in Roman English)
-- Understand context and meaning, provide analysis entirely in professional English
+⚠️ CRITICAL LANGUAGE & CONTEXT INSTRUCTIONS:
+- This transcript is from a doctor speaking to a patient during a clinical consultation
+- The transcript contains multilingual content: **Hindi, Marathi, and English** (all written in Devanagari script)
+- Due to speech-to-text limitations, the transcript may contain:
+  * Misspelled words or incorrect transcriptions
+  * Missing words or phrases
+  * Grammatical errors
+  * Code-switching between languages mid-sentence
+- Your task is to UNDERSTAND THE CLINICAL INTENT despite these errors
+- **Minimize hallucinations** - only include information that is clearly present or strongly implied
+- Provide the entire report in professional English
+- Use **bold** (markdown **text**) for important clinical terms, diagnoses, medications, risk factors, and critical findings
 
 TRANSCRIPT TO ANALYZE:
 {transcription}
@@ -190,11 +208,6 @@ TASK: Generate a comprehensive initial mental health assessment report:
 - Differential diagnoses to consider
 - Severity assessment
 
-## RECOMMENDATIONS
-- Immediate interventions needed
-- Treatment planning considerations
-- Follow-up requirements
-- Safety planning if indicated
 
 GUIDELINES: Use professional terminology, be objective, highlight urgent concerns, maintain confidentiality.
 """

@@ -1,0 +1,82 @@
+'use client'
+
+import React, { useEffect, useState } from 'react'
+import SymptomSearchInput from './SymptomSearchInput'
+import SymptomAssignmentForm from './SymptomAssignmentForm'
+import AssignedSymptomList from './AssignedSymptomList'
+import { symptomAPI } from '@/services/symptoms'
+import type { AssignedSymptom, IntensityLevel } from '@/types/symptom'
+
+interface Props {
+    patientId: number
+}
+
+const SymptomAssessment: React.FC<Props> = ({ patientId }) => {
+    const [selectedSymptom, setSelectedSymptom] = useState<string | null>(null)
+    const [isCustom, setIsCustom] = useState(false)
+    const [assigned, setAssigned] = useState<AssignedSymptom[]>([])
+    const [loading, setLoading] = useState(false)
+
+    useEffect(() => { loadAssigned() }, [patientId])
+
+    const loadAssigned = async () => {
+        setLoading(true)
+        try {
+            const data = await symptomAPI.getPatientSymptoms(patientId)
+            setAssigned(data)
+        } catch (e) {
+            console.error('Failed to load symptoms', e)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const onSelect = (symptom: string, custom: boolean) => {
+        setSelectedSymptom(symptom)
+        setIsCustom(custom)
+    }
+
+    const onAssign = async (intensity: IntensityLevel, duration: string) => {
+        if (!selectedSymptom) return
+        try {
+            await symptomAPI.assignToPatient(patientId, {
+                symptom_name: selectedSymptom,
+                is_custom: isCustom,
+                intensity,
+                duration
+            })
+            await loadAssigned()
+            setSelectedSymptom(null)
+            setIsCustom(false)
+        } catch (e) {
+            console.error('Assign failed', e)
+            alert('Failed to assign symptom')
+        }
+    }
+
+    const onDelete = async (id: number) => {
+        if (!confirm('Remove this symptom?')) return
+        try {
+            await symptomAPI.deletePatientSymptom(id)
+            await loadAssigned()
+        } catch (e) {
+            console.error('Delete failed', e)
+            alert('Failed to remove symptom')
+        }
+    }
+
+    return (
+        <div className="bg-white dark:bg-neutral-800 rounded-lg border p-6">
+            <h3 className="text-xl font-semibold mb-4">Symptom Assessment</h3>
+            <SymptomSearchInput onSelect={onSelect} />
+            <SymptomAssignmentForm selectedSymptom={selectedSymptom} isCustom={isCustom} onSubmit={onAssign} onCancel={() => { setSelectedSymptom(null); setIsCustom(false) }} />
+            <div className="mt-6">
+                <AssignedSymptomList symptoms={assigned} onDelete={onDelete} isLoading={loading} />
+            </div>
+        </div>
+    )
+}
+
+export default SymptomAssessment
+
+
