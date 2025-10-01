@@ -90,21 +90,26 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
         }
     }))
 
-    // Main effect - start/stop recording based on isRecording prop
+    // Cleanup only on unmount
+    useEffect(() => {
+        return () => {
+            // Only cleanup when component unmounts, not on every state change
+            console.log('[VertexAI] Component unmounting, cleaning up...')
+            cleanup()
+        }
+    }, [])
+
+    // Handle recording state changes
     useEffect(() => {
         if (isRecording && !isPaused && sessionId) {
-            console.log('[VertexAI] Starting recording - sessionId:', sessionId)
-            startRecording()
-        } else if (!isRecording && websocketRef.current) {
-            console.log('[VertexAI] Stopping recording')
-            stopRecording()
-        }
-
-        return () => {
-            // Cleanup on unmount
-            if (websocketRef.current || audioStreamRef.current) {
-                cleanup()
+            // Only start if not already recording
+            if (!websocketRef.current) {
+                console.log('[VertexAI] Starting recording - sessionId:', sessionId)
+                startRecording()
             }
+        } else if (!isRecording && websocketRef.current) {
+            console.log('[VertexAI] Stopping recording (isRecording changed to false)')
+            stopRecording()
         }
     }, [isRecording, sessionId, isPaused])
 
