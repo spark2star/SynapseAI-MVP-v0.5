@@ -287,9 +287,6 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
                 console.log('[VertexAI] Active device:', track.label)
             }
 
-            // Setup audio level monitoring
-            setupAudioLevelMonitoring(stream)
-
             // Connect WebSocket first
             await connectWebSocket()
 
@@ -302,6 +299,11 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
             // Create media stream source
             const source = audioContext.createMediaStreamSource(stream)
             sourceNodeRef.current = source
+
+            // Create analyser for audio level monitoring
+            const analyser = audioContext.createAnalyser()
+            analyser.fftSize = 256
+            analyserRef.current = analyser
 
             // Create ScriptProcessorNode for raw PCM capture
             // Buffer size: 4096 samples at 16kHz = ~256ms chunks
@@ -333,9 +335,13 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
                 }
             }
 
-            // Connect: source -> processor -> destination (silent)
-            source.connect(processor)
+            // Connect audio graph: source -> analyser -> processor -> destination
+            source.connect(analyser)
+            analyser.connect(processor)
             processor.connect(audioContext.destination)
+
+            // Start audio level monitoring
+            setupAudioLevelMonitoring()
 
             console.log('[VertexAI] LINEAR16 PCM audio processor started @ 16kHz')
 
@@ -417,20 +423,11 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
     /**
      * Setup audio level visualization
+     * Note: Uses the analyser already created in the audio graph
      */
-    const setupAudioLevelMonitoring = (stream: MediaStream) => {
+    const setupAudioLevelMonitoring = () => {
         try {
-            const audioContext = new AudioContext()
-            const analyser = audioContext.createAnalyser()
-            const source = audioContext.createMediaStreamSource(stream)
-
-            analyser.fftSize = 256
-            source.connect(analyser)
-
-            audioContextRef.current = audioContext
-            analyserRef.current = analyser
-
-            // Update audio level periodically
+            // Update audio level periodically using the existing analyser
             audioLevelIntervalRef.current = setInterval(() => {
                 if (analyserRef.current) {
                     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
