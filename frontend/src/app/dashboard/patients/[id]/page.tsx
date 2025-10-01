@@ -372,8 +372,8 @@ export default function PatientDetailPage() {
                 // Store report in a separate state variable (we'll create this)
                 setGeneratedReport(reportData)
 
-                toast.success('✅ Medical report generated successfully with Gemini 2.5 Flash!')
-                console.log('🎯 Real Gemini 2.5 Flash report generated successfully!')
+                toast.success('✅ Medical report generated successfully!')
+                console.log('🎯 Medical report generated successfully!')
 
                 // No auto-scroll - let user control their view
             } else {

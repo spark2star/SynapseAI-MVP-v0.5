@@ -92,9 +92,11 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
     // Cleanup only on unmount
     useEffect(() => {
+        console.log('[VertexAI] Component mounted')
         return () => {
             // Only cleanup when component unmounts, not on every state change
-            console.log('[VertexAI] Component unmounting, cleaning up...')
+            console.log('[VertexAI] ❌ Component unmounting, cleaning up...')
+            console.trace('[VertexAI] Unmount stack trace:')
             cleanup()
         }
     }, [])
@@ -361,7 +363,8 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
      * Stop recording and cleanup
      */
     const stopRecording = () => {
-        console.log('[VertexAI] Stopping recording and cleaning up...')
+        console.log('[VertexAI] 🛑 stopRecording called')
+        console.trace('[VertexAI] stopRecording stack trace:')
 
         // Disconnect and stop audio processor nodes
         if (audioProcessorRef.current) {

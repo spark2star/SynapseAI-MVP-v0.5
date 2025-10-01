@@ -1704,19 +1704,26 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
             
             # Then stream audio from queue
             chunk_count = 0
+            empty_count = 0
             while not processing_complete.is_set():
                 try:
                     audio_chunk = audio_queue.get(timeout=1.0)
                     if audio_chunk is None:  # Sentinel value to stop
-                        print(f"📊 Audio stream ended. Total chunks sent: {chunk_count}")
+                        print(f"📊 Audio stream ended (sentinel received). Total chunks sent: {chunk_count}")
                         break
                     if len(audio_chunk) > 0:
                         chunk_count += 1
+                        empty_count = 0  # Reset empty counter
                         if chunk_count % 20 == 0:  # Log every 20 chunks (~5 seconds)
                             print(f"🎵 Sent {chunk_count} audio chunks ({len(audio_chunk)} bytes each)")
                         yield speech.StreamingRecognizeRequest(audio=audio_chunk)
                 except queue.Empty:
+                    empty_count += 1
+                    if empty_count % 5 == 0:  # Log every 5 seconds of no audio
+                        print(f"⏸️  No audio in queue for {empty_count} seconds (chunk_count: {chunk_count})")
                     continue
+            
+            print(f"🛑 Generator exiting: processing_complete={processing_complete.is_set()}, chunks_sent={chunk_count}")
         
         # Process responses in a separate thread
         # NOTE: Keep processing until explicitly stopped (processing_complete is set)
@@ -1731,7 +1738,9 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                     responses = client.streaming_recognize(requests=audio_stream_generator())
                     print(f"✅ Speech API stream established, waiting for responses...")
                     
+                    response_received = False
                     for response in responses:
+                        response_received = True
                         if processing_complete.is_set():
                             print(f"⏹️  Stop signal received, ending Speech API stream")
                             break
@@ -1765,11 +1774,13 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                                 print(f"   Confidence: {confidence:.2f}, Language: {result.language_code}")
                     
                     # Stream ended naturally (silence detected) - restart if not stopped
+                    print(f"📡 Stream #{stream_count} ended. Received responses: {response_received}, Total responses so far: {response_count}")
+                    
                     if not processing_complete.is_set():
                         print(f"🔄 Speech API stream ended, restarting for continuous transcription...")
                         continue  # Restart the loop
                     else:
-                        print(f"🏁 Speech API stream ended - session stopped")
+                        print(f"🏁 Speech API stream ended - session stopped (processing_complete is set)")
                         break
                         
                 except Exception as e:
@@ -1809,7 +1820,8 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
                         processing_complete.wait(timeout=2.0)
             
             print(f"🧹 Speech processing thread cleanup for session {session_id} ({stream_count} streams processed)")
-            processing_complete.set()  # Ensure it's set
+            # NOTE: Don't set processing_complete here - let the WebSocket cleanup handle it
+            # This allows the continuous transcription loop to work properly
         
         # Start processing thread
         processing_thread = threading.Thread(
@@ -1821,26 +1833,33 @@ async def vertex_ai_transcribe_websocket(websocket: WebSocket):
         print(f"✅ Speech processing thread started for session {session_id}")
         
         # Receive audio from WebSocket and put in queue
+        # NOTE: This loop runs independently of speech processing thread
+        # It only exits when WebSocket disconnects or errors occur
         audio_chunks_received = 0
         try:
-            while not processing_complete.is_set():
-                audio_chunk = await asyncio.wait_for(
-                    websocket.receive_bytes(),
-                    timeout=1.0
-                )
-                if not audio_chunk or len(audio_chunk) == 0:
-                    print(f"⚠️  Received empty audio chunk, ignoring")
-                    continue
-                
-                audio_chunks_received += 1
-                if audio_chunks_received % 40 == 0:  # Log every 40 chunks (~10 seconds)
-                    print(f"📨 Received {audio_chunks_received} audio chunks from frontend ({len(audio_chunk)} bytes each)")
-                
-                audio_queue.put(audio_chunk)
-        except asyncio.TimeoutError:
-            pass  # Normal timeout, check if processing is complete
+            while True:  # ✅ Keep receiving until WebSocket closes
+                try:
+                    audio_chunk = await asyncio.wait_for(
+                        websocket.receive_bytes(),
+                        timeout=1.0
+                    )
+                    if not audio_chunk or len(audio_chunk) == 0:
+                        print(f"⚠️  Received empty audio chunk, ignoring")
+                        continue
+                    
+                    audio_chunks_received += 1
+                    if audio_chunks_received % 40 == 0:  # Log every 40 chunks (~10 seconds)
+                        print(f"📨 Received {audio_chunks_received} audio chunks from frontend ({len(audio_chunk)} bytes each)")
+                    
+                    audio_queue.put(audio_chunk)
+                except asyncio.TimeoutError:
+                    # Normal timeout - check if we should continue
+                    if processing_complete.is_set():
+                        print(f"ℹ️  Speech thread stopped, ending receive loop")
+                        break
+                    continue  # Keep receiving
         except WebSocketDisconnect:
-            print(f"🔌 WebSocket disconnected for session {session_id}")
+            print(f"🔌 WebSocket disconnected by client for session {session_id}")
         except Exception as e:
             error_type = type(e).__name__
             print(f"❌ WebSocket receive error ({error_type}): {e}")

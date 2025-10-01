@@ -150,10 +150,10 @@ export default function MedicalReportDisplay({
                         <div className="text-center">
                             <ClockIcon className="h-12 w-12 text-green-500 animate-spin mx-auto mb-4" />
                             <h4 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">
-                                Analyzing Transcription with Gemini 2.5 Flash
+                                Generating Your Medical Report
                             </h4>
                             <p className="text-neutral-600 dark:text-neutral-400">
-                                Generating comprehensive medical report...
+                                Please wait while we analyze the consultation...
                             </p>
                             <div className="mt-4 w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
                                 <div className="bg-green-500 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
