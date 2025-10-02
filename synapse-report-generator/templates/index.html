@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SynapseAI - Medical Report Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="/static/styles.css" rel="stylesheet" />
+</head>
+
+<body>
+    <main class="container">
+        <header class="mb-4">
+            <h1 class="h3">SynapseAI - Medical Report Generator</h1>
+            <p class="text-muted mb-0">Paste a Hindi transcript and generate a structured English report. Highlight tags
+                and a complaint capture score are computed automatically.</p>
+        </header>
+
+        <!-- Error -->
+        <section id="errorSection" class="error-alert d-none" role="alert" aria-live="polite">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-5" aria-hidden="true">⚠</span>
+                <span id="errorMessage">An error occurred.</span>
+            </div>
+            <div class="mt-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">Try Again</button>
+            </div>
+        </section>
+
+        <!-- Inputs -->
+        <section class="mt-4">
+            <div class="mb-3">
+                <label for="transcript" class="form-label">Hindi Transcript</label>
+                <textarea id="transcript" class="form-control" rows="8"
+                    placeholder="यहाँ हिंदी में परामर्श का ट्रांस्क्रिप्ट पेस्ट करें..."
+                    aria-describedby="charCounter"></textarea>
+                <div id="charCounter" class="form-text">0 / 10000</div>
+            </div>
+            <div class="mb-3">
+                <label for="medications" class="form-label">Medications (optional)</label>
+                <input id="medications" class="form-control" type="text" placeholder="e.g., Paracetamol 500mg" />
+            </div>
+            <button id="generateBtn" class="btn btn-primary" disabled>Generate Report</button>
+        </section>
+
+        <!-- Loading -->
+        <section id="loadingSection" class="text-center d-none mt-5" aria-live="polite">
+            <div class="loading-spinner"></div>
+            <p class="mt-3 mb-0">Analyzing conversation and generating report...</p>
+            <small class="text-muted">This usually takes 10-15 seconds</small>
+        </section>
+
+        <!-- Results -->
+        <section id="resultsSection" class="d-none mt-5">
+            <!-- Score Card -->
+            <div class="score-card">
+                <div id="scoreDisplay" class="mb-2"></div>
+                <p id="scoreRationale" class="mb-0"></p>
+            </div>
+
+            <!-- Report -->
+            <div class="mb-3">
+                <label for="reportTextarea" class="form-label">Generated Report (editable)</label>
+                <textarea id="reportTextarea" class="form-control" rows="15"></textarea>
+            </div>
+            <div class="d-flex gap-2 mb-4">
+                <button id="copyBtn" class="btn btn-outline-primary" onclick="copyToClipboard()"
+                    aria-label="Copy to clipboard">
+                    Copy to Clipboard
+                </button>
+                <button id="downloadBtn" class="btn btn-outline-secondary" onclick="downloadTextFile()"
+                    aria-label="Download as text file">
+                    Download as Text File
+                </button>
+            </div>
+
+            <!-- Tags -->
+            <div class="mb-2"><strong>Key Terms Captured</strong></div>
+            <div id="tagsContainer" class="d-flex flex-wrap gap-2"></div>
+        </section>
+    </main>
+
+    <script src="/static/script.js"></script>
+</body>
+
+</html>

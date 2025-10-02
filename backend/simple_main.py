@@ -14,6 +14,7 @@ import numpy as np
 from google.cloud import speech
 from google.oauth2 import service_account
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
+import re
 from fastapi import Request, Depends
 from fastapi.websockets import WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
@@ -686,23 +687,104 @@ Keep it professional, concise, and clinical."""
             "session_type": gem_session_type
         }
 
+        def _build_med_report_prompt(transcript_text: str, meds_text: str) -> str:
+            return f"""You are an expert medical scribe and quality analyst. Your job is to generate a concise, accurate medical report in English based on a Hindi conversation transcript, and analyze how well the report captures the patient's primary complaints.
+
+**[CONTEXT]**
+
+**Hindi Transcript:**
+---
+{transcript_text}
+---
+
+**Structured Doctor's Notes:**
+---
+Medications prescribed: {meds_text if meds_text else "None documented"}
+---
+
+**[INSTRUCTIONS]**
+
+Perform three tasks and return a single, valid JSON object containing all results.
+
+**Task 1: Generate Medical Report**
+Create a professional English medical report with these sections:
+- **Chief Complaint:** Primary reason for visit (1-2 sentences)
+- **History of Present Illness (HPI):** Detailed symptom timeline and context (3-5 sentences)
+- **Assessment and Plan (A&P):** Diagnosis, treatment plan, and prescribed medications (2-4 sentences)
+
+Keep the language clear and professional. Focus on clinical accuracy.
+
+**Task 2: Identify Complaint Capture Tags**
+Extract the 7 most important medical terms (symptoms, conditions, complaints) that:
+1. Were mentioned by the patient in the Hindi transcript
+2. Are successfully documented in your English report
+3. Are specific medical terms, not generic words
+
+Return as an array of English strings.
+
+**Task 3: Calculate Complaint Capture Score**
+Provide a score (0-100) and a one-sentence rationale.
+
+**[OUTPUT FORMAT]**
+Return ONLY a valid JSON object with NO markdown code fences or extra text:
+{{{{
+  "generated_report": "## CHIEF COMPLAINT\n[content]\n\n## CURRENT STATUS\n[content]\n\n## MENTAL STATUS EXAMINATION\n- **Mood:** ...\n- **Affect:** ...\n- **Thought Process:** ...\n- **Suicidal Ideation:** ...\n- **Homicidal Ideation:** ...\n\n## ASSESSMENT\n[content]\n\n## PLAN\n[content]\n\n## MEDICATION & TREATMENT\nREPLACE_WITH_MEDS",
+  "concise_summary": "Provide a 2-4 sentence, clinician-facing English summary of WHAT HAPPENED IN THE SESSION (not about the report). Include primary complaints, salient history/context, notable findings, and the plan/medications as appropriate. Avoid meta commentary. Target ~300-450 characters.",
+  "highlight_tags": ["term1", "term2", "term3", "term4", "term5", "term6", "term7"],
+  "complaint_capture_score": {{{{"score": 85, "rationale": "..."}}}}
+}}}}"""
+
+        def _parse_ai_json(text: str) -> dict:
+            try:
+                cleaned = text.strip()
+                cleaned = re.sub(r"```[a-zA-Z0-9_]*\n|```", "", cleaned)
+                return json.loads(cleaned)
+            except Exception:
+                return {}
+
         def _run_job():
             try:
-                loop_result = asyncio.run(gemini_service.generate_medical_report(
-                    transcription=enhanced_prompt,
-                    session_type=gem_session_type
-                ))
-                if loop_result.get("status") == "success":
-                    reports_storage[report_id].update({
-                        "status": "completed",
-                        "report_content": loop_result["report"],
-                        "model_used": loop_result.get("model_used", "gemini-2.5-flash")
-                    })
-                else:
-                    reports_storage[report_id].update({
-                        "status": "failed",
-                        "error": loop_result.get("error", "Unknown error")
-                    })
+                # Build meds summary for the JSON-oriented prompt
+                meds_text = "\n".join([
+                    f"- {m['drug_name']} {m['dosage']} – {m['frequency']}" + (f" ({m.get('route')})" if m.get('route') else '') + (f"\n  Instructions: {m.get('instructions')}" if m.get('instructions') else '')
+                    for m in reports_storage[report_id]["medication_plan"]
+                ])
+                prompt_for_json = _build_med_report_prompt(request.transcription, meds_text)
+                # Inject meds into the JSON template placeholder so the AI cannot drop them
+                prompt_for_json = prompt_for_json.replace(
+                    "REPLACE_WITH_MEDS",
+                    meds_text.replace("\\", "\\\\").replace("\n", "\\n") if meds_text else "None documented"
+                )
+
+                ai_obj = gemini_service.model.generate_content(prompt_for_json)
+                raw_text = getattr(ai_obj, "text", "")
+                parsed = _parse_ai_json(raw_text)
+                # If model returned narrative instead of JSON, ask it to convert to strict JSON
+                if (not parsed) or (not isinstance(parsed, dict)) or (not parsed.get("generated_report")) or (not parsed.get("concise_summary")):
+                    coercion_prompt = (
+                        "Convert the following content into EXACT JSON with keys: "
+                        "generated_report (string), concise_summary (string), highlight_tags (array of strings), "
+                        "complaint_capture_score (object with score:int and rationale:string). "
+                        "For concise_summary: write a 2-4 sentence, session-focused narrative (what happened, key complaints, salient context, notable findings, plan/meds); do NOT mention 'report' or 'summary'. "
+                        "Return ONLY JSON, no prose, no code fences.\n\nCONTENT:\n" + raw_text[:6000]
+                    )
+                    ai_fix = gemini_service.model.generate_content(coercion_prompt)
+                    raw_fix = getattr(ai_fix, "text", "")
+                    parsed = _parse_ai_json(raw_fix)
+                # If the structured JSON came back inside the text field, use it; otherwise, keep the narrative
+                highlight = parsed.get("highlight_tags", []) if isinstance(parsed, dict) else []
+                score = parsed.get("complaint_capture_score") if isinstance(parsed, dict) else None
+                final_report = parsed.get("generated_report") if isinstance(parsed, dict) and parsed.get("generated_report") else raw_text
+                concise = parsed.get("concise_summary") if isinstance(parsed, dict) else None
+
+                reports_storage[report_id].update({
+                    "status": "completed",
+                    "report_content": final_report,
+                    "model_used": getattr(gemini_service, "model_name", "gemini"),
+                    "highlight_tags": highlight,
+                    "complaint_capture_score": score,
+                    "concise_summary": concise
+                })
             except Exception as e:  # noqa: BLE001
                 reports_storage[report_id].update({
                     "status": "failed",

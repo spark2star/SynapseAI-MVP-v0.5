@@ -23,6 +23,9 @@ interface ReportData {
     generated_at: string
     patient_name?: string
     doctor_name?: string
+    highlight_tags?: string[]
+    complaint_capture_score?: { score: number, rationale: string } | null
+    concise_summary?: string
 }
 
 interface MedicalReportDisplayProps {
@@ -37,6 +40,7 @@ export default function MedicalReportDisplay({
     onGenerateNew
 }: MedicalReportDisplayProps) {
     const [isExpanded, setIsExpanded] = useState(true)
+    const [tags, setTags] = useState<string[]>([])
 
     if (!reportData && !isGenerating) {
         return null
@@ -184,6 +188,20 @@ export default function MedicalReportDisplay({
         writeSubHeading('Generated', new Date(reportData.generated_at).toLocaleString())
         cursorY += 2
 
+        // Key Terms (top of PDF)
+        if (Array.isArray(reportData.highlight_tags) && reportData.highlight_tags.length > 0) {
+            writeSectionTitle('Key Terms')
+            const line = reportData.highlight_tags.join(', ')
+            writeParagraph(line)
+        }
+
+        // 30-second concise summary (from AI if available)
+        const abstract = (reportData.concise_summary || '').trim()
+        if (abstract) {
+            writeSectionTitle('Concise Summary')
+            writeParagraph(abstract)
+        }
+
         // Body from markdown sections
         // Convert markdown **bold** markers to plain emphasis for PDF
         const normalizedReport = (reportData.report || '').replace(/\*\*(.+?)\*\*/g, '$1')
@@ -220,7 +238,7 @@ export default function MedicalReportDisplay({
         <div id="medical-report-card" className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-green-200 dark:border-green-800 shadow-lg">
             {/* Header */}
             <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 bg-green-50 dark:bg-green-900/20">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
                             <SparklesIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -230,21 +248,26 @@ export default function MedicalReportDisplay({
                                 {isGenerating ? 'Generating Medical Report...' : 'AI-Generated Medical Report'}
                             </h3>
                             {reportData && (
-                                <p className="text-sm text-green-700 dark:text-green-300 flex items-center gap-4">
-                                    <span className="flex items-center gap-1">
-                                        <CalendarIcon className="h-4 w-4" />
-                                        {formatDateTime(reportData.generated_at)}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                        <DocumentTextIcon className="h-4 w-4" />
-                                        {reportData.transcription_length} chars analyzed
-                                    </span>
-                                </p>
+                                <div className="text-sm text-green-700 dark:text-green-300 flex flex-wrap items-center gap-8 mt-1">
+                                    <div className="flex items-center gap-1">
+                                        <span className="font-semibold">Session ID:</span>
+                                        <span className="font-mono">{reportData.session_id || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="font-semibold">Session Type:</span>
+                                        <span className="capitalize">{reportData.session_type?.replace('_', ' ') || 'Follow-up'}</span>
+                                    </div>
+                                    {reportData.complaint_capture_score && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="font-semibold">Capture Score:</span>
+                                            <span>{reportData.complaint_capture_score.score}/100</span>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 md:gap-3">
                         {!isGenerating && reportData && (
                             <Button
                                 variant="secondary"
@@ -265,7 +288,6 @@ export default function MedicalReportDisplay({
                                 )}
                             </Button>
                         )}
-
                         {!isGenerating && onGenerateNew && (
                             <Button
                                 variant="primary"
@@ -282,7 +304,6 @@ export default function MedicalReportDisplay({
                                 variant="secondary"
                                 size="sm"
                                 onClick={handleDownloadPDF}
-                                className="ml-2"
                             >
                                 Download PDF
                             </Button>
@@ -312,22 +333,25 @@ export default function MedicalReportDisplay({
 
                 {!isGenerating && reportData && isExpanded && (
                     <div className="space-y-6">
-                        {/* Session Info */}
-                        <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                <div>
-                                    <span className="text-neutral-500 dark:text-neutral-400">Session ID:</span>
-                                    <p className="font-mono text-neutral-900 dark:text-neutral-100">{reportData.session_id || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <span className="text-neutral-500 dark:text-neutral-400">Session Type:</span>
-                                    <p className="capitalize font-medium text-neutral-900 dark:text-neutral-100">
-                                        {reportData.session_type?.replace('_', ' ') || 'Follow-up'}
-                                    </p>
-                                </div>
-                                {/* Model name removed per requirement */}
+                        {reportData.concise_summary && (
+                            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-5 border border-amber-200 dark:border-amber-800">
+                                <div className="text-lg font-semibold text-amber-900 dark:text-amber-100 mb-2">Concise Summary</div>
+                                <div className="text-[16px] leading-relaxed text-amber-900/95 dark:text-amber-100/95">{reportData.concise_summary}</div>
                             </div>
-                        </div>
+                        )}
+
+                        {Array.isArray(reportData.highlight_tags) && reportData.highlight_tags.length > 0 && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                                <div className="text-sm font-medium mb-2 text-blue-900 dark:text-blue-100">Key Terms</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {reportData.highlight_tags.map((t, i) => (
+                                        <span key={`tag-${i}`} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200">{t}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {/* Capture score body card removed; score shown in header only */}
+                        {/* Session Info removed - moved into header */}
 
                         {/* Report Content */}
                         <div className="prose prose-neutral dark:prose-invert max-w-none">

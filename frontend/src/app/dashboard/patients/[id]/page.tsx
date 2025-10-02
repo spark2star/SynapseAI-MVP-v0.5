@@ -353,7 +353,15 @@ export default function PatientDetailPage() {
                     transcription_length: data.transcription_length,
                     generated_at: data.created_at,
                     patient_name: patient?.full_name || undefined,
-                    doctor_name: (user as any)?.name || undefined
+                    doctor_name: (user as any)?.name || undefined,
+                    highlight_tags: data.highlight_tags || [],
+                    complaint_capture_score: data.complaint_capture_score || null,
+                    concise_summary: data.concise_summary || ''
+                }
+                // Display highlight tags if present
+                const highlightTags: string[] = (data.highlight_tags || [])
+                if (highlightTags.length > 0) {
+                    console.log('🧩 Highlight tags:', highlightTags)
                 }
                 // If report doesn't contain a medication/treatment section, append one
                 if (meds) {
@@ -669,19 +677,7 @@ export default function PatientDetailPage() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    {!isFollowUpSession && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                                                Session Focus
-                                            </label>
-                                            <Input
-                                                placeholder="Primary focus for today's session (e.g., anxiety management, mood assessment)..."
-                                                value={chiefComplaint}
-                                                onChange={(e) => setChiefComplaint(e.target.value)}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                    )}
+                                    {/* Remove separate Session Focus section as requested */}
 
                                     <div>
                                         <label className="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
@@ -689,8 +685,9 @@ export default function PatientDetailPage() {
                                         </label>
                                         <select
                                             className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                            defaultValue="follow-up"
+                                            defaultValue={isFirstVisitMode ? 'first-visit' : 'follow-up'}
                                         >
+                                            <option value="first-visit">First Session</option>
                                             <option value="follow-up">Follow-up Session</option>
                                             <option value="therapy">Therapy Session</option>
                                             <option value="assessment">Mental Health Assessment</option>
