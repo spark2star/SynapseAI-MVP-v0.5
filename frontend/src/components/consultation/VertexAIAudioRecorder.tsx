@@ -145,7 +145,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
         setConnectionStatus('connecting')
 
-        const wsUrl = `${WS_URL}/ws/transcribe?token=${token}&session_id=${sessionId}`
+        const wsUrl = `${WS_URL}/ws/transcribe?token=${encodeURIComponent(token)}&session_id=${encodeURIComponent(sessionId)}`
         console.log('[VertexAI] Connecting to WebSocket:', wsUrl.replace(token, 'TOKEN'))
         console.log('[VertexAI] Token length:', token.length, 'chars')
 

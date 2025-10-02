@@ -93,13 +93,9 @@ export default function NewPatientPage() {
             const result = await response.json()
 
             if (result.status === 'success') {
-                setCurrentStage('complete')
                 toast.success(`Patient registration completed! Added ${symptoms.length} symptoms.`)
-
-                // Redirect to patient list or dashboard after a brief delay
-                setTimeout(() => {
-                    router.push('/dashboard/patients')
-                }, 2000)
+                // Redirect directly to starting a session for this new patient as First visit
+                router.replace(`/dashboard/patients/${createdPatient.patient_id}?first_visit=true`)
             } else {
                 throw new Error(result.message || 'Failed to save symptoms')
             }

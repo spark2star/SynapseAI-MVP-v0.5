@@ -581,6 +581,7 @@ class SessionReportRequest(BaseModel):
     medication_plan: list[MedicationItem]
     additional_notes: str = ""
     patient_progress: Optional[str] = None  # IMPROVING | STABLE | DETERIORATING
+    session_type: Optional[str] = "follow_up"  # follow_up | first_visit
 
 @app.post("/api/v1/reports/generate-session")
 async def generate_session_report(request: SessionReportRequest):
@@ -665,6 +666,10 @@ Generate a structured report with these sections:
 
 Keep it professional, concise, and clinical."""
         
+        # Determine session type for Gemini prompt
+        requested_type = (request.session_type or "follow_up").lower()
+        gem_session_type = "new_patient" if requested_type in {"first_visit", "first", "new", "new_patient"} else "follow_up"
+
         # Queue background job to avoid frontend timeouts
         report_id = report_id_counter
         report_id_counter += 1
@@ -677,14 +682,15 @@ Keep it professional, concise, and clinical."""
             "created_at": datetime.now(timezone.utc).isoformat(),
             "transcription_length": len(request.transcription),
             "patient_progress": request.patient_progress or None,
-            "medication_plan": [med.dict() for med in request.medication_plan]
+            "medication_plan": [med.dict() for med in request.medication_plan],
+            "session_type": gem_session_type
         }
 
         def _run_job():
             try:
                 loop_result = asyncio.run(gemini_service.generate_medical_report(
                     transcription=enhanced_prompt,
-                    session_type="follow_up"
+                    session_type=gem_session_type
                 ))
                 if loop_result.get("status") == "success":
                     reports_storage[report_id].update({

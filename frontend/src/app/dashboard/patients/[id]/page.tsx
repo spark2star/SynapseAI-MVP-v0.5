@@ -71,6 +71,7 @@ export default function PatientDetailPage() {
     const searchParams = useSearchParams()
     const patientId = params?.id as string
     const isFollowUpMode = searchParams?.get('followup') === 'true'
+    const isFirstVisitMode = searchParams?.get('first_visit') === 'true'
     const { user } = useAuthStore()
 
     const [patient, setPatient] = useState<Patient | null>(null)
@@ -118,15 +119,15 @@ export default function PatientDetailPage() {
         return () => window.removeEventListener('open-session-summary-modal', handler)
     }, [finalTranscription])
 
-    // Auto-trigger follow-up session if coming from dashboard
+    // Auto-trigger session if coming from links
     useEffect(() => {
-        if (isFollowUpMode && patient && !isRecording && !showNewConsultation) {
+        if ((isFollowUpMode || isFirstVisitMode) && patient && !isRecording && !showNewConsultation) {
             // Auto-open the consultation modal for follow-up
             setShowNewConsultation(true)
-            setIsFollowUpSession(true)
-            setChiefComplaint("Follow-up consultation") // Auto-fill for follow-up
+            setIsFollowUpSession(!isFirstVisitMode)
+            setChiefComplaint(isFirstVisitMode ? 'First visit consultation' : 'Follow-up consultation')
         }
-    }, [isFollowUpMode, patient, isRecording, showNewConsultation])
+    }, [isFollowUpMode, isFirstVisitMode, patient, isRecording, showNewConsultation])
 
     useEffect(() => {
         let interval: NodeJS.Timeout
@@ -347,7 +348,7 @@ export default function PatientDetailPage() {
                 const adapted = {
                     report: data.report_content,
                     session_id: data.session_id,
-                    session_type: 'follow_up',
+                    session_type: data.session_type || 'follow_up',
                     model_used: '',
                     transcription_length: data.transcription_length,
                     generated_at: data.created_at,
@@ -355,8 +356,14 @@ export default function PatientDetailPage() {
                     doctor_name: (user as any)?.name || undefined
                 }
                 // If report doesn't contain a medication/treatment section, append one
-                if (!/##\s*(medication|treatment)/i.test(adapted.report) && meds) {
-                    adapted.report += `\n\n## MEDICATION & TREATMENT\n${meds}`
+                if (meds) {
+                    if (/##\s*(medication|treatment)/i.test(adapted.report)) {
+                        // Inject meds under existing section by appending at the end
+                        adapted.report += `\n${meds}`
+                    } else {
+                        // Create the section if it's missing
+                        adapted.report += `\n\n## MEDICATION & TREATMENT\n${meds}`
+                    }
                 }
                 // Persist last medications (state + localStorage)
                 const medsList: MedicationItem[] = (data.medication_plan || [])
@@ -940,6 +947,7 @@ export default function PatientDetailPage() {
                     sessionId={currentSession || ''}
                     transcription={pendingTranscriptForReport || finalTranscription}
                     onReportGenerated={handleReportGenerated}
+                    sessionType={isFirstVisitMode ? 'first_visit' : 'follow_up'}
                     initialMedications={
                         (currentSession && (() => {
                             try {

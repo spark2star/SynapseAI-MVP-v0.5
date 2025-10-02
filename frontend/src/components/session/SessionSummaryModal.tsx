@@ -15,6 +15,7 @@ interface SessionSummaryModalProps {
     onReportGenerated: (reportId: number) => void
     initialMedications?: MedicationItem[]
     initialNotes?: string
+    sessionType?: 'follow_up' | 'first_visit'
 }
 
 const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
@@ -24,7 +25,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     transcription,
     onReportGenerated,
     initialMedications,
-    initialNotes
+    initialNotes,
+    sessionType = 'follow_up'
 }) => {
     const [progress, setProgress] = useState<ProgressData | null>(null)
     const [medicationPlan, setMedicationPlan] = useState<MedicationItem[]>(
@@ -98,7 +100,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     transcription: transcription,
                     patient_progress: progress.status,
                     medication_plan: validMeds,
-                    additional_notes: additionalNotes
+                    additional_notes: additionalNotes,
+                    session_type: sessionType
                 },
                 { timeout: 30000 }
             )
@@ -174,9 +177,9 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                             <div className="flex items-center gap-3">
                                 <div className="w-full">
                                     <div className="h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
-                                        <div className="h-2 bg-blue-500 animate-pulse rounded-full" style={{ width: '70%' }}></div>
+                                        <div className="h-2 bg-blue-500 rounded-full animate-[progress_3s_ease-in-out_infinite]" style={{ width: '35%' }}></div>
                                     </div>
-                                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">{progressMessage || 'Generating report...'}</p>
+                                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">{progressMessage || 'Generating report (~30s)...'}</p>
                                 </div>
                             </div>
                         </div>

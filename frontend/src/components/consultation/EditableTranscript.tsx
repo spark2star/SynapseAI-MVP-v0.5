@@ -208,7 +208,9 @@ export default function EditableTranscript({
 
     const handleSaveEdit = () => {
         try {
-            onTranscriptionEdit(editedText)
+            // Persist edits back to parent (final transcription)
+            const textToSave = editedText?.trim() ? editedText : combinedText
+            onTranscriptionEdit(textToSave)
             setIsEditing(false)
         } catch (error) {
             console.error('Error saving transcript:', error)

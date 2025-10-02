@@ -10,10 +10,10 @@ interface LogoProps {
 
 // Updated size classes for transparent logo - slightly larger for better visibility
 const sizeClasses = {
-  sm: 'h-6 w-6',     // enhanced visibility (24px)
-  md: 'h-7 w-7',     // better proportion (28px) 
-  lg: 'h-9 w-9',     // improved presence (36px)
-  xl: 'h-11 w-11'    // professional scale (44px)
+  sm: 'h-10 w-10',
+  md: 'h-12 w-12',
+  lg: 'h-14 w-14',
+  xl: 'h-16 w-16'
 }
 
 const textSizes = {
@@ -33,7 +33,7 @@ export default function Logo({ size = 'md', className = '', showText = true }: L
           alt="SynapseAI Logo"
           fill
           sizes="(max-width: 768px) 48px, 56px"
-          className="object-contain transition-all duration-300"
+          className="object-contain transition-all duration-300 [image-rendering:auto] bg-transparent mix-blend-multiply dark:mix-blend-screen"
           priority
         />
       </div>
