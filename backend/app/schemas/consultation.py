@@ -1,108 +1,170 @@
 """
-Consultation session schemas for API validation and serialization.
+Consultation schemas with automatic camelCase conversion.
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, Dict, Any
+from app.schemas.base import CamelCaseModel
+from typing import Optional
 from datetime import datetime
 
-from app.models.session import SessionStatus, SessionType
 
-
-# Base Schemas
-class ConsultationSessionBase(BaseModel):
-    """Base schema for consultation session."""
-    patient_id: str
-    session_type: str = SessionType.CONSULTATION.value
-    chief_complaint: Optional[str] = Field(None, max_length=500)
-    notes: Optional[str] = Field(None, max_length=2000)
-    recording_settings: Optional[Dict[str, Any]] = None
-    stt_settings: Optional[Dict[str, Any]] = None
-
-
-class ConsultationSessionCreate(ConsultationSessionBase):
-    """Schema for creating a new consultation session."""
-    pass
-
-
-class ConsultationSessionUpdate(BaseModel):
-    """Schema for updating a consultation session (all fields optional)."""
-    status: Optional[str] = None
-    chief_complaint: Optional[str] = Field(None, max_length=500)
-    notes: Optional[str] = Field(None, max_length=2000)
-    audio_file_url: Optional[str] = None
-    audio_file_size: Optional[int] = None
-    audio_format: Optional[str] = None
-    audio_duration: Optional[float] = None
-    billing_code: Optional[str] = None
-    billing_amount: Optional[float] = None
-
-
-class ConsultationSessionRead(ConsultationSessionBase):
-    """Schema for reading consultation session data."""
+class ConsultationResponse(CamelCaseModel):
+    """
+    Consultation session response with automatic camelCase conversion.
+    
+    Automatic conversions:
+    - session_id → sessionId
+    - patient_id → patientId
+    - doctor_id → doctorId
+    - chief_complaint → chiefComplaint
+    - session_type → sessionType
+    - created_at → createdAt
+    - started_at → startedAt
+    - ended_at → endedAt
+    - total_duration → totalDuration
+    - duration_minutes → durationMinutes
+    - has_transcription → hasTranscription
+    - has_report → hasReport
+    - report_id → reportId
+    """
     id: str
     session_id: str
-    doctor_id: str
+    patient_id: Optional[str] = None
+    doctor_id: Optional[str] = None
+    chief_complaint: str
+    session_type: str
     status: str
-    started_at: str
-    ended_at: Optional[str] = None
-    paused_at: Optional[str] = None
-    resumed_at: Optional[str] = None
-    total_duration: Optional[float] = None
-    audio_file_url: Optional[str] = None
-    audio_duration: Optional[float] = None
-    audio_quality_score: Optional[float] = None
-    transcription_confidence: Optional[float] = None
-    billing_code: Optional[str] = None
-    billing_amount: Optional[float] = None
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    created_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    has_transcription: bool = False
+    has_report: bool = False
+    report_id: Optional[str] = None
 
 
-class SessionStatusUpdate(BaseModel):
-    """Schema for updating session status."""
-    status: str = Field(..., description="New session status")
+class StartConsultationRequest(CamelCaseModel):
+    """
+    Start consultation request - accepts both camelCase and snake_case.
     
-    @validator('status')
-    def validate_status(cls, v):
-        valid_statuses = [s.value for s in SessionStatus]
-        if v not in valid_statuses:
-            raise ValueError(f"Status must be one of: {', '.join(valid_statuses)}")
-        return v
-
-
-class SessionStartRequest(BaseModel):
-    """Schema for starting a new session."""
+    Frontend can send either format:
+    - { "patientId": "...", "chiefComplaint": "...", "sessionType": "..." }
+    - { "patient_id": "...", "chief_complaint": "...", "session_type": "..." }
+    """
     patient_id: str
-    session_type: str = SessionType.CONSULTATION.value
+    doctor_id: str
+    chief_complaint: str
+    session_type: str = "consultation"
+
+
+class ConsultationSessionCreate(CamelCaseModel):
+    """Create consultation session request"""
+    patient_id: str
+    doctor_id: str
+    chief_complaint: str
+    session_type: str = "consultation"
+
+
+class ConsultationSessionRead(CamelCaseModel):
+    """Read consultation session response"""
+    id: str
+    session_id: str
+    patient_id: str
+    doctor_id: str
+    chief_complaint: str
+    session_type: str
+    status: str
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+
+
+class ConsultationSessionUpdate(CamelCaseModel):
+    """Update consultation session request"""
     chief_complaint: Optional[str] = None
+    status: Optional[str] = None
     notes: Optional[str] = None
 
 
-class SessionAudioUpload(BaseModel):
-    """Schema for audio upload metadata."""
-    audio_file_url: str
-    audio_file_size: int
-    audio_format: str
-    audio_duration: Optional[float] = None
+class SessionStatusUpdate(CamelCaseModel):
+    """Update session status"""
+    status: str
+    notes: Optional[str] = None
 
 
-# Response Schemas
-class SessionSummaryResponse(BaseModel):
-    """Simplified session summary for lists."""
+class SessionAudioUpload(CamelCaseModel):
+    """Audio upload for session"""
+    audio_url: str
+    duration_seconds: Optional[int] = None
+
+
+class ConsultationHistoryItem(CamelCaseModel):
+    """Individual consultation in history list"""
+    id: str
+    session_id: str
+    chief_complaint: str
+    session_type: str
+    status: str
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    has_report: bool = False
+    report_id: Optional[str] = None
+
+
+class ConsultationDetailResponse(CamelCaseModel):
+    """Detailed consultation response with all fields"""
     id: str
     session_id: str
     patient_id: str
-    status: str
+    patient_name: str
+    doctor_id: str
+    chief_complaint: str
     session_type: str
-    started_at: str
-    duration_minutes: Optional[float] = None
-    has_audio: bool = False
-    has_transcription: bool = False
+    status: str
     created_at: datetime
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    has_transcription: bool = False
+    transcription_id: Optional[str] = None
+    has_report: bool = False
+    report_id: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+
+class SessionSummaryResponse(CamelCaseModel):
+    """Summary of a consultation session"""
+    id: str
+    session_id: str
+    patient_id: str
+    patient_name: str
+    doctor_id: str
+    chief_complaint: str
+    session_type: str
+    status: str
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+
+
+class StopConsultationRequest(CamelCaseModel):
+    """Request to stop a consultation"""
+    notes: Optional[str] = None
+
+
+class StartConsultationResponse(CamelCaseModel):
+    """Response after starting consultation"""
+    session_id: str
+    consultation_id: str
+    patient_name: str
+    started_at: datetime
+    websocket_url: Optional[str] = None
+
+
+class ConsultationHistoryResponse(CamelCaseModel):
+    """Consultation history with patient info and camelCase fields"""
+    patient_id: str
+    patient_name: str
+    total_consultations: int = 0
+    items: list[ConsultationHistoryItem]
+    pagination: dict

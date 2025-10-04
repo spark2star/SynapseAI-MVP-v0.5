@@ -1,13 +1,14 @@
 # Core Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+gunicorn==21.2.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
 
 # Database
-sqlalchemy==2.0.23
-alembic==1.13.1
-psycopg2-binary==2.9.9
+sqlalchemy>=2.0.28
+alembic>=1.13.0
+psycopg2-binary>=2.9.9
 asyncpg==0.29.0
 
 # Authentication & Security
@@ -52,9 +53,15 @@ structlog==23.2.0
 # Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
 httpx==0.25.2
+faker==20.1.0
 
 # Development
 black==23.11.0
 isort==5.12.0
 mypy==1.7.1
+pyhumps==3.8.0
+python-json-logger==2.0.7
+slowapi==0.1.9
