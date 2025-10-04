@@ -93,7 +93,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
             console.log('📋 Generating report with progress + medications:', { progress, meds: validMeds })
 
-            const resp = await apiService.post<any>(
+            const resp = await apiService.post<{ report_id?: number; session_id?: string }>(
                 '/reports/generate-session',
                 {
                     session_id: sessionId,
@@ -107,10 +107,11 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
             )
 
             if (!resp || (resp.status !== 'success' && resp.status !== 'accepted')) {
-                throw new Error((resp && (resp.detail || resp.message)) || 'Failed to generate report')
+                const errMsg = (resp?.error?.message) || 'Failed to generate report'
+                throw new Error(errMsg)
             }
 
-            const reportId = resp.report_id
+            const reportId = resp.data?.report_id ?? (resp as any).report_id
             console.log('✅ Report job accepted, id:', reportId)
             setProgressMessage('Generating report (this can take up to ~60s)...')
 

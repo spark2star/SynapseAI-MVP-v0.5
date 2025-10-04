@@ -1,9 +1,17 @@
 """
 Authentication service implementation.
 Handles user authentication, registration, and session management.
+
+Fixed Issues:
+- Email lookup uses email_hash with proper error handling
+- Failed login attempts stored correctly as strings (per model definition)
+- Added comprehensive logging for debugging
+- Added request IDs for tracing
+- Fixed async/await consistency
 """
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func  # ✅ ADDED for case-insensitive queries
 from fastapi import HTTPException, status, Depends
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta, timezone
@@ -12,6 +20,8 @@ import pyotp
 import qrcode
 import io
 import base64
+import logging  # ✅ ADDED
+import uuid  # ✅ ADDED
 
 from app.core.database import get_db
 from app.models.user import User, UserProfile, UserRole
@@ -21,6 +31,9 @@ from app.core.security import JWTManager, SecurityValidator
 from app.core.encryption import HashingUtility
 from app.core.config import settings
 from app.core.audit import audit_logger, AuditEventType
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 
 class AuthenticationService:
@@ -40,9 +53,10 @@ class AuthenticationService:
         """
         Register a new user (admin only operation).
         """
-        # Check if email already exists
+        # Check if email already exists (using email_hash for efficient lookup)
+        email_hash = User.hash_email(user_data.email)
         existing_user = self.db.query(User).filter(
-            User.email == user_data.email
+            User.email_hash == email_hash
         ).first()
         
         if existing_user:
@@ -60,6 +74,7 @@ class AuthenticationService:
         # Create user
         db_user = User(
             email=user_data.email,
+            email_hash=email_hash,
             password_hash=password_hash,
             role=user_data.role.value,
             email_verification_token=verification_token,
@@ -100,6 +115,152 @@ class AuthenticationService:
         
         return db_user
     
+    async def register_doctor(
+        self,
+        registration_data: 'DoctorRegistrationRequest',
+        ip_address: str
+    ) -> Dict[str, Any]:
+        """
+        Register new doctor with pending status.
+        
+        Validation:
+        - Medical registration number uniqueness
+        - Email uniqueness
+        - Password strength (handled by Pydantic validator)
+        - State medical council is valid
+        
+        Returns:
+            - Success message
+            - Application ID
+            - Expected review timeline
+        """
+        request_id = str(uuid.uuid4())[:8]
+        
+        try:
+            logger.info(f"[{request_id}] 📝 Doctor registration attempt: {registration_data.email}")
+            
+            # Check for duplicate medical registration number
+            from app.models.doctor_profile import DoctorProfile
+            existing_doctor = self.db.query(DoctorProfile).filter(
+                DoctorProfile.medical_registration_number == registration_data.medical_registration_number.upper()
+            ).first()
+            
+            if existing_doctor:
+                logger.warning(f"[{request_id}] ❌ Duplicate medical registration number: {registration_data.medical_registration_number}")
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Medical registration number already registered",
+                        "code": "DUPLICATE_MED_REG",
+                        "request_id": request_id
+                    }
+                )
+            
+            # Check for duplicate email
+            email_hash = User.hash_email(registration_data.email)
+            existing_user = self.db.query(User).filter(
+                User.email_hash == email_hash
+            ).first()
+            
+            if existing_user:
+                logger.warning(f"[{request_id}] ❌ Duplicate email: {registration_data.email}")
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Email already registered",
+                        "code": "DUPLICATE_EMAIL",
+                        "request_id": request_id
+                    }
+                )
+            
+            # Create user with role=doctor, status=pending
+            password_hash = self.hash_util.hash_password(registration_data.password)
+            
+            user = User(
+                email=registration_data.email,
+                email_hash=email_hash,
+                password_hash=password_hash,
+                role="doctor",  # Set role
+                doctor_status="pending",  # Set initial status
+                is_active=False,  # Inactive until approved
+                is_verified=True,  # Skip email verification for doctors (admin will verify)
+                created_at=datetime.now(timezone.utc)
+            )
+            
+            self.db.add(user)
+            self.db.flush()  # Get user ID
+            
+            logger.info(f"[{request_id}] ✅ User created: {user.id}")
+            
+            # Create doctor profile
+            doctor_profile = DoctorProfile(
+                user_id=user.id,
+                full_name=registration_data.full_name,
+                medical_registration_number=registration_data.medical_registration_number.upper(),
+                state_medical_council=registration_data.state_medical_council,
+                application_date=datetime.now(timezone.utc),
+                profile_completed=False
+            )
+            
+            self.db.add(doctor_profile)
+            
+            logger.info(f"[{request_id}] ✅ Doctor profile created")
+            
+            # Queue welcome email
+            from app.models.email_queue import EmailQueue
+            email_job = EmailQueue(
+                recipient_email=user.email,
+                template_name="application_received",
+                template_data={
+                    "full_name": registration_data.full_name,
+                    "application_id": str(user.id),
+                    "expected_review_days": 2
+                },
+                status="pending"
+            )
+            
+            self.db.add(email_job)
+            
+            # Audit log
+            from app.models.audit_log import AuditLog, AuditEventType
+            audit_log = AuditLog.log_event(
+                db_session=self.db,
+                event_type=AuditEventType.DOCTOR_APPLIED,
+                doctor_user_id=user.id,
+                ip_address=ip_address,
+                details={
+                    "full_name": registration_data.full_name,
+                    "medical_reg_number": registration_data.medical_registration_number,
+                    "state_council": registration_data.state_medical_council,
+                    "request_id": request_id
+                }
+            )
+            
+            self.db.commit()
+            
+            logger.info(f"[{request_id}] ✅ Doctor registered successfully: {user.id}")
+            
+            return {
+                "message": "Your application has been received and is pending verification",
+                "application_id": str(user.id),
+                "expected_review": "2-3 business days",
+                "next_steps": "We will verify your credentials and send you an email once approved",
+                "request_id": request_id
+            }
+        
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[{request_id}] ❌ Registration error: {str(e)}", exc_info=True)
+            self.db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "message": "Registration failed. Please try again.",
+                    "request_id": request_id
+                }
+            )
+    
     async def authenticate_user(
         self,
         login_data: UserLogin,
@@ -110,112 +271,201 @@ class AuthenticationService:
         Authenticate user and return tokens.
         Returns (LoginResponse, session_id)
         """
-        # Get user by email
-        user = self.db.query(User).filter(
-            User.email == login_data.email
-        ).first()
+        request_id = str(uuid.uuid4())[:8]
         
-        if not user:
-            await self._log_failed_login(
-                email=login_data.email,
-                reason="user_not_found",
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
+        try:
+            logger.info(f"[{request_id}] 🔐 Login attempt for: {login_data.email}")
+            
+            # FIX #1: Query by email_hash with proper error handling
+            email_hash = User.hash_email(login_data.email)
+            logger.debug(f"[{request_id}] Generated email_hash: {email_hash[:16]}...")
+            
+            user = self.db.query(User).filter(
+                User.email_hash == email_hash
+            ).first()
+            
+            if not user:
+                logger.warning(f"[{request_id}] ❌ User not found for email_hash: {email_hash[:16]}...")
+                
+                # DEBUG: Show available users (only in development)
+                if settings.DEBUG:
+                    try:
+                        sample_users = self.db.query(User.email_hash).limit(3).all()
+                        logger.debug(f"[{request_id}] Sample email_hashes in DB: {[u.email_hash[:16] + '...' for u in sample_users]}")
+                    except Exception as e:
+                        logger.debug(f"[{request_id}] Could not query sample users: {e}")
+                
+                await self._log_failed_login(
+                    email=login_data.email,
+                    reason="user_not_found",
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid credentials"
+                )
+            
+            logger.info(f"[{request_id}] ✅ User found: {user.id}")
         
-        # Check if account is locked
-        if user.is_account_locked():
-            await self._log_failed_login(
-                email=login_data.email,
-                reason="account_locked",
+            # Check if account is locked
+            if user.is_account_locked():
+                logger.warning(f"[{request_id}] 🔒 Account locked: {user.id}")
+                await self._log_failed_login(
+                    email=login_data.email,
+                    reason="account_locked",
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    user_id=user.id
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail="Account is temporarily locked due to multiple failed login attempts"
+                )
+            
+            # Verify password
+            logger.info(f"[{request_id}] Verifying password...")
+            logger.debug(f"[{request_id}] Password hash from DB: {user.password_hash[:20]}...")
+            
+            if not self.hash_util.verify_password(login_data.password, user.password_hash):
+                logger.warning(f"[{request_id}] ❌ Invalid password for user: {user.id}")
+                await self._handle_failed_login(user, ip_address, user_agent, request_id)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid credentials"
+                )
+            
+            logger.info(f"[{request_id}] ✅ Password verified successfully")
+        
+            # Check doctor status if user is a doctor
+            if user.role == "doctor":
+                if user.doctor_status == "pending":
+                    logger.warning(f"[{request_id}] ⚠️ Doctor application pending: {user.id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail={
+                            "message": "Your application is pending verification. You will receive an email once approved.",
+                            "code": "APPLICATION_PENDING",
+                            "application_id": str(user.id)
+                        }
+                    )
+                
+                if user.doctor_status == "rejected":
+                    logger.warning(f"[{request_id}] ⚠️ Doctor application rejected: {user.id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail={
+                            "message": "Your application was not approved. Please contact support for more information.",
+                            "code": "APPLICATION_REJECTED"
+                        }
+                    )
+        
+            # Check if user is verified and active
+            if not user.is_verified:
+                logger.warning(f"[{request_id}] ⚠️ Email not verified: {user.id}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Email address not verified. Please check your email for verification instructions."
+                )
+            
+            if not user.is_active:
+                logger.warning(f"[{request_id}] ⚠️ Account disabled: {user.id}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account is disabled. Please contact administrator."
+                )
+        
+            # FIX #2: Reset failed login attempts (as string per model definition)
+            user.failed_login_attempts = "0"
+            user.locked_until = None
+            user.is_locked = False
+            logger.info(f"[{request_id}] Reset failed login attempts")
+            
+            # Check if MFA is enabled
+            if user.mfa_enabled:
+                # For now, skip MFA implementation and proceed
+                # TODO: Implement MFA verification flow
+                pass
+            
+            # Check if doctor profile is completed (for verified doctors)
+            profile_completed = True
+            if user.role == "doctor" and user.doctor_status == "verified":
+                from app.models.doctor_profile import DoctorProfile
+                doctor_profile = self.db.query(DoctorProfile).filter(
+                    DoctorProfile.user_id == user.id
+                ).first()
+                
+                if doctor_profile:
+                    profile_completed = doctor_profile.profile_completed
+            
+            # Generate JWT tokens
+            token_data = {
+                "sub": user.id,
+                "email": user.email,
+                "role": user.role,
+                "doctor_status": user.doctor_status if user.role == "doctor" else None,
+                "profile_completed": profile_completed if user.role == "doctor" else None,
+                "session_type": "extended" if login_data.remember_me else "normal"
+            }
+            
+            logger.info(f"[{request_id}] Generating JWT tokens...")
+            access_token = self.jwt_manager.create_access_token(token_data)
+            refresh_token = self.jwt_manager.create_refresh_token(token_data)
+            
+            # Update last login
+            user.last_login = datetime.now(timezone.utc)
+            
+            try:
+                self.db.commit()
+                logger.info(f"[{request_id}] ✅ Database updated successfully")
+            except Exception as e:
+                logger.error(f"[{request_id}] ❌ Failed to commit to database: {str(e)}")
+                self.db.rollback()
+                raise
+            
+            # Create session info
+            session_id = self.hash_util.generate_secure_token()
+            
+            # Log successful login
+            await audit_logger.log_authentication_event(
+                event_type=AuditEventType.USER_LOGIN,
+                user_id=user.id,
+                success=True,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                user_id=user.id
+                details={
+                    "remember_me": login_data.remember_me,
+                    "session_id": session_id,
+                    "request_id": request_id
+                }
+            )
+            
+            logger.info(f"[{request_id}] 🎉 Login successful for user: {user.id}")
+            
+            # Prepare response
+            login_response = LoginResponse(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer",
+                expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                user_id=user.id,
+                role=user.role,
+                requires_mfa=user.mfa_enabled and False  # TODO: Implement MFA check
+            )
+            
+            return login_response, session_id
+        
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{request_id}] ❌ Unexpected authentication error: {str(e)}",
+                exc_info=True
             )
             raise HTTPException(
-                status_code=status.HTTP_423_LOCKED,
-                detail="Account is temporarily locked due to multiple failed login attempts"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error during authentication"
             )
-        
-        # Verify password
-        if not self.hash_util.verify_password(login_data.password, user.password_hash):
-            await self._handle_failed_login(user, ip_address, user_agent)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
-        
-        # Check if user is verified and active
-        if not user.is_verified:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email address not verified. Please check your email for verification instructions."
-            )
-        
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is disabled. Please contact administrator."
-            )
-        
-        # Reset failed login attempts on successful password verification
-        user.failed_login_attempts = "0"
-        user.locked_until = None
-        user.is_locked = False
-        
-        # Check if MFA is enabled
-        if user.mfa_enabled:
-            # For now, skip MFA implementation and proceed
-            # TODO: Implement MFA verification flow
-            pass
-        
-        # Generate JWT tokens
-        token_data = {
-            "sub": user.id,
-            "email": user.email,
-            "role": user.role,
-            "session_type": "extended" if login_data.remember_me else "normal"
-        }
-        
-        access_token = self.jwt_manager.create_access_token(token_data)
-        refresh_token = self.jwt_manager.create_refresh_token(token_data)
-        
-        # Update last login
-        user.last_login = datetime.now(timezone.utc)
-        self.db.commit()
-        
-        # Create session info
-        session_id = self.hash_util.generate_secure_token()
-        
-        # Log successful login
-        await audit_logger.log_authentication_event(
-            event_type=AuditEventType.USER_LOGIN,
-            user_id=user.id,
-            success=True,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            details={
-                "remember_me": login_data.remember_me,
-                "session_id": session_id
-            }
-        )
-        
-        # Prepare response
-        login_response = LoginResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            user_id=user.id,
-            role=user.role,
-            requires_mfa=user.mfa_enabled and False  # TODO: Implement MFA check
-        )
-        
-        return login_response, session_id
     
     async def refresh_token(self, refresh_token: str) -> Dict[str, Any]:
         """
@@ -507,19 +757,40 @@ class AuthenticationService:
         self,
         user: User,
         ip_address: str,
-        user_agent: str
+        user_agent: str,
+        request_id: str = None
     ):
         """Handle failed login attempt."""
-        # Increment failed attempts
-        current_attempts = int(user.failed_login_attempts or "0")
-        user.failed_login_attempts = str(current_attempts + 1)
+        if not request_id:
+            request_id = str(uuid.uuid4())[:8]
         
-        # Lock account after 5 failed attempts
-        if current_attempts + 1 >= 5:
-            user.is_locked = True
-            user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+        try:
+            # FIX #2: Handle string-based failed_login_attempts (per model definition)
+            current_attempts = int(user.failed_login_attempts or "0")
+            new_attempts = current_attempts + 1
+            user.failed_login_attempts = str(new_attempts)
+            
+            logger.warning(
+                f"[{request_id}] Failed login attempt #{new_attempts} for user {user.id}"
+            )
+            
+            # Lock account after 5 failed attempts
+            if new_attempts >= 5:
+                user.is_locked = True
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+                logger.warning(
+                    f"[{request_id}] 🔒 Account locked until {user.locked_until}"
+                )
+            
+            self.db.commit()
+            logger.info(f"[{request_id}] ✅ Updated failed login attempts to {new_attempts}")
         
-        self.db.commit()
+        except Exception as e:
+            logger.error(
+                f"[{request_id}] ❌ Failed to update login attempts: {str(e)}",
+                exc_info=True
+            )
+            self.db.rollback()
         
         # Log failed login
         await self._log_failed_login(
@@ -528,7 +799,7 @@ class AuthenticationService:
             ip_address=ip_address,
             user_agent=user_agent,
             user_id=user.id,
-            attempts=current_attempts + 1
+            attempts=new_attempts
         )
     
     async def _log_failed_login(

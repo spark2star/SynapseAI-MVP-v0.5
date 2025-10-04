@@ -10,10 +10,10 @@ interface LogoProps {
 
 // Updated size classes for transparent logo - slightly larger for better visibility
 const sizeClasses = {
-  sm: 'h-10 w-10',
-  md: 'h-12 w-12',
-  lg: 'h-14 w-14',
-  xl: 'h-16 w-16'
+  sm: 'h-20 w-20',
+  md: 'h-24 w-24',
+  lg: 'h-28 w-28',
+  xl: 'h-32 w-32'
 }
 
 const textSizes = {
@@ -25,14 +25,14 @@ const textSizes = {
 
 export default function Logo({ size = 'md', className = '', showText = true }: LogoProps) {
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
+    <div className={`flex items-center gap-1 ${className}`}>
       {/* Logo Image - Transparent PNG (380x364) with true alpha channel for perfect blending */}
       <div className={`relative ${sizeClasses[size]} flex-shrink-0`}>
         <Image
           src="/Logo-MVP-v0.5.png"
           alt="SynapseAI Logo"
           fill
-          sizes="(max-width: 768px) 48px, 56px"
+          sizes="(max-width: 768px) 96px, 112px"
           className="object-contain transition-all duration-300 [image-rendering:auto] bg-transparent mix-blend-multiply dark:mix-blend-screen"
           priority
         />

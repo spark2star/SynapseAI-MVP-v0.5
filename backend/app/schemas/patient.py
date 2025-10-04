@@ -38,7 +38,7 @@ class PatientResponse(CamelCaseModel):
     illness_duration: Optional[str] = None  # Formatted string like "2 Months"
     created_at: datetime
     updated_at: datetime
-
+    
 
 class PatientCreateRequest(CamelCaseModel):
     """

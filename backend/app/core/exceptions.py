@@ -100,6 +100,10 @@ class UserNotFoundException(ResourceNotFoundException):
     def __init__(self, user_id: str):
         super().__init__("User", user_id)
 
+# Backward compatibility alias used by some services
+# Prefer using specific ResourceNotFoundException subclasses where possible
+NotFoundException = ResourceNotFoundException
+
 
 # Duplicate Resource Exceptions
 class DuplicateResourceException(SynapseAIException):

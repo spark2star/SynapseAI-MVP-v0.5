@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 # Add the backend app to the Python path
 sys.path.append('/app')
 
+import app.models  # Ensure models are imported so Base.metadata has all tables
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, create_tables
 from app.models.user import User, UserProfile, UserRole
@@ -28,27 +29,27 @@ def create_demo_users():
         
         demo_users = [
             {
-                "email": "doctor@demo.com",
+                "email": "doc@demo.com",
                 "password": "password123",
                 "role": UserRole.DOCTOR,
                 "profile": {
-                    "first_name": "Dr.",
+                    "first_name": "Dr",
                     "last_name": "Smith",
-                    "phone": "+1-555-0123",
-                    "license_number": "MD123456",
-                    "specialization": "General Medicine",
+                    "phone": "+15550123",
+                    "license_number": "MD12345",
+                    "specialization": "General",
                     "timezone": "UTC",
                     "language": "en"
                 }
             },
             {
-                "email": "admin@demo.com", 
+                "email": "adm@demo.com", 
                 "password": "password123",
                 "role": UserRole.ADMIN,
                 "profile": {
                     "first_name": "Admin",
                     "last_name": "User",
-                    "phone": "+1-555-0124",
+                    "phone": "+15550124",
                     "license_number": None,
                     "specialization": None,
                     "timezone": "UTC",
@@ -56,13 +57,13 @@ def create_demo_users():
                 }
             },
             {
-                "email": "reception@demo.com",
+                "email": "rec@demo.com",
                 "password": "password123", 
                 "role": UserRole.RECEPTIONIST,
                 "profile": {
-                    "first_name": "Reception",
+                    "first_name": "Recept",
                     "last_name": "Desk",
-                    "phone": "+1-555-0125",
+                    "phone": "+15550125",
                     "license_number": None,
                     "specialization": None,
                     "timezone": "UTC",
@@ -72,13 +73,21 @@ def create_demo_users():
         ]
         
         for user_data in demo_users:
-            # Check if user already exists
-            existing_user = db.query(User).filter(User.email == user_data["email"]).first()
+            # Check if user already exists by querying all users
+            # (Can't filter by encrypted email directly)
+            all_users = db.query(User).all()
+            existing_user = None
+            for u in all_users:
+                if u.email == user_data["email"]:  # Will decrypt and compare
+                    existing_user = u
+                    break
+            
             if existing_user:
                 print(f"User {user_data['email']} already exists, skipping...")
                 continue
             
-            # Create user
+            # Create user - password must be plain text, will be hashed
+            # Email will be automatically encrypted by the model
             user = User(
                 email=user_data["email"],
                 password_hash=hash_util.hash_password(user_data["password"]),
@@ -114,9 +123,9 @@ def create_demo_users():
         db.commit()
         print("\n🎉 Demo users created successfully!")
         print("\nDemo Credentials:")
-        print("- doctor@demo.com / password123 (Doctor)")
-        print("- admin@demo.com / password123 (Admin)")  
-        print("- reception@demo.com / password123 (Receptionist)")
+        print("- doc@demo.com / password123 (Doctor)")
+        print("- adm@demo.com / password123 (Admin)")  
+        print("- rec@demo.com / password123 (Receptionist)")
         
     except Exception as e:
         print(f"❌ Error creating demo users: {str(e)}")

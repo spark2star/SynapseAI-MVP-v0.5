@@ -111,27 +111,30 @@ class HashingUtility:
     
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash password using bcrypt with configurable rounds."""
-        from passlib.context import CryptContext
+        """Hash password using bcrypt directly."""
+        import bcrypt
         
-        pwd_context = CryptContext(
-            schemes=["bcrypt"],
-            deprecated="auto",
-            bcrypt__rounds=settings.BCRYPT_ROUNDS
-        )
-        return pwd_context.hash(password)
+        # Encode password to bytes
+        password_bytes = password.encode('utf-8')
+        
+        # Generate salt and hash
+        salt = bcrypt.gensalt(rounds=settings.BCRYPT_ROUNDS)
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        
+        # Return as string
+        return hashed.decode('utf-8')
     
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Verify password against hash."""
-        from passlib.context import CryptContext
+        """Verify password against hash using bcrypt directly."""
+        import bcrypt
         
-        pwd_context = CryptContext(
-            schemes=["bcrypt"],
-            deprecated="auto",
-            bcrypt__rounds=settings.BCRYPT_ROUNDS
-        )
-        return pwd_context.verify(plain_password, hashed_password)
+        # Encode both to bytes
+        password_bytes = plain_password.encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        
+        # Verify
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
     
     @staticmethod
     def generate_secure_token(length: int = 32) -> str:

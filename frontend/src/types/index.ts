@@ -1,7 +1,9 @@
 // Common types and interfaces for the EMR system
 
+export type ApiStatus = 'success' | 'accepted' | 'error' | 'pending'
+
 export interface ApiResponse<T = any> {
-    status: 'success' | 'error'
+    status: ApiStatus
     data?: T
     error?: {
         code: string

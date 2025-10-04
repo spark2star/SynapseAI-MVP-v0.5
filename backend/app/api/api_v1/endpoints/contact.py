@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from datetime import datetime
 
 from app.core.database import get_db

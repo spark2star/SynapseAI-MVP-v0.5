@@ -2,185 +2,390 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   SYNAPSEAI GLOBAL STYLES
+   ============================================================================ */
+
 @layer base {
-  :root {
-    --toast-bg: #f8fafc;
-    --toast-color: #334155;
-    --toast-border: #e2e8f0;
+
+  /* Typography Defaults */
+  h1 {
+    font-family: var(--font-poppins), Poppins, sans-serif;
+    font-size: 48px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #0A4D8B;
   }
 
-  .dark {
-    --toast-bg: #1e293b;
-    --toast-color: #e2e8f0;
-    --toast-border: #334155;
+  h2 {
+    font-family: var(--font-poppins), Poppins, sans-serif;
+    font-size: 36px;
+    line-height: 1.3;
+    font-weight: 700;
+    color: #0A4D8B;
   }
 
-  /* Smooth theme transitions */
-  * {
-    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
+  h3 {
+    font-family: var(--font-poppins), Poppins, sans-serif;
+    font-size: 24px;
+    line-height: 1.4;
+    font-weight: 600;
+    color: #0A4D8B;
   }
 
-  /* Specific transitions for theme elements */
+  p {
+    font-family: var(--font-lato), Lato, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #1A202C;
+  }
+
+  label {
+    font-family: var(--font-lato), Lato, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #4A5568;
+  }
+
+  /* Smooth Scrolling */
   html {
-    transition: background-color 300ms ease-in-out;
+    @apply scroll-smooth;
   }
 
-  body {
-    transition: background-color 300ms ease-in-out, color 300ms ease-in-out;
+  /* Remove focus outline and add custom focus styles */
+  *:focus {
+    @apply outline-none;
+  }
+
+  /* Custom Selection Color */
+  ::selection {
+    background-color: #50B9E8;
+    color: #FFFFFF;
   }
 }
 
-/* Custom scrollbar for dark mode */
+@layer components {
+  /* ============================================================================
+     BUTTONS (Primary, Secondary, Tertiary)
+     ============================================================================ */
+
+  .btn-primary {
+    font-family: var(--font-lato), Lato, sans-serif;
+    background-color: #50B9E8;
+    color: #FFFFFF;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    @apply px-6 py-3 font-semibold;
+    @apply transition-all duration-200 ease-in-out;
+    @apply active:scale-95;
+  }
+
+  .btn-primary:hover {
+    background-color: #3AA5D6;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  }
+
+  .btn-primary:disabled {
+    background-color: #CBD5E0;
+    color: #4A5568;
+    box-shadow: none;
+    @apply cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    font-family: var(--font-lato), Lato, sans-serif;
+    background-color: transparent;
+    border: 2px solid #50B9E8;
+    border-radius: 8px;
+    color: #50B9E8;
+    @apply px-6 py-3 font-semibold;
+    @apply transition-all duration-200 ease-in-out;
+    @apply active:scale-95;
+  }
+
+  .btn-secondary:hover {
+    background-color: #E0F5FF;
+  }
+
+  .btn-secondary:disabled {
+    border-color: #CBD5E0;
+    color: #4A5568;
+    @apply cursor-not-allowed;
+  }
+
+  .btn-tertiary {
+    font-family: var(--font-lato), Lato, sans-serif;
+    background-color: transparent;
+    color: #50B9E8;
+    @apply px-4 py-2 font-medium;
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:underline;
+  }
+
+  .btn-tertiary:active {
+    color: #0A4D8B;
+  }
+
+  .btn-tertiary:disabled {
+    color: #4A5568;
+    @apply cursor-not-allowed no-underline;
+  }
+
+  /* ============================================================================
+     CARDS
+     ============================================================================ */
+
+  .card {
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    @apply p-6;
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  .card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  }
+
+  .card-secondary {
+    background-color: #F7FAFC;
+    border: 1px solid #CBD5E0;
+    border-radius: 12px;
+    @apply p-6;
+  }
+
+  /* ============================================================================
+     FORM FIELDS (Inputs, Textareas, Selects)
+     ============================================================================ */
+
+  .input-field {
+    font-family: var(--font-lato), Lato, sans-serif;
+    font-size: 16px;
+    color: #1A202C;
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E0;
+    border-radius: 8px;
+    @apply w-full px-4 py-3;
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  .input-field::placeholder {
+    color: #4A5568;
+  }
+
+  .input-field:focus {
+    border-color: #50B9E8;
+    box-shadow: 0 0 0 3px rgba(80, 185, 232, 0.1);
+    outline: none;
+  }
+
+  .input-field:disabled {
+    background-color: #F7FAFC;
+    @apply cursor-not-allowed;
+  }
+
+  .input-error {
+    border-color: #E53E3E;
+  }
+
+  .input-error:focus {
+    border-color: #E53E3E;
+    box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
+  }
+
+  .input-label {
+    font-family: var(--font-lato), Lato, sans-serif;
+    font-size: 14px;
+    color: #4A5568;
+    @apply block mb-2;
+  }
+
+  .input-error-message {
+    font-size: 14px;
+    color: #E53E3E;
+    @apply mt-1;
+  }
+
+  .input-success-message {
+    font-size: 14px;
+    color: #38A169;
+    @apply mt-1;
+  }
+
+  /* ============================================================================
+     UTILITY CLASSES
+     ============================================================================ */
+
+  .section-container {
+    @apply max-w-7xl mx-auto px-6 py-12;
+  }
+
+  .page-title {
+    font-family: var(--font-poppins), Poppins, sans-serif;
+    font-size: 48px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #0A4D8B;
+    @apply mb-6;
+  }
+
+  .section-title {
+    font-family: var(--font-poppins), Poppins, sans-serif;
+    font-size: 36px;
+    line-height: 1.3;
+    font-weight: 700;
+    color: #0A4D8B;
+    @apply mb-4;
+  }
+
+  .card-title {
+    font-family: var(--font-poppins), Poppins, sans-serif;
+    font-size: 24px;
+    line-height: 1.4;
+    font-weight: 600;
+    color: #0A4D8B;
+    @apply mb-2;
+  }
+
+  /* Link Styles */
+  .link-primary {
+    color: #50B9E8;
+    @apply underline transition-colors duration-200;
+  }
+
+  .link-primary:hover {
+    color: #0A4D8B;
+  }
+
+  /* Badge/Chip Styles */
+  .badge {
+    font-size: 14px;
+    @apply inline-flex items-center px-3 py-1 rounded-full font-medium;
+  }
+
+  .badge-success {
+    background-color: #F0FDF4;
+    color: #38A169;
+    border: 1px solid rgba(56, 161, 105, 0.2);
+  }
+
+  .badge-error {
+    background-color: #FEF2F2;
+    color: #E53E3E;
+    border: 1px solid rgba(229, 62, 62, 0.2);
+  }
+
+  .badge-primary {
+    background-color: #E0F5FF;
+    color: #50B9E8;
+    border: 1px solid rgba(80, 185, 232, 0.2);
+  }
+
+  .badge-neutral {
+    background-color: #F7FAFC;
+    color: #4A5568;
+    border: 1px solid #CBD5E0;
+  }
+
+  /* Divider */
+  .divider {
+    border-top: 1px solid #CBD5E0;
+    @apply my-6;
+  }
+}
+
 @layer utilities {
-  .scrollbar-thin {
-    scrollbar-width: thin;
+
+  /* Custom utility for 8-point grid alignment */
+  .grid-8 {
+    gap: 8px;
   }
 
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
+  .grid-16 {
+    gap: 16px;
   }
 
-  .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-neutral-100 dark:bg-neutral-800;
+  .grid-24 {
+    gap: 24px;
   }
 
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-neutral-300 dark:bg-neutral-600 rounded-full;
+  .grid-32 {
+    gap: 32px;
   }
 
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    @apply bg-neutral-400 dark:bg-neutral-500;
-  }
-}
+  /* ============================================================================
+     PARALLAX BACKGROUND ANIMATIONS
+     ============================================================================ */
 
-/* Custom Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+  /* Gradient animation - smooth horizontal shift */
+  @keyframes gradientMove {
 
-/* Custom gradients for branding */
-.text-gradient-primary {
-  background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent;
-}
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
 
-/* Medical cards styling with dark mode - Clean, modern design */
-.medical-card {
-  @apply bg-white dark:bg-neutral-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300;
-  border: 1px solid rgba(229, 231, 235, 0.8);
-}
-
-.dark .medical-card {
-  border: 1px solid rgba(75, 85, 99, 0.3);
-}
-
-.medical-card:hover {
-  @apply shadow-lg;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.dark .medical-card:hover {
-  border: 1px solid rgba(59, 130, 246, 0.4);
-}
-
-/* Navigation item styling - Clean design */
-.nav-item {
-  @apply flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200;
-}
-
-.nav-item-active {
-  @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400;
-  box-shadow: inset 3px 0 0 theme('colors.blue.500');
-}
-
-/* Input styling for dark mode */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="tel"],
-textarea,
-select {
-  @apply bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400;
-}
-
-input[type="text"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus,
-input[type="tel"]:focus,
-textarea:focus,
-select:focus {
-  @apply border-blue-500 dark:border-blue-400 ring-blue-500 dark:ring-blue-400;
-}
-
-/* Form styling */
-.form-input {
-  @apply block w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md shadow-sm bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 disabled:bg-neutral-50 dark:disabled:bg-neutral-900 disabled:text-neutral-500 dark:disabled:text-neutral-600;
-}
-
-/* Button focus states for accessibility */
-button:focus {
-  @apply outline-none ring-2 ring-offset-2 dark:ring-offset-neutral-900;
-}
-
-/* Loading animations */
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
+    50% {
+      background-position: 100% 50%;
+    }
   }
 
-  50% {
-    opacity: .5;
+  .animate-gradientMove {
+    animation: gradientMove 20s ease-in-out infinite;
+  }
+
+  /* Float animation - gentle vertical motion */
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  .animate-float {
+    animation: float 8s ease-in-out infinite;
+  }
+
+  .animate-float-delay {
+    animation: float 8s ease-in-out 4s infinite;
+  }
+
+  /* Background size utility for animated gradients */
+  .bg-300\% {
+    background-size: 300% 300%;
   }
 }
 
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+/* ============================================================================
+   ACCESSIBILITY: RESPECT PREFERS-REDUCED-MOTION
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .animate-gradientMove,
+  .animate-float,
+  .animate-float-delay {
+    animation: none !important;
+  }
 }
 
-/* Modern shadows with subtle borders */
-.shadow-soft {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+/* ============================================================================
+   TOAST NOTIFICATION STYLES
+   ============================================================================ */
+:root {
+  --toast-bg: #ffffff;
+  --toast-color: #1A202C;
+  --toast-border: #CBD5E0;
 }
 
-.dark .shadow-soft {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Enhanced dark mode support for various components */
-.dark body {
-  color-scheme: dark;
-}
-
-/* Ensure all text maintains proper contrast in dark mode */
-.dark h1,
-.dark h2,
-.dark h3,
-.dark h4,
-.dark h5,
-.dark h6 {
-  @apply text-neutral-100;
-}
-
-.dark p:not([class*="text-"]) {
-  @apply text-neutral-300;
-}
-
-/* Dark mode improvements for form elements */
-.dark input[type="search"]::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-  appearance: none;
-  background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3e%3cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3e%3c/svg%3e") no-repeat 50% 50%;
-  background-size: contain;
-  opacity: 0.5;
-  pointer-events: auto;
-  width: 14px;
-  height: 14px;
+.dark {
+  --toast-bg: #1A202C;
+  --toast-color: #ffffff;
+  --toast-border: #4A5568;
 }

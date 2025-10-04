@@ -20,7 +20,8 @@ export async function POST(request: Request) {
         }
 
         // Call backend API to store the email
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/newsletter/subscribe`, {
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
+        const response = await fetch(`${backendUrl}/newsletter/subscribe`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

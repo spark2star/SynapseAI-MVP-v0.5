@@ -28,7 +28,7 @@ interface Symptom {
 
 export interface PatientSymptom {
     symptom_id: string
-    symptom_source: 'master' | 'user'
+    symptom_source: 'master' | 'user' | 'medical_db' | 'icd10' | 'icd11'
     symptom_name: string
     severity: 'Mild' | 'Moderate' | 'Severe'
     frequency: 'Hourly' | 'Daily' | 'Weekly' | 'Constant'
@@ -144,31 +144,19 @@ export default function Stage2Form({
         }
 
         try {
-            // Call backend API to create custom symptom
-            const response = await fetch('http://127.0.0.1:8000/api/v1/intake/user_symptoms', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: newSymptomName.trim(),
-                    description: 'Custom symptom created by doctor',
-                    categories: ['ICD11-Custom']
-                })
+            // Call backend API to create custom symptom using apiService
+            const response = await apiService.post('/intake/user_symptoms', {
+                name: newSymptomName.trim(),
+                description: 'Custom symptom created by doctor',
+                categories: ['ICD11-Custom']
             })
 
-            if (!response.ok) {
-                throw new Error('Failed to create custom symptom')
-            }
-
-            const result = await response.json()
-
-            if (result.status === 'success') {
+            if (response.status === 'success' && response.data) {
                 const customSymptom: Symptom = {
-                    id: result.data.symptom_id,
-                    name: result.data.name,
+                    id: response.data.symptom_id,
+                    name: response.data.name,
                     description: 'Custom symptom created by doctor',
-                    categories: result.data.categories,
+                    categories: response.data.categories,
                     source: 'user'
                 }
 
@@ -177,7 +165,7 @@ export default function Stage2Form({
                 setNewSymptomName('')
                 toast.success(`Custom symptom "${newSymptomName}" created and added`)
             } else {
-                throw new Error(result.message || 'Failed to create custom symptom')
+                throw new Error(response.error?.message || 'Failed to create custom symptom')
             }
         } catch (error) {
             console.error('Custom symptom creation error:', error)

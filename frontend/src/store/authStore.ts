@@ -55,6 +55,9 @@ export const useAuthStore = create<AuthState>()(
                         // Store tokens in API service
                         apiService.setAuthTokens(access_token, refresh_token)
 
+                        // Debug: Verify token storage
+                        console.log('✅ Token stored:', localStorage.getItem('access_token') ? 'YES' : 'NO')
+
                         // Create user object
                         const user: User = {
                             id: user_id,
@@ -95,8 +98,14 @@ export const useAuthStore = create<AuthState>()(
             // Logout action
             logout: () => {
                 try {
-                    // Call logout endpoint (fire and forget)
-                    apiService.post('/auth/logout').catch(console.error)
+                    // Check if token exists before calling logout endpoint
+                    if (apiService.isAuthenticated()) {
+                        console.log('🚪 Logging out with valid token...')
+                        // Call logout endpoint (fire and forget)
+                        apiService.post('/auth/logout').catch(console.error)
+                    } else {
+                        console.warn('⚠️ No token found during logout')
+                    }
                 } catch (error) {
                     console.error('Logout error:', error)
                 } finally {

@@ -9,11 +9,16 @@ class ApiService {
     private _baseURL: string
 
     constructor() {
-        this._baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+        // Get API URL from environment variable with correct fallback
+        this._baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
+
+        // Debug log to verify correct URL is being used
+        console.log('🔧 API Service initialized with URL:', this._baseURL)
+        console.log('📝 Environment variable NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL || '(not set - using default)')
 
         this.api = axios.create({
             baseURL: this._baseURL,
-            timeout: 30000, // 30 seconds - increased timeout for slower responses
+            timeout: 10000, // 10 seconds - optimized for better UX
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -30,10 +35,19 @@ class ApiService {
                 const token = this.getAccessToken()
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`
+                    console.log('🔑 Auth header added for:', config.url)
+                } else {
+                    console.warn('⚠️ No token found for:', config.url)
                 }
+
+                // Log full request URL for debugging
+                const fullUrl = `${config.baseURL}${config.url}`
+                console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${fullUrl}`)
+
                 return config
             },
             (error) => {
+                console.error('❌ Request interceptor error:', error)
                 return Promise.reject(error)
             }
         )
@@ -41,9 +55,25 @@ class ApiService {
         // Response interceptor - handle errors and token refresh
         this.api.interceptors.response.use(
             (response: AxiosResponse) => {
+                console.log(`✅ API Response: ${response.config.url} - Status ${response.status}`)
                 return response
             },
             async (error: AxiosError) => {
+                // Enhanced error logging
+                if (error.response) {
+                    // Server responded with error status
+                    console.error(`❌ API Error: ${error.response.status} - ${error.response.config.url}`)
+                    console.error('Response data:', error.response.data)
+                } else if (error.request) {
+                    // Request made but no response received - likely connection refused
+                    console.error('❌ Network Error - Cannot connect to backend')
+                    console.error('Attempted URL:', error.config?.baseURL)
+                    console.error('Check if backend is running on:', this._baseURL)
+                    toast.error('Cannot connect to server. Please ensure backend is running on port 8080.')
+                } else {
+                    console.error('❌ Request Error:', error.message)
+                }
+
                 const originalRequest = error.config as any
 
                 // Handle 401 errors (unauthorized)

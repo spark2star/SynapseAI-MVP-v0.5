@@ -154,22 +154,22 @@ start_backend() {
     export DEBUG="True"
     
     # Security keys (for development only - use secure keys in production)
-    export SECRET_KEY="dev-secret-key-change-in-production-min-32-chars"
-    export JWT_SECRET_KEY="dev-jwt-secret-key-change-in-production-32"
-    export ENCRYPTION_KEY="ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv_6mqKcM9g="
-    export FIELD_ENCRYPTION_KEY="ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv_6mqKcM9g="
+    export SECRET_KEY="dev-secret-key-change-in-development"
+    export JWT_SECRET_KEY="dev-jwt-secret-key-change-in-development"
+    export ENCRYPTION_KEY="dev-encryption-key-32-bytes-long!"
+    export FIELD_ENCRYPTION_KEY="dev-field-encryption-key-32-bytes!"
     
     # API Configuration
     export API_V1_PREFIX="/api/v1"
     export API_HOST="0.0.0.0"
-    export API_PORT="8000"
+    export API_PORT="8080"
     
     # Google Cloud (if available)
     export GCP_CREDENTIALS_PATH="${BACKEND_DIR}/gcp-credentials.json"
     export GCP_PROJECT_ID="synapse-product-1"
     
     # CORS - use defaults from config.py instead of exporting here
-    # export ALLOWED_ORIGINS="http://localhost:3000,http://localhost:3001,http://localhost:8000"
+    # export ALLOWED_ORIGINS="http://localhost:3000,http://localhost:8000"
     
     # Logging
     export LOG_LEVEL="INFO"
@@ -190,20 +190,20 @@ start_backend() {
     alembic upgrade head || warning "Migration failed - database may not be initialized"
     
     # Start backend server
-    log "🖥️  Starting FastAPI backend on port 8000..."
+    log "🖥️  Starting FastAPI backend on port 8080..."
     # Note: Using simple_main temporarily due to auth.py caching issue
     # All backend code is complete and ready - just needs cache resolution
     # Temporarily using simple_main for Vertex AI STT testing (generates real JWT now)
     # TODO: Switch back to app.main:app once all backend errors are fixed
-    uvicorn simple_main:app --host 0.0.0.0 --port 8000 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
+    uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
     BACKEND_PID=$!
     
     # Wait a moment for backend to start
     sleep 5
     
     # Check if backend is running
-    if curl -s http://localhost:8000/health > /dev/null; then
-        success "Backend server is running on http://localhost:8000"
+    if curl -s http://localhost:8080/health > /dev/null; then
+        success "Backend server is running on http://localhost:8080"
     else
         warning "Backend server may still be starting up..."
     fi
@@ -220,16 +220,16 @@ start_frontend() {
     npm install > /dev/null 2>&1
     
     # Start frontend server
-    log "🌐 Starting Next.js frontend on port 3001..."
-    npm run dev -- --port 3001 > "$PROJECT_ROOT/frontend.log" 2>&1 &
+    log "🌐 Starting Next.js frontend on port 3000..."
+    npm run dev > "$PROJECT_ROOT/frontend.log" 2>&1 &
     FRONTEND_PID=$!
     
     # Wait a moment for frontend to start
     sleep 10
     
     # Check if frontend is running
-    if curl -s http://localhost:3001 > /dev/null; then
-        success "Frontend server is running on http://localhost:3001"
+    if curl -s http://localhost:3000 > /dev/null; then
+        success "Frontend server is running on http://localhost:3000"
     else
         warning "Frontend server may still be starting up..."
     fi
@@ -248,14 +248,14 @@ health_check() {
     fi
     
     # Check backend API v1 health
-    if curl -s http://localhost:8000/api/v1/health > /dev/null; then
+    if curl -s http://localhost:8080/api/v1/health > /dev/null; then
         success "✅ Backend API v1 is healthy"
     else
         warning "⚠️  Backend API v1 health check failed (this is okay if route doesn't exist)"
     fi
     
     # Check frontend
-    if curl -s http://localhost:3001 > /dev/null; then
+    if curl -s http://localhost:3000 > /dev/null; then
         success "✅ Frontend is healthy"
     else
         warning "⚠️  Frontend health check failed"
@@ -264,7 +264,7 @@ health_check() {
     # Check key frontend routes
     local routes=("/" "/auth/login" "/dashboard")
     for route in "${routes[@]}"; do
-        if curl -s "http://localhost:3001$route" > /dev/null; then
+        if curl -s "http://localhost:3000$route" > /dev/null; then
             success "✅ Route $route is accessible"
         else
             warning "⚠️  Route $route may not be ready yet"
@@ -297,18 +297,18 @@ main() {
     echo "🎉 SynapseAI EMR System is fully operational!"
     echo "============================================="
     echo ""
-    echo "📱 Frontend: http://localhost:3001"
-    echo "🔧 Backend API: http://localhost:8000"
-    echo "📚 API Docs (Swagger): http://localhost:8000/api/v1/docs"
-    echo "📖 API Docs (ReDoc): http://localhost:8000/api/v1/redoc"
-    echo "💚 Health Check: http://localhost:8000/health"
+    echo "📱 Frontend: http://localhost:3000"
+    echo "🔧 Backend API: http://localhost:8080"
+    echo "📚 API Docs (Swagger): http://localhost:8080/api/v1/docs"
+    echo "📖 API Docs (ReDoc): http://localhost:8080/api/v1/redoc"
+    echo "💚 Health Check: http://localhost:8080/health"
     echo "👤 Demo Login: doctor@demo.com / password123"
     echo ""
     echo "📊 Service Status:"
     echo "   • PostgreSQL: Running on port 5432"
     echo "   • Redis: Running on port 6379"  
-    echo "   • Backend: Running on port 8000"
-    echo "   • Frontend: Running on port 3001"
+    echo "   • Backend: Running on port 8080"
+    echo "   • Frontend: Running on port 3000"
     echo ""
     echo "📄 Logs:"
     echo "   • Backend: $PROJECT_ROOT/backend.log"

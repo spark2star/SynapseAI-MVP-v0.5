@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
+import apiService from '@/services/api'
 import Stage1Form, { Stage1Data } from '@/components/intake/Stage1Form'
 import Stage2Form, { PatientSymptom } from '@/components/intake/Stage2Form'
 import { CheckCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
@@ -25,40 +26,27 @@ export default function NewPatientPage() {
         setIsLoading(true)
         try {
             // Call the intake API to create patient
-            const response = await fetch('http://127.0.0.1:8000/api/v1/intake/patients', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
-                body: JSON.stringify({
-                    name: data.name,
-                    age: data.age,
-                    sex: data.sex,
-                    address: data.address,
-                    informants: data.informants,
-                    illness_duration: data.illness_duration,
-                    referred_by: data.referred_by,
-                    precipitating_factor: data.precipitating_factor
-                })
+            const response = await apiService.post('/intake/patients', {
+                name: data.name,
+                age: data.age,
+                sex: data.sex,
+                address: data.address,
+                informants: data.informants,
+                illness_duration: data.illness_duration,
+                referred_by: data.referred_by,
+                precipitating_factor: data.precipitating_factor
             })
 
-            if (!response.ok) {
-                throw new Error('Failed to create patient')
-            }
-
-            const result = await response.json()
-
-            if (result.status === 'success') {
+            if (response.status === 'success' && response.data) {
                 setStage1Data(data)
                 setCreatedPatient({
-                    patient_id: result.data.patient_id,
-                    name: result.data.name
+                    patient_id: response.data.patient_id,
+                    name: response.data.name
                 })
                 setCurrentStage('stage2')
                 toast.success('Patient demographics saved successfully!')
             } else {
-                throw new Error(result.message || 'Failed to create patient')
+                throw new Error(response.error?.message || 'Failed to create patient')
             }
         } catch (error) {
             console.error('Stage 1 error:', error)
@@ -77,27 +65,14 @@ export default function NewPatientPage() {
         setIsLoading(true)
         try {
             // Call the API to add symptoms to patient
-            const response = await fetch(`http://127.0.0.1:8000/api/v1/intake/patients/${createdPatient.patient_id}/symptoms`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
-                body: JSON.stringify(symptoms)
-            })
+            const response = await apiService.post(`/intake/patients/${createdPatient.patient_id}/symptoms`, symptoms)
 
-            if (!response.ok) {
-                throw new Error('Failed to save symptoms')
-            }
-
-            const result = await response.json()
-
-            if (result.status === 'success') {
+            if (response.status === 'success') {
                 toast.success(`Patient registration completed! Added ${symptoms.length} symptoms.`)
                 // Redirect directly to starting a session for this new patient as First visit
                 router.replace(`/dashboard/patients/${createdPatient.patient_id}?first_visit=true`)
             } else {
-                throw new Error(result.message || 'Failed to save symptoms')
+                throw new Error(response.error?.message || 'Failed to save symptoms')
             }
         } catch (error) {
             console.error('Stage 2 error:', error)

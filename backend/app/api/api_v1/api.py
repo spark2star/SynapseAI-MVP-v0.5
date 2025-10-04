@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from app.api.api_v1.endpoints import (
     auth, patients, users, health, reports, 
     consultation as consultation_endpoints, 
-    newsletter, contact, intake, profile
+    newsletter, contact, intake, profile, admin, doctor
 )
 from app.api.api_v1.endpoints import sessions, templates
 from app.api.websocket import consultation
@@ -16,6 +16,8 @@ api_router = APIRouter()
 
 # Include all endpoint routers
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
+api_router.include_router(doctor.router, prefix="/doctor", tags=["doctor-registration"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(profile.router, prefix="/profile", tags=["practitioner-profile"])
 api_router.include_router(patients.router, prefix="/patients", tags=["patients"])

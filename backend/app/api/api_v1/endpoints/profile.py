@@ -97,7 +97,7 @@ def delete_old_logo(logo_url: Optional[str]):
 
 @router.get("/", response_model=PractitionerProfileRead)
 async def get_practitioner_profile(
-    current_user_id: str = Depends(get_current_user_id)
+    current_user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
@@ -150,8 +150,8 @@ async def get_practitioner_profile(
 @router.put("/", response_model=PractitionerProfileUpdateResponse)
 async def update_practitioner_profile(
     request: Request,
-    current_user_id: str = Depends(get_current_user_id)
-    db: Session = Depends(get_db)
+    current_user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
     first_name: Optional[str] = Form(None),
     last_name: Optional[str] = Form(None),
     clinic_name: Optional[str] = Form(None),

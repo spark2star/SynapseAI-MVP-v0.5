@@ -31,6 +31,7 @@ async def get_user_profile(
 ):
     """
     Get current user's profile information.
+    Returns user data and profile if it exists (profile may not exist for admin users).
     """
     try:
         # Get user with profile
@@ -41,15 +42,7 @@ async def get_user_profile(
                 detail="User not found"
             )
         
-        # Get profile
-        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user_id).first()
-        if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        # Convert to response schemas
+        # Convert user to response schema
         user_response = UserResponse(
             id=user.id,
             email=user.email,
@@ -60,25 +53,30 @@ async def get_user_profile(
             updated_at=user.updated_at
         )
         
-        profile_response = UserProfileResponse(
-            id=profile.id,
-            user_id=profile.user_id,
-            first_name=profile.first_name,
-            last_name=profile.last_name,
-            phone=profile.phone,
-            license_number=profile.license_number,
-            specialization=profile.specialization,
-            timezone=profile.timezone,
-            language=profile.language,
-            created_at=profile.created_at,
-            updated_at=profile.updated_at
-        )
+        # Get profile (may not exist for admin users)
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user_id).first()
+        profile_response = None
+        
+        if profile:
+            profile_response = UserProfileResponse(
+                id=profile.id,
+                user_id=profile.user_id,
+                first_name=profile.first_name,
+                last_name=profile.last_name,
+                phone=profile.phone,
+                license_number=profile.license_number,
+                specialization=profile.specialization,
+                timezone=profile.timezone,
+                language=profile.language,
+                created_at=profile.created_at,
+                updated_at=profile.updated_at
+            )
         
         return {
             "status": "success",
             "data": {
                 "user": user_response.dict(),
-                "profile": profile_response.dict()
+                "profile": profile_response.dict() if profile_response else None
             },
             "metadata": {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -91,7 +89,7 @@ async def get_user_profile(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve user profile"
+            detail=f"Failed to retrieve user profile: {str(e)}"
         )
 
 

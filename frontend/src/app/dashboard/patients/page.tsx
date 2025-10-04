@@ -18,6 +18,7 @@ import { toast } from 'react-hot-toast'
 
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import Pagination from '@/components/Pagination'
 import { useAuthStore } from '@/store/authStore'
 import apiService from '@/services/api'
 
@@ -46,38 +47,84 @@ export default function PatientsPage() {
     const [patients, setPatients] = useState<Patient[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
+    const [pagination, setPagination] = useState({
+        total: 0,
+        limit: 20,
+        offset: 0,
+        has_more: false,
+        current_page: 1,
+        total_pages: 0
+    })
     const [totalPatientsData, setTotalPatientsData] = useState<TimeSeriesData[]>([])
     const [improvedData, setImprovedData] = useState<TimeSeriesData[]>([])
     const [needsAttentionData, setNeedsAttentionData] = useState<TimeSeriesData[]>([])
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('month')
 
     useEffect(() => {
-        fetchPatients()
+        fetchPatients(0, searchTerm)
         generateMockTimeSeriesData()
     }, [timePeriod])
 
-    const fetchPatients = async () => {
+    const fetchPatients = async (newOffset: number, search?: string) => {
         try {
             setLoading(true)
-            const response = await apiService.get('/patients/list/')
+            console.log(`📋 Fetching patients (offset: ${newOffset}, search: ${search || 'none'})...`)
 
-            if (response.status === 'success') {
-                // Mock additional data for demonstration
-                const enhancedPatients = response.data.patients.map((patient: Patient, index: number) => ({
-                    ...patient,
+            // Use the new paginated endpoint
+            const params: any = {
+                limit: pagination.limit,
+                offset: newOffset
+            }
+            if (search) {
+                params.search = search
+            }
+
+            const response = await apiService.get('/patients/list/', params)
+
+            if (response.status === 'success' && response.data) {
+                const items = response.data.items || []
+                console.log(`✅ Loaded ${items.length} patients (Total: ${response.data.pagination?.total || 0})`)
+
+                // Map patient data to Patient interface
+                const mappedPatients: Patient[] = items.map((patient: any, index: number) => ({
+                    id: patient.id,
+                    patient_id: `PAT-${patient.id.slice(-4).toUpperCase()}`,
+                    full_name: patient.name || 'Unknown',
+                    age: patient.age || 0,
+                    gender: patient.sex || 'unknown',
+                    phone_primary: patient.phone || 'N/A',
+                    last_visit: patient.last_visit || null,
+                    created_at: patient.created_at || new Date().toISOString(),
                     patient_type: index % 3 === 0 ? 'new' : 'follow-up',
                     status: ['improving', 'stable', 'needs-attention', 'declining'][index % 4] as Patient['status']
                 }))
-                setPatients(enhancedPatients)
+
+                setPatients(mappedPatients)
+
+                // Update pagination metadata
+                if (response.data.pagination) {
+                    setPagination(response.data.pagination)
+                }
             } else {
-                toast.error('Failed to load patients')
+                console.warn('No patients found or invalid response')
+                setPatients([])
             }
         } catch (error) {
-            console.error('Error fetching patients:', error)
+            console.error('❌ Error fetching patients:', error)
             toast.error('Failed to load patients')
+            setPatients([])
         } finally {
             setLoading(false)
         }
+    }
+
+    const handlePageChange = (newOffset: number) => {
+        fetchPatients(newOffset, searchTerm)
+    }
+
+    const handleSearch = (query: string) => {
+        setSearchTerm(query)
+        fetchPatients(0, query)
     }
 
     const generateMockTimeSeriesData = () => {
@@ -155,12 +202,13 @@ export default function PatientsPage() {
         }
     }
 
-    const LineChart = ({ data, color, title, icon: Icon }: {
+    // Line Chart Component
+    const LineChart: React.FC<{
         data: TimeSeriesData[]
         color: string
         title: string
         icon: any
-    }) => {
+    }> = ({ data, color, title, icon: Icon }) => {
         const maxValue = Math.max(...data.map(d => d.value))
         const currentValue = data[data.length - 1]?.value || 0
         const previousValue = data[data.length - 2]?.value || 0
@@ -347,7 +395,7 @@ export default function PatientsPage() {
                                 <Input
                                     placeholder="Search patients by name, ID, or phone..."
                                     value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onChange={(e) => handleSearch(e.target.value)}
                                     className="pl-12 bg-white/60 dark:bg-slate-700/60 border-sky-200/50 dark:border-slate-600/50 rounded-2xl"
                                 />
                             </div>
@@ -474,6 +522,18 @@ export default function PatientsPage() {
                                     ))}
                                 </tbody>
                             </table>
+
+                            {/* Pagination Component */}
+                            {!loading && patients.length > 0 && (
+                                <div className="mt-6 px-4 sm:px-6 lg:px-8">
+                                    <Pagination
+                                        total={pagination.total}
+                                        limit={pagination.limit}
+                                        offset={pagination.offset}
+                                        onPageChange={handlePageChange}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

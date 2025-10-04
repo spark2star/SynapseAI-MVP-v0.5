@@ -3,8 +3,12 @@ import type { SymptomSearchResult, AssignedSymptom, AssignSymptomPayload } from 
 
 export const symptomAPI = {
     search: async (query: string): Promise<SymptomSearchResult[]> => {
-        const resp = await apiService.get<SymptomSearchResult[]>(`/symptoms/search`, { q: query })
-        return resp as unknown as SymptomSearchResult[]
+        const resp = await apiService.get<any>(`/intake/symptoms`, { q: query })
+        // Backend returns { status, data: { symptoms: [...] } }
+        if (resp.status === 'success' && resp.data?.symptoms) {
+            return resp.data.symptoms as SymptomSearchResult[]
+        }
+        return []
     },
 
     assignToPatient: async (patientId: number, payload: AssignSymptomPayload): Promise<AssignedSymptom> => {

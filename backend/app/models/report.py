@@ -89,7 +89,7 @@ class Report(BaseModel):
     template = relationship("ReportTemplate", back_populates="reports")
     transcription = relationship("Transcription")
     reviewed_by_user = relationship("User", foreign_keys=[reviewed_by])
-    signed_by_user = relationship("User", foreign_keys=[signed_by], back_populates="generated_reports")
+    signed_by_user = relationship("User", foreign_keys=[signed_by], overlaps="generated_reports")
     
     def __repr__(self):
         return f"<Report(id='{self.id}', session_id='{self.session_id}', status='{self.status}')>"

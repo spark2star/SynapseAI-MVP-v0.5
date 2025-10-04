@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    // Produce standalone output for Docker minimal runtime
+    output: 'standalone',
     // Disable React strict mode to prevent double-mounting during development
     // (was causing WebSocket disconnects due to mount/unmount/remount cycle)
     reactStrictMode: false,

@@ -3,7 +3,7 @@ Database configuration and session management.
 Implements secure database connections with encryption support.
 """
 
-from sqlalchemy import create_engine, MetaData, event
+from sqlalchemy import create_engine, MetaData, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
@@ -12,13 +12,17 @@ from typing import Generator
 import logging
 
 from .config import settings
+from app.models.base import Base  # Use unified Base across models and database
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # SQLAlchemy setup
+# Convert async URL to sync for SQLAlchemy create_engine
+sync_database_url = settings.DATABASE_URL.replace("+asyncpg", "").replace("postgresql://", "postgresql+psycopg2://")
+
 engine = create_engine(
-    settings.DATABASE_URL,
+    sync_database_url,
     poolclass=QueuePool,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
@@ -36,19 +40,7 @@ SessionLocal = sessionmaker(
     expire_on_commit=False
 )
 
-# Create base class for declarative models
-Base = declarative_base()
-
-# Naming convention for constraints (helpful for migrations)
-convention = {
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s"
-}
-
-Base.metadata = MetaData(naming_convention=convention)
+# Base.metadata is configured in app.models.base with naming conventions
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -115,7 +107,7 @@ class DatabaseHealthCheck:
         """Check if database connection is healthy."""
         try:
             with engine.connect() as connection:
-                connection.execute("SELECT 1")
+                connection.execute(text("SELECT 1"))
             return True
         except Exception as e:
             logger.error(f"Database health check failed: {str(e)}")
@@ -126,7 +118,7 @@ class DatabaseHealthCheck:
         """Get database connection information."""
         try:
             with engine.connect() as connection:
-                result = connection.execute("SELECT version()")
+                result = connection.execute(text("SELECT version()"))
                 version = result.scalar()
             
             return {

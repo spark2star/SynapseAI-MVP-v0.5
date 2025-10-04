@@ -6,15 +6,18 @@ Create Date: 2025-10-01
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
+import uuid
 
 revision = 'xxx_seed_symptoms'
-down_revision = 'd2a79ea3fd06'
+down_revision = 'combined_fix'
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
-    symptoms_data = [
+    # Source data: code/category are mapped into tags/categories respectively
+    raw_data = [
         # 1. Mood & Affective
         {'code': 'F32', 'name': 'Major Depressive Episode', 'category': 'Mood & Affective', 'description': 'Low mood, anhedonia, neurovegetative changes'},
         {'code': 'F33', 'name': 'Recurrent Depressive Disorder', 'category': 'Mood & Affective'},
@@ -167,20 +170,63 @@ def upgrade():
 
     for category, names, code in variants:
         for n in names:
-            symptoms_data.append({'code': code, 'name': n, 'category': category})
+            raw_data.append({'code': code, 'name': n, 'category': category})
 
-    # Insert
-    symptoms = sa.table(
-        'symptoms',
-        sa.column('code', sa.String),
+    # Transform to master_symptoms schema with de-duplication on name
+    aggregated = {}
+    for item in raw_data:
+        name = item.get('name')
+        if not name:
+            continue
+        key = name.strip().lower()
+        category = item.get('category')
+        description = (item.get('description') or '').strip()
+        code = item.get('code')
+
+        if key not in aggregated:
+            aggregated[key] = {
+                'name': name.strip(),
+                'description': description,  # may be empty string
+                'categories': set([category]) if category else set(),
+                'tags': set([code]) if code else set(),
+            }
+        else:
+            # Merge categories and tags, prefer first non-empty description
+            if category:
+                aggregated[key]['categories'].add(category)
+            if code:
+                aggregated[key]['tags'].add(code)
+            if not aggregated[key]['description'] and description:
+                aggregated[key]['description'] = description
+
+    to_insert = []
+    for entry in aggregated.values():
+        to_insert.append({
+            'id': str(uuid.uuid4()),
+            'name': entry['name'],
+            'description': entry['description'] or '',
+            'categories': sorted(list(entry['categories'])),
+            'aliases': [],
+            'tags': sorted(list(entry['tags'])),
+            'is_active': 1,
+        })
+
+    # Insert into master_symptoms
+    master_symptoms = sa.table(
+        'master_symptoms',
+        sa.column('id', sa.String),
         sa.column('name', sa.String),
-        sa.column('category', sa.String),
-        sa.column('description', sa.Text)
+        sa.column('description', sa.Text),
+        sa.column('categories', JSONB),
+        sa.column('aliases', JSONB),
+        sa.column('tags', JSONB),
+        sa.column('is_active', sa.Integer),
     )
-    op.bulk_insert(symptoms, symptoms_data)
+    if to_insert:
+        op.bulk_insert(master_symptoms, to_insert)
 
 
 def downgrade():
-    op.execute("DELETE FROM symptoms")
+    op.execute("DELETE FROM master_symptoms")
 
 

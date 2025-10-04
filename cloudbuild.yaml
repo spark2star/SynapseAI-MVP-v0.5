@@ -1,0 +1,115 @@
+steps:
+  # Enable BuildKit for faster builds
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Configure Docker BuildKit'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "DOCKER_BUILDKIT=1" >> /workspace/.env
+
+  # Build backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build backend image'
+    dir: 'backend'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+    args:
+      [
+        'build',
+        '--target', 'prod',
+        '-t', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-backend:$BUILD_ID',
+        '-t', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-backend:latest',
+        '.'
+      ]
+
+  # Build frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build frontend image'
+    dir: 'frontend'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+    args:
+      [
+        'build',
+        '-t', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-frontend:$BUILD_ID',
+        '-t', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-frontend:latest',
+        '.'
+      ]
+
+  # Push images
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push backend image'
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-backend:$BUILD_ID']
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push backend image latest'
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-backend:latest']
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push frontend image'
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-frontend:$BUILD_ID']
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push frontend image latest'
+    args: ['push', 'asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-frontend:latest']
+
+  # Run Alembic migrations (Cloud Build step with network access)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Run Alembic migrations via Cloud Run Job'
+    entrypoint: 'bash'
+    secretEnv: ['DATABASE_URL']
+    args:
+      - '-lc'
+      - |
+        set -e
+        gcloud run jobs create synapseai-migrate-$BUILD_ID \
+          --image asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-backend:$BUILD_ID \
+          --region asia-south1 \
+          --set-secrets=DATABASE_URL=database-url:latest \
+          --command="/bin/bash,-c,alembic upgrade head" \
+          --max-retries=2 || true
+        gcloud run jobs execute synapseai-migrate-$BUILD_ID --region asia-south1 --wait
+        gcloud run jobs delete synapseai-migrate-$BUILD_ID --region asia-south1 --quiet || true
+
+  # Deploy backend to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Deploy backend'
+    args:
+      [
+        'run','deploy','synapseai-backend',
+        '--image','asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-backend:$BUILD_ID',
+        '--region','asia-south1',
+        '--platform','managed',
+        '--allow-unauthenticated',
+        '--memory','512Mi',
+        '--concurrency','80',
+        '--cpu-boost',
+        '--max-instances','5',
+        '--min-instances','0',
+        '--timeout','300',
+        '--set-env-vars','ENVIRONMENT=production,DEBUG=false',
+        '--set-secrets','DATABASE_URL=database-url:latest,JWT_SECRET_KEY=jwt-secret:latest,SECRET_KEY=app-secret:latest',
+      ]
+
+  # Deploy frontend to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Deploy frontend'
+    args:
+      [
+        'run','deploy','synapseai-frontend',
+        '--image','asia-south1-docker.pkg.dev/$PROJECT_ID/synapseai-repo/synapseai-frontend:$BUILD_ID',
+        '--region','asia-south1',
+        '--platform','managed',
+        '--allow-unauthenticated',
+        '--memory','256Mi',
+        '--max-instances','5',
+        '--min-instances','0'
+      ]
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/database-url/versions/latest
+      env: 'DATABASE_URL'
+
+serviceAccount: 'projects/synapse-product-1/serviceAccounts/cloud-build-runner@synapse-product-1.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

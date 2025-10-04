@@ -1,6 +1,7 @@
 """
 Simple FastAPI app with basic authentication and STT testing.
 NOW GENERATES REAL JWT TOKENS for WebSocket authentication!
+ENHANCED: Structured JSON logging with request tracking
 """
 
 import asyncio
@@ -13,7 +14,7 @@ from datetime import datetime, timezone
 import numpy as np
 from google.cloud import speech
 from google.oauth2 import service_account
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header, Response
 import re
 from fastapi import Request, Depends
 from fastapi.websockets import WebSocketState
@@ -24,8 +25,19 @@ from dotenv import load_dotenv
 # Import REAL JWT manager from production backend
 from app.core.security import JWTManager
 
+# Import structured logging
+from app.core.logging_config import setup_logging
+from app.core.middleware import RequestIDMiddleware, ErrorLoggingMiddleware
+
+# Import rate limiting
+from app.core.rate_limit import limiter, rate_limit_handler, RateLimitExceeded
+
 # Load environment variables
 load_dotenv()
+
+# Setup structured logging FIRST (before any other initialization)
+logger = setup_logging(log_level=os.getenv("LOG_LEVEL", "INFO"))
+logger.info("Application starting up", extra={'environment': os.getenv('ENVIRONMENT', 'development')})
 
 # Initialize JWT manager for REAL token generation
 jwt_manager = JWTManager()
@@ -63,6 +75,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+# Add logging middleware FIRST (outermost middleware)
+app.add_middleware(ErrorLoggingMiddleware)
+app.add_middleware(RequestIDMiddleware)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -71,6 +91,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Log startup completion
+logger.info("FastAPI application initialized with structured logging")
 
 class LoginRequest(BaseModel):
     email: str
@@ -94,50 +117,80 @@ async def api_health_check():
     return {"status": "healthy", "service": "EMR API v1"}
 
 @app.post("/api/v1/auth/login")
-async def login(login_data: LoginRequest):
+@limiter.limit("5/minute")  # Rate limit: 5 login attempts per minute per IP
+async def login(request: Request, response: Response, login_data: LoginRequest):
     """
-    Temporary login endpoint for testing.
-    NOW GENERATES REAL JWT TOKENS for WebSocket authentication!
+    Database-backed authentication with real JWT tokens.
+    Uses direct database queries for simplicity in simple_main.py
+    
+    Rate Limited: 5 attempts per minute per IP address to prevent brute force attacks.
     """
-    # Demo credentials
-    demo_users = {
-        "doctor@demo.com": {"password": "password123", "role": "doctor", "name": "Dr. Smith", "id": "user-doctor-1"},
-        "admin@demo.com": {"password": "password123", "role": "admin", "name": "Admin User", "id": "user-admin-1"},
-        "reception@demo.com": {"password": "password123", "role": "receptionist", "name": "Reception", "id": "user-reception-1"}
-    }
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.models.user import User
+    from app.core.encryption import HashingUtility
     
-    if login_data.email not in demo_users:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Create sync engine
+    sync_db_url = os.environ.get("DATABASE_URL", "").replace("+asyncpg", "")
+    engine = create_engine(sync_db_url)
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
     
-    user_data = demo_users[login_data.email]
-    if user_data["password"] != login_data.password:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Generate REAL JWT tokens using the production JWT manager
-    user_id = user_data["id"]
-    access_token = jwt_manager.create_access_token(
-        data={"sub": user_id, "email": login_data.email, "role": user_data["role"]}
-    )
-    refresh_token = jwt_manager.create_refresh_token(
-        data={"sub": user_id}
-    )
-    
-    print(f"✅ Generated REAL JWT for {login_data.email}")
-    print(f"   Access token: {access_token[:50]}...")
-    
-    return {
-        "status": "success", 
-        "data": {
-            "access_token": access_token,  # REAL JWT TOKEN!
-            "refresh_token": refresh_token,  # REAL REFRESH TOKEN!
-            "token_type": "bearer",
-            "expires_in": 3600,  # 1 hour
-            "user_id": user_id,
-            "role": user_data["role"],
-            "email": login_data.email,
-            "name": user_data["name"]
+    try:
+        # Generate email hash
+        email_hash = User.hash_email(login_data.email)
+        
+        # Find user
+        user = db.query(User).filter(User.email_hash == email_hash).first()
+        
+        if not user:
+            print(f"❌ User not found: {login_data.email}")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Verify password
+        hash_util = HashingUtility()
+        if not hash_util.verify_password(login_data.password, user.password_hash):
+            print(f"❌ Invalid password for: {login_data.email}")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Check if verified and active
+        if not user.is_verified or not user.is_active:
+            print(f"❌ User not verified or active: {login_data.email}")
+            raise HTTPException(status_code=403, detail="Account not active")
+        
+        # Generate JWT tokens
+        access_token = jwt_manager.create_access_token(
+            data={"sub": user.id, "email": login_data.email, "role": user.role}
+        )
+        refresh_token = jwt_manager.create_refresh_token(
+            data={"sub": user.id}
+        )
+        
+        print(f"✅ Authentication successful for {login_data.email}")
+        print(f"   User ID: {user.id}")
+        print(f"   Role: {user.role}")
+        
+        return {
+            "status": "success",
+            "data": {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": 3600,
+                "user_id": user.id,
+                "role": user.role
+            }
         }
-    }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Authentication service error")
+    finally:
+        db.close()
 
 @app.get("/api/v1/users/me")
 async def get_current_user():
@@ -565,9 +618,7 @@ except ImportError as e:
 # PHASE 1 MVP: POST-SESSION WORKFLOW
 # ============================================================================
 
-# In-memory storage for reports (MVP - will migrate to DB later)
-reports_storage = {}
-report_id_counter = 1
+# NOTE: In-memory report storage deprecated; DB-backed reports are now used via app.api.api_v1.endpoints.reports
 
 class MedicationItem(BaseModel):
     drug_name: str

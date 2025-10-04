@@ -24,6 +24,8 @@ class AuditEventType(str, Enum):
     USER_LOGOUT = "user_logout"
     USER_CREATED = "user_created"
     USER_UPDATED = "user_updated"
+    CONSULTATION_STARTED = "consultation_started"
+    CONSULTATION_ENDED = "consultation_ended"
     USER_DELETED = "user_deleted"
     
     PATIENT_CREATED = "patient_created"

@@ -5,20 +5,29 @@ Handles starting, stopping, and managing consultation sessions.
 
 import uuid
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import select, func
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.models.session import ConsultationSession, SessionStatus, SessionType
+from app.core.pagination import paginate_query
+from app.schemas.consultation import ConsultationResponse
+from app.models.session import ConsultationSession, SessionStatus, SessionType, Transcription
 from app.models.patient import Patient
+from app.models.symptom import IntakePatient
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.services.mental_health_stt_service import mental_health_stt_service
 from app.core.audit import audit_logger, AuditEventType
+from app.schemas.consultation import (
+    ConsultationHistoryResponse,
+    ConsultationHistoryItem,
+    ConsultationDetailResponse
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -43,12 +52,36 @@ async def start_consultation(
 ):
     """
     Start a new consultation session with live transcription.
+    
+    Migration Note: Now uses IntakePatient instead of Patient model.
     """
+    request_id = str(uuid.uuid4())[:8]
+    
     try:
-        # Verify patient exists
-        patient = db.query(Patient).filter(Patient.id == request.patient_id).first()
+        # Verify patient exists using IntakePatient
+        patient = db.query(IntakePatient).filter(
+            IntakePatient.id == request.patient_id
+        ).first()
+        
         if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
+            logger.warning(f"[{request_id}] Patient not found: {request.patient_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Patient not found: {request.patient_id}"
+            )
+        
+        # Verify doctor has access to this patient
+        if str(patient.doctor_id) != current_user.id:
+            logger.warning(
+                f"[{request_id}] Access denied - Patient {patient.id} "
+                f"belongs to doctor {patient.doctor_id}, not {current_user.id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied to this patient"
+            )
+        
+        patient_name = patient.name
         
         # Check if there's already an active session for this patient
         active_session = db.query(ConsultationSession).filter(
@@ -110,8 +143,8 @@ async def start_consultation(
             "data": {
                 "session_id": session_id,
                 "consultation_id": consultation.id,
-                "patient_name": patient.full_name,
-                "started_at": consultation.started_at.isoformat(),
+                "patient_name": patient_name,  # Use patient_name variable set earlier
+                "started_at": consultation.started_at,
                 "stt_session": stt_session_info,
                 "websocket_url": f"ws://localhost:8000/ws/consultation/{session_id}"
             },
@@ -123,6 +156,143 @@ async def start_consultation(
     except Exception as e:
         logger.error(f"Error starting consultation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to start consultation: {str(e)}")
+
+
+@router.get("/history/{patient_id}")
+async def get_consultation_history(
+    patient_id: str,
+    limit: int = Query(20, ge=1, le=100, description="Number of consultations per page"),
+    offset: int = Query(0, ge=0, description="Number of consultations to skip"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch consultation history for a patient with pagination.
+    Returns paginated list ordered by most recent first.
+    
+    Migration Note: Fetches patient info from IntakePatient table.
+    """
+    request_id = str(uuid.uuid4())[:8]
+    
+    try:
+        logger.info(f"[{request_id}] Fetching consultation history for patient {patient_id}")
+        
+        # Verify patient exists and doctor has access
+        patient = db.query(IntakePatient).filter(
+            IntakePatient.id == patient_id,
+            IntakePatient.doctor_id == current_user.id
+        ).first()
+        
+        if not patient:
+            raise HTTPException(
+                status_code=404,
+                detail="Patient not found or access denied"
+            )
+        
+        # Build query
+        query = db.query(ConsultationSession).filter(
+            ConsultationSession.patient_id == patient_id
+        ).order_by(ConsultationSession.created_at.desc())
+        
+        # Transform function for consultations - returns ConsultationResponse with auto camelCase
+        def transform_consultation(consultation):
+            # Check if transcription exists
+            transcription = db.query(Transcription).filter(
+                Transcription.session_id == consultation.session_id
+            ).first()
+            
+            # Calculate duration if ended
+            duration_minutes = None
+            if consultation.ended_at and consultation.started_at:
+                try:
+                    start = datetime.fromisoformat(str(consultation.started_at).replace('Z', '+00:00'))
+                    end = datetime.fromisoformat(str(consultation.ended_at).replace('Z', '+00:00'))
+                    duration_minutes = int((end - start).total_seconds() / 60)
+                except:
+                    duration_minutes = consultation.total_duration
+            
+            return ConsultationResponse(
+                id=str(consultation.id),
+                session_id=consultation.session_id,
+                patient_id=str(consultation.patient_id) if consultation.patient_id else None,
+                doctor_id=str(consultation.doctor_id) if consultation.doctor_id else None,
+                created_at=consultation.created_at,
+                started_at=consultation.started_at,
+                ended_at=consultation.ended_at,
+                duration_minutes=duration_minutes,
+                chief_complaint=consultation.chief_complaint if consultation.chief_complaint else "Not specified",
+                status=consultation.status,
+                session_type=consultation.session_type,
+                has_transcription=transcription is not None,
+                has_report=False  # TODO: Check for reports
+            )
+        
+        # Use pagination helper
+        result = paginate_query(query, limit, offset, transform_consultation)
+        
+        logger.info(
+            f"[{request_id}] Retrieved {len(result['items'])} consultations "
+            f"(Total: {result['pagination']['total']}, Page: {result['pagination']['current_page']}/{result['pagination']['total_pages']})"
+        )
+        
+        return {
+            "status": "success",
+            "data": {
+                "patient_id": patient_id,
+                "patient_name": patient.name,
+                **result
+            },
+            "request_id": request_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching consultation history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch consultation history: {str(e)}")
+
+
+@router.get("/detail/{consultation_id}", response_model=ConsultationDetailResponse)
+async def get_consultation_detail(
+    consultation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed information about a specific consultation session.
+    """
+    try:
+        consultation = db.query(ConsultationSession).filter(
+            ConsultationSession.id == consultation_id
+        ).first()
+        
+        if not consultation:
+            raise HTTPException(status_code=404, detail="Consultation not found")
+        
+        return ConsultationDetailResponse(
+            id=consultation.id,
+            session_id=consultation.session_id,
+            patient_id=consultation.patient_id,
+            doctor_id=consultation.doctor_id,
+            session_type=consultation.session_type,
+            status=consultation.status,
+            started_at=consultation.started_at,
+            ended_at=consultation.ended_at,
+            total_duration=consultation.total_duration,
+            chief_complaint=consultation.chief_complaint,
+            notes=consultation.notes,
+            audio_quality_score=consultation.audio_quality_score,
+            transcription_confidence=consultation.transcription_confidence,
+            created_at=consultation.created_at,
+            updated_at=consultation.updated_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching consultation detail: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch consultation detail: {str(e)}")
+
 
 @router.post("/{session_id}/stop")
 async def stop_consultation(

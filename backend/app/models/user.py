@@ -27,7 +27,8 @@ class User(BaseModel):
     __tablename__ = "users"
     
     # Authentication fields
-    email = Column(EncryptedType(255), unique=True, nullable=False, index=True)
+    email = Column(EncryptedType(255), nullable=False)  # Encrypted for display/storage
+    email_hash = Column(String(64), unique=True, nullable=False, index=True)  # SHA256 hash for lookups
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default=UserRole.DOCTOR.value)
     
@@ -35,6 +36,10 @@ class User(BaseModel):
     is_verified = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     is_locked = Column(Boolean, default=False, nullable=False)
+    
+    # Doctor-specific status (for role=doctor)
+    doctor_status = Column(String(20), nullable=True, index=True)  # pending, verified, rejected
+    password_reset_required = Column(Boolean, default=False, nullable=False)
     
     # MFA and security
     mfa_secret = Column(EncryptedType(255), nullable=True)
@@ -55,13 +60,23 @@ class User(BaseModel):
     
     # Relationships
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    doctor_profile = relationship("DoctorProfile", foreign_keys="[DoctorProfile.user_id]", back_populates="user", uselist=False, cascade="all, delete-orphan")
     created_patients = relationship("Patient", back_populates="created_by_user")
     consultation_sessions = relationship("ConsultationSession", back_populates="doctor")
-    generated_reports = relationship("Report", back_populates="signed_by_user")
-    appointments = relationship("Appointment", back_populates="doctor")
+    generated_reports = relationship("Report", foreign_keys="[Report.signed_by]")
+    appointments = relationship("Appointment", back_populates="doctor", foreign_keys="Appointment.doctor_id")
     
     def __repr__(self):
-        return f"<User(id='{self.id}', role='{self.role}')>"
+        return f"<User(id='{self.id}', email_hash='{self.email_hash[:8]}...', role='{self.role}')>"
+    
+    @staticmethod
+    def hash_email(email: str) -> str:
+        """
+        Generate deterministic SHA256 hash of email for lookups.
+        This allows efficient database queries while keeping email encrypted.
+        """
+        import hashlib
+        return hashlib.sha256(email.lower().strip().encode('utf-8')).hexdigest()
     
     def has_role(self, role: UserRole) -> bool:
         """Check if user has specific role."""

@@ -24,17 +24,13 @@ import { toast } from 'react-hot-toast'
 
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import VertexAIAudioRecorder from '@/components/consultation/VertexAIAudioRecorder'
+import AudioRecorder from '@/components/consultation/AudioRecorder'
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
-import SessionSummaryModal from '@/components/session/SessionSummaryModal'
-import ReportView from '@/components/report/ReportView'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
-// SymptomAssessment intentionally not imported here; feature lives in new patient registration only
 import { useAuthStore } from '@/store/authStore'
 import apiService from '@/services/api'
-import type { MedicationItem } from '@/types/report'
 
 interface Patient {
     id: string
@@ -71,7 +67,6 @@ export default function PatientDetailPage() {
     const searchParams = useSearchParams()
     const patientId = params?.id as string
     const isFollowUpMode = searchParams?.get('followup') === 'true'
-    const isFirstVisitMode = searchParams?.get('first_visit') === 'true'
     const { user } = useAuthStore()
 
     const [patient, setPatient] = useState<Patient | null>(null)
@@ -89,17 +84,7 @@ export default function PatientDetailPage() {
     const [isGeneratingReport, setIsGeneratingReport] = useState(false)
     const [generatedReport, setGeneratedReport] = useState<any>(null)
     const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('')
-    // Removed selectedLanguage - Vertex AI auto-detects language
     const audioRecorderRef = useRef<{ stopRecording: () => void }>(null)
-    const isStoppingRef = useRef(false) // Prevent multiple simultaneous stop calls
-
-    // Phase 1 MVP: Post-session workflow state
-    const [showSessionSummaryModal, setShowSessionSummaryModal] = useState(false)
-    const [currentReportId, setCurrentReportId] = useState<number | null>(null)
-    const [viewingReport, setViewingReport] = useState(false)
-    const [lastMedicationPlan, setLastMedicationPlan] = useState<MedicationItem[]>([])
-    const [lastAdditionalNotes, setLastAdditionalNotes] = useState<string>('')
-    const [pendingTranscriptForReport, setPendingTranscriptForReport] = useState<string>('')
 
     useEffect(() => {
         if (patientId) {
@@ -108,26 +93,15 @@ export default function PatientDetailPage() {
         }
     }, [patientId])
 
-    // Listen for request to open SessionSummaryModal from EditableTranscript
+    // Auto-trigger follow-up session if coming from dashboard
     useEffect(() => {
-        const handler = (e: any) => {
-            const text = e?.detail?.transcript || finalTranscription
-            setPendingTranscriptForReport(text)
-            setShowSessionSummaryModal(true)
-        }
-        window.addEventListener('open-session-summary-modal', handler)
-        return () => window.removeEventListener('open-session-summary-modal', handler)
-    }, [finalTranscription])
-
-    // Auto-trigger session if coming from links
-    useEffect(() => {
-        if ((isFollowUpMode || isFirstVisitMode) && patient && !isRecording && !showNewConsultation) {
+        if (isFollowUpMode && patient && !isRecording && !showNewConsultation) {
             // Auto-open the consultation modal for follow-up
             setShowNewConsultation(true)
-            setIsFollowUpSession(!isFirstVisitMode)
-            setChiefComplaint(isFirstVisitMode ? 'First visit consultation' : 'Follow-up consultation')
+            setIsFollowUpSession(true)
+            setChiefComplaint("Follow-up consultation") // Auto-fill for follow-up
         }
-    }, [isFollowUpMode, isFirstVisitMode, patient, isRecording, showNewConsultation])
+    }, [isFollowUpMode, patient, isRecording, showNewConsultation])
 
     useEffect(() => {
         let interval: NodeJS.Timeout
@@ -172,38 +146,31 @@ export default function PatientDetailPage() {
 
     const fetchConsultationSessions = async () => {
         try {
-            // Mock consultation sessions
-            const mockSessions: ConsultationSession[] = [
-                {
-                    id: 'session-1',
-                    session_id: 'CS-2024-001',
-                    session_type: 'consultation',
-                    status: 'completed',
-                    started_at: '2024-01-15T10:00:00Z',
-                    ended_at: '2024-01-15T10:30:00Z',
-                    duration_minutes: 30,
-                    chief_complaint: 'Routine checkup and blood pressure monitoring',
-                    has_transcription: true,
-                    created_at: '2024-01-15T10:00:00Z'
-                },
-                {
-                    id: 'session-2',
-                    session_id: 'CS-2024-002',
-                    session_type: 'follow_up',
-                    status: 'completed',
-                    started_at: '2024-01-08T14:00:00Z',
-                    ended_at: '2024-01-08T14:15:00Z',
-                    duration_minutes: 15,
-                    chief_complaint: 'Follow-up on medication adjustment',
-                    has_transcription: true,
-                    created_at: '2024-01-08T14:00:00Z'
-                }
-            ]
-
-            setSessions(mockSessions)
+            console.log('📋 Fetching consultation history for patient:', patientId)
+            
+            const consultationService = (await import('@/services/consultationService')).default
+            const history = await consultationService.getHistory(patientId)
+            
+            console.log(`✅ Loaded ${history.total_consultations} consultations`)
+            
+            const mappedSessions: ConsultationSession[] = history.consultations.map(c => ({
+                id: c.id,
+                session_id: c.session_id,
+                session_type: c.session_type,
+                status: c.status,
+                started_at: c.started_at,
+                ended_at: c.ended_at || undefined,
+                duration_minutes: c.duration_minutes || 0,
+                chief_complaint: c.chief_complaint || 'Not specified',
+                has_transcription: c.has_transcription,
+                created_at: c.created_at
+            }))
+            
+            setSessions(mappedSessions)
         } catch (error) {
-            console.error('Error fetching sessions:', error)
-            toast.error('Failed to load consultation sessions')
+            console.error('❌ Error fetching consultation sessions:', error)
+            toast.error('Failed to load consultation history')
+            setSessions([])
         }
     }
 
@@ -239,177 +206,73 @@ export default function PatientDetailPage() {
     }
 
     const stopConsultation = async () => {
-        // Prevent multiple simultaneous calls
-        if (isStoppingRef.current) {
-            console.log('⚠️ Stop already in progress, ignoring duplicate call')
-            return
-        }
-
         try {
-            if (!currentSession || !isRecording) {
-                console.log('⚠️ Cannot stop: no session or not recording')
-                return
-            }
-
-            isStoppingRef.current = true  // Lock to prevent re-entry
-
-            console.log('🏁 Starting consultation stop sequence...')
-            console.log('🔍 PRE-STOP STATE:', {
-                currentSession,
-                isRecording,
-                finalTranscription: finalTranscription.slice(-50),
-                liveTranscription: liveTranscription.slice(-30)
-            })
-
-            // Set recording to false FIRST to prevent re-entry
-            setIsRecording(false)
-            console.log('🛑 Recording state set to false - should trigger loading UI')
-
-            // Then stop AudioRecorder component (this will call onStop() but isRecording is now false)
-            if (audioRecorderRef.current) {
-                console.log('🛑 Calling AudioRecorder.stopRecording() to fully stop STT & microphone')
-                audioRecorderRef.current.stopRecording()
-            }
-
-            // Give a moment for state to propagate to EditableTranscript
-            await new Promise(resolve => setTimeout(resolve, 200))
-            console.log('🔄 State propagation delay complete, calling API...')
-            console.log('🔍 MID-STOP STATE:', {
-                currentSession,
-                isRecording,
-                finalTranscription: finalTranscription.slice(-50)
-            })
-
-            const response = await apiService.post(`/consultation/${currentSession}/stop`)
-
-            if (response.status === 'success') {
-                const newSession: ConsultationSession = {
-                    id: `session-${currentSession}-${Date.now()}`,  // Unique ID using session + timestamp
-                    session_id: currentSession,
-                    session_type: 'consultation',
-                    status: 'completed',
-                    started_at: new Date().toISOString(),
-                    ended_at: new Date().toISOString(),
-                    duration_minutes: Math.round(recordingDuration / 60),
-                    chief_complaint: chiefComplaint,
-                    has_transcription: !!finalTranscription,
-                    created_at: new Date().toISOString()
-                }
-
-                setSessions(prev => [newSession, ...prev])
-
-                // Don't reset currentSession immediately - let user see processing/options first
-                // setCurrentSession(null) // Commented out to keep component mounted
-                console.log('💾 Keeping currentSession active for post-recording UI:', currentSession)
-                setChiefComplaint('')
-                setRecordingDuration(0)
-
-                // Phase 1 MVP: Show post-session modal instead of just toast
-                console.log('✅ Session saved, showing post-session workflow')
-                console.log('🔍 POST-STOP STATE:', {
+            if (currentSession) {
+                console.log('🏁 Starting consultation stop sequence...')
+                console.log('🔍 PRE-STOP STATE:', {
                     currentSession,
                     isRecording,
                     finalTranscription: finalTranscription.slice(-50),
-                    componentShouldRender: !!currentSession
+                    liveTranscription: liveTranscription.slice(-30)
                 })
 
-                // Do not open medication/progress modal automatically.
+                // CRITICAL: Stop AudioRecorder component first
+                if (audioRecorderRef.current) {
+                    console.log('🛑 Calling AudioRecorder.stopRecording() to fully stop STT & microphone')
+                    audioRecorderRef.current.stopRecording()
+                }
+
+                // Then update state immediately to trigger UI changes
+                setIsRecording(false)
+                console.log('🛑 Recording state set to false - should trigger loading UI')
+
+                // Give a moment for state to propagate to EditableTranscript
+                await new Promise(resolve => setTimeout(resolve, 200))
+                console.log('🔄 State propagation delay complete, calling API...')
+                console.log('🔍 MID-STOP STATE:', {
+                    currentSession,
+                    isRecording,
+                    finalTranscription: finalTranscription.slice(-50)
+                })
+
+                const response = await apiService.post(`/consultation/${currentSession}/stop`)
+
+                if (response.status === 'success') {
+                    const newSession: ConsultationSession = {
+                        id: 'session-new',
+                        session_id: currentSession,
+                        session_type: 'consultation',
+                        status: 'completed',
+                        started_at: new Date().toISOString(),
+                        ended_at: new Date().toISOString(),
+                        duration_minutes: Math.round(recordingDuration / 60),
+                        chief_complaint: chiefComplaint,
+                        has_transcription: !!finalTranscription,
+                        created_at: new Date().toISOString()
+                    }
+
+                    setSessions(prev => [newSession, ...prev])
+
+                    // Don't reset currentSession immediately - let user see processing/options first
+                    // setCurrentSession(null) // Commented out to keep component mounted
+                    console.log('💾 Keeping currentSession active for post-recording UI:', currentSession)
+                    setChiefComplaint('')
+                    setRecordingDuration(0)
+
+                    toast.success('Consultation session completed')
+                    console.log('✅ Session saved, keeping transcript component mounted for user actions')
+                    console.log('🔍 POST-STOP STATE:', {
+                        currentSession,
+                        isRecording,
+                        finalTranscription: finalTranscription.slice(-50),
+                        componentShouldRender: !!currentSession
+                    })
+                }
             }
         } catch (error) {
             console.error('Error stopping consultation:', error)
             toast.error('Failed to stop consultation')
-        } finally {
-            // Release lock after completion (success or error)
-            isStoppingRef.current = false
-            console.log('🔓 Stop lock released')
         }
-    }
-
-    // Phase 1 MVP: Post-session workflow handlers
-    const handleReportGenerated = async (reportId: number) => {
-        console.log('📄 Report generated with ID:', reportId)
-        try {
-            setIsGeneratingReport(true)
-            setCurrentReportId(reportId)
-            setShowSessionSummaryModal(false)
-
-            // Fetch report details from backend and adapt to MedicalReportDisplay shape
-            const resp = await apiService.get(`/reports/${reportId}`)
-            const data = (resp as any)?.data || (resp as any)
-            if (data) {
-                // Build medication summary for display and PDF (italics in preview via markdown)
-                const meds = (data.medication_plan || []).map((m: any) => {
-                    const base = `${m.drug_name} ${m.dosage} – ${m.frequency}`
-                    const route = m.route ? ` (${m.route})` : ''
-                    const instr = m.instructions ? ` — ${m.instructions}` : ''
-                    return `*${base}${route}${instr}*`
-                }).join('\n')
-
-                const adapted = {
-                    report: data.report_content,
-                    session_id: data.session_id,
-                    session_type: data.session_type || 'follow_up',
-                    model_used: '',
-                    transcription_length: data.transcription_length,
-                    generated_at: data.created_at,
-                    patient_name: patient?.full_name || undefined,
-                    doctor_name: (user as any)?.name || undefined,
-                    highlight_tags: data.highlight_tags || [],
-                    complaint_capture_score: data.complaint_capture_score || null,
-                    concise_summary: data.concise_summary || ''
-                }
-                // Display highlight tags if present
-                const highlightTags: string[] = (data.highlight_tags || [])
-                if (highlightTags.length > 0) {
-                    console.log('🧩 Highlight tags:', highlightTags)
-                }
-                // If report doesn't contain a medication/treatment section, append one
-                if (meds) {
-                    if (/##\s*(medication|treatment)/i.test(adapted.report)) {
-                        // Inject meds under existing section by appending at the end
-                        adapted.report += `\n${meds}`
-                    } else {
-                        // Create the section if it's missing
-                        adapted.report += `\n\n## MEDICATION & TREATMENT\n${meds}`
-                    }
-                }
-                // Persist last medications (state + localStorage)
-                const medsList: MedicationItem[] = (data.medication_plan || [])
-                setLastMedicationPlan(medsList)
-                try {
-                    if (currentSession) {
-                        window.localStorage.setItem(`last_meds_${currentSession}`, JSON.stringify(medsList))
-                    }
-                } catch (_) { }
-
-                setGeneratedReport(adapted)
-                setViewingReport(false)
-                toast.success('Report generated successfully!')
-                // Smooth scroll to report card
-                setTimeout(() => {
-                    const el = document.getElementById('medical-report-card')
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }, 100)
-            } else {
-                toast.error('Failed to load generated report')
-            }
-        } catch (e) {
-            console.error('Failed to fetch generated report:', e)
-            toast.error('Failed to fetch generated report')
-        } finally {
-            setIsGeneratingReport(false)
-        }
-    }
-
-    const handleBackFromReport = () => {
-        setViewingReport(false)
-        setCurrentReportId(null)
-        // Could optionally show the transcript again or navigate somewhere
-    }
-
-    const handleCloseSessionModal = () => {
-        setShowSessionSummaryModal(false)
-        // Just close modal, session stays active so user can still see transcript
     }
 
     const formatDuration = (seconds: number) => {
@@ -501,8 +364,8 @@ export default function PatientDetailPage() {
                 // Store report in a separate state variable (we'll create this)
                 setGeneratedReport(reportData)
 
-                toast.success('✅ Medical report generated successfully!')
-                console.log('🎯 Medical report generated successfully!')
+                toast.success('✅ Medical report generated successfully with Gemini 2.5 Flash!')
+                console.log('🎯 Real Gemini 2.5 Flash report generated successfully!')
 
                 // No auto-scroll - let user control their view
             } else {
@@ -614,9 +477,30 @@ export default function PatientDetailPage() {
                             </div>
                         </div>
 
+                        {/* Development Phase Notice */}
+                        {isRecording && (
+                            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 dark:border-yellow-600 p-4 rounded-r-lg shadow-sm">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0">
+                                        <svg className="h-5 w-5 text-yellow-400 dark:text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div className="ml-3 flex-1">
+                                        <div className="text-sm">
+                                            <strong className="font-semibold text-yellow-800 dark:text-yellow-200">Development Phase Notice:</strong>
+                                            <span className="text-yellow-700 dark:text-yellow-300 ml-1">
+                                                This recording feature is currently under active development. Some features may not work as expected.
+                                                We appreciate your patience as we continue to improve the system.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-                        {/* Recording Controls - Vertex AI Powered */}
-                        <VertexAIAudioRecorder
+                        {/* Recording Controls - Compact Display */}
+                        <AudioRecorder
                             ref={audioRecorderRef}
                             sessionId={currentSession}
                             isRecording={isRecording}
@@ -652,10 +536,7 @@ export default function PatientDetailPage() {
                     <MedicalReportDisplay
                         reportData={generatedReport}
                         isGenerating={isGeneratingReport}
-                        onGenerateNew={() => {
-                            // Re-open modal with last-used values for quick edit
-                            setShowSessionSummaryModal(true)
-                        }}
+                        onGenerateNew={() => handleGenerateReport(finalTranscription)}
                     />
                 )}
 
@@ -677,7 +558,19 @@ export default function PatientDetailPage() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    {/* Remove separate Session Focus section as requested */}
+                                    {!isFollowUpSession && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                                                Session Focus
+                                            </label>
+                                            <Input
+                                                placeholder="Primary focus for today's session (e.g., anxiety management, mood assessment)..."
+                                                value={chiefComplaint}
+                                                onChange={(e) => setChiefComplaint(e.target.value)}
+                                                className="w-full"
+                                            />
+                                        </div>
+                                    )}
 
                                     <div>
                                         <label className="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
@@ -685,28 +578,14 @@ export default function PatientDetailPage() {
                                         </label>
                                         <select
                                             className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                            defaultValue={isFirstVisitMode ? 'first-visit' : 'follow-up'}
+                                            defaultValue="follow-up"
                                         >
-                                            <option value="first-visit">First Session</option>
                                             <option value="follow-up">Follow-up Session</option>
                                             <option value="therapy">Therapy Session</option>
                                             <option value="assessment">Mental Health Assessment</option>
                                             <option value="counseling">Counseling Session</option>
                                             <option value="crisis">Crisis Intervention</option>
                                         </select>
-                                    </div>
-
-                                    {/* Vertex AI Auto-Language Detection Info */}
-                                    <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-300 dark:border-green-700 rounded-lg">
-                                        <h4 className="text-sm font-medium text-green-900 dark:text-green-100 mb-2 flex items-center gap-2">
-                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                            </svg>
-                                            Vertex AI Auto-Detection
-                                        </h4>
-                                        <p className="text-xs text-green-700 dark:text-green-300">
-                                            ✨ Automatically detects and switches between Hindi (हिंदी), Marathi (मराठी), and English (India). Just speak naturally!
-                                        </p>
                                     </div>
 
                                     {/* Audio Input Device Selection - Show before recording */}
@@ -931,42 +810,6 @@ export default function PatientDetailPage() {
                     )}
                 </div>
             </div>
-
-            {/* Symptom Assessment removed on patient page per requirement (kept only in new patient registration) */}
-
-            {/* Phase 1 MVP: Post-Session Workflow Components */}
-
-            {/* Session Summary Modal - Phase 1 MVP */}
-            {showSessionSummaryModal && (
-                <SessionSummaryModal
-                    isOpen={showSessionSummaryModal}
-                    onClose={handleCloseSessionModal}
-                    sessionId={currentSession || ''}
-                    transcription={pendingTranscriptForReport || finalTranscription}
-                    onReportGenerated={handleReportGenerated}
-                    sessionType={isFirstVisitMode ? 'first_visit' : 'follow_up'}
-                    initialMedications={
-                        (currentSession && (() => {
-                            try {
-                                const raw = window.localStorage.getItem(`last_meds_${currentSession}`)
-                                return raw ? JSON.parse(raw) : lastMedicationPlan
-                            } catch { return lastMedicationPlan }
-                        })()) || lastMedicationPlan
-                    }
-                    initialNotes={lastAdditionalNotes}
-                />
-            )}
-
-            {/* Report View - Phase 1 MVP */}
-            {viewingReport && currentReportId && (
-                <div className="fixed inset-0 bg-white dark:bg-neutral-900 z-50">
-                    <ReportView
-                        reportId={currentReportId}
-                        onBack={handleBackFromReport}
-                    />
-                </div>
-            )}
-
         </div>
     )
 }

@@ -97,7 +97,7 @@ class Appointment(BaseModel):
     
     # Relationships
     patient = relationship("Patient", back_populates="appointments")
-    doctor = relationship("User", back_populates="appointments")
+    doctor = relationship("User", back_populates="appointments", foreign_keys=[doctor_id])
     confirmed_by_user = relationship("User", foreign_keys=[confirmed_by])
     cancelled_by_user = relationship("User", foreign_keys=[cancelled_by])
     session = relationship("ConsultationSession")

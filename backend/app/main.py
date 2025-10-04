@@ -21,14 +21,14 @@ from app.api.websocket.transcribe import router as transcribe_router
 from app.core.security import SecurityHeaders
 from app.core.audit import audit_logger
 from app.core.exceptions import register_exception_handlers
+from app.core.logging_config import setup_logging
+from app.core.middleware import RequestIDMiddleware, ErrorLoggingMiddleware
+from app.core.rate_limit import limiter, rate_limit_handler, RateLimitExceeded
+import app.models  # Ensure all models are registered before create_tables
 
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper()),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Setup structured logging (P0-5)
+logger = setup_logging(log_level=settings.LOG_LEVEL.upper())
 
 
 @asynccontextmanager
@@ -71,6 +71,14 @@ app = FastAPI(
 
 # Register exception handlers
 register_exception_handlers(app)
+
+# Add rate limiter (P1-1)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+# Add structured logging middleware (P0-5) - Order matters!
+app.add_middleware(ErrorLoggingMiddleware)
+app.add_middleware(RequestIDMiddleware)
 
 # Security Middleware
 app.add_middleware(SecurityHeaders)

@@ -1,10 +1,27 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Poppins, Lato } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({
+    subsets: ['latin'],
+    variable: '--font-inter',
+})
+
+const poppins = Poppins({
+    subsets: ['latin'],
+    weight: ['400', '500', '600', '700', '800'],
+    variable: '--font-poppins',
+    display: 'swap',
+})
+
+const lato = Lato({
+    subsets: ['latin'],
+    weight: ['400', '700'],
+    variable: '--font-lato',
+    display: 'swap',
+})
 
 export const metadata: Metadata = {
     title: 'SynapseAI - Intelligent EMR System',
@@ -26,7 +43,7 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en" className="h-full" suppressHydrationWarning>
+        <html lang="en" className={`h-full ${inter.variable} ${poppins.variable} ${lato.variable}`} suppressHydrationWarning>
             <head>
                 <meta name="theme-color" content="#0ea5e9" />
                 <link rel="icon" href="/favicon.ico" />
@@ -34,7 +51,7 @@ export default function RootLayout({
                 <link rel="manifest" href="/manifest.json" />
             </head>
             <body
-                className={`${inter.className} h-full bg-neutral-50 dark:bg-neutral-900 antialiased transition-all duration-300 ease-in-out`}
+                className={`${lato.className} h-full bg-white text-neutralBlack antialiased transition-all duration-300 ease-in-out`}
                 suppressHydrationWarning
             >
                 <ThemeProvider>
