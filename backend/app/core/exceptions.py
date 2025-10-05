@@ -273,20 +273,48 @@ async def synapseai_exception_handler(request: Request, exc: SynapseAIException)
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    """Handle Pydantic validation errors."""
+    """Handle Pydantic validation errors with user-friendly messages."""
+    # Format errors in a user-friendly way
+    errors = []
+    for error in exc.errors():
+        field = ".".join(str(x) for x in error["loc"] if x != "body")
+        message = error["msg"]
+        
+        # Make error messages more user-friendly
+        if "field required" in message.lower():
+            message = f"{field} is required"
+        elif "ensure this value" in message.lower():
+            message = f"{field} has invalid value"
+        elif "value is not a valid" in message.lower():
+            message = f"{field} must be a valid {error.get('type', 'value')}"
+        
+        errors.append({
+            "field": field,
+            "message": message,
+            "type": error["type"]
+        })
+    
+    request_id = getattr(request.state, 'request_id', None)
+    
     logger.warning(
         f"Validation error on {request.url.path}",
-        extra={"errors": exc.errors()}
+        extra={
+            "request_id": request_id,
+            "errors": errors,
+            "method": request.method
+        }
     )
     
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "success": False,
+            "status": "error",
             "error": {
                 "code": "VALIDATION_ERROR",
-                "message": "Request validation failed",
-                "details": {"validation_errors": exc.errors()}
+                "message": "Please check your input and try again",
+                "fields": errors,
+                "request_id": request_id
             },
             "metadata": {
                 "timestamp": "utcnow",
@@ -297,29 +325,45 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
-    """Handle database integrity constraint violations."""
-    logger.error(
-        f"Database integrity error on {request.url.path}",
-        extra={"error": str(exc.orig)}
+    """Handle database integrity constraint violations with user-friendly messages."""
+    request_id = getattr(request.state, 'request_id', None)
+    
+    logger.warning(
+        "Database integrity error",
+        extra={
+            "request_id": request_id,
+            "error": str(exc.orig),
+            "path": request.url.path
+        }
     )
     
-    # Parse error message to provide better feedback
-    error_message = "Database constraint violation"
-    if "duplicate key" in str(exc.orig).lower():
-        error_message = "A resource with this identifier already exists"
-    elif "foreign key" in str(exc.orig).lower():
-        error_message = "Referenced resource does not exist"
-    elif "not null" in str(exc.orig).lower():
-        error_message = "Required field is missing"
+    # Parse error message to provide better, more specific feedback
+    error_message = "This record already exists or violates data constraints"
+    error_str = str(exc.orig).lower()
+    
+    if "duplicate key" in error_str or "unique constraint" in error_str:
+        if "email" in error_str:
+            error_message = "An account with this email already exists"
+        elif "phone" in error_str:
+            error_message = "A patient with this phone number already exists"
+        elif "session_id" in error_str:
+            error_message = "A consultation with this ID already exists"
+        else:
+            error_message = "This record already exists"
+    elif "foreign key" in error_str:
+        error_message = "Referenced record does not exist. Please ensure all related records are valid."
+    elif "not null" in error_str:
+        error_message = "Required field is missing. Please provide all required information."
     
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
         content={
             "success": False,
+            "status": "error",
             "error": {
-                "code": "INTEGRITY_ERROR",
+                "code": "DUPLICATE_ENTRY",
                 "message": error_message,
-                "details": {}
+                "request_id": request_id
             },
             "metadata": {
                 "timestamp": "utcnow",
