@@ -240,6 +240,49 @@ class AuthenticationService:
             
             logger.info(f"[{request_id}] ✅ Doctor registered successfully: {user.id}")
             
+            # ============================================================================
+            # SEND EMAIL NOTIFICATIONS
+            # ============================================================================
+            try:
+                from app.services.email_service import email_service
+                
+                # Prepare doctor data for email
+                doctor_email_data = {
+                    'user_id': str(user.id),
+                    'full_name': registration_data.full_name,
+                    'email': registration_data.email,
+                    'phone': getattr(registration_data, 'phone', 'N/A'),
+                    'medical_registration_number': registration_data.medical_registration_number.upper(),
+                    'state_medical_council': registration_data.state_medical_council,
+                    'specialization': 'Psychiatrist',  # Default specialization
+                }
+                
+                # Send notification to admin
+                logger.info(f"[{request_id}] 📧 Sending admin notification...")
+                admin_email_sent = email_service.send_doctor_registration_notification(doctor_email_data)
+                
+                if admin_email_sent:
+                    logger.info(f"[{request_id}] ✅ Admin notification sent successfully")
+                else:
+                    logger.error(f"[{request_id}] ❌ Failed to send admin notification")
+                
+                # Send confirmation to doctor
+                logger.info(f"[{request_id}] 📧 Sending confirmation to doctor...")
+                doctor_email_sent = email_service.send_doctor_registration_confirmation(
+                    email=registration_data.email,
+                    name=registration_data.full_name
+                )
+                
+                if doctor_email_sent:
+                    logger.info(f"[{request_id}] ✅ Doctor confirmation sent successfully")
+                else:
+                    logger.error(f"[{request_id}] ❌ Failed to send doctor confirmation")
+                
+            except Exception as email_error:
+                # Don't fail registration if email fails
+                logger.error(f"[{request_id}] ⚠️ Email notification error: {str(email_error)}")
+            # ============================================================================
+            
             return {
                 "message": "Your application has been received and is pending verification",
                 "application_id": str(user.id),
@@ -450,7 +493,10 @@ class AuthenticationService:
                 expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 user_id=user.id,
                 role=user.role,
-                requires_mfa=user.mfa_enabled and False  # TODO: Implement MFA check
+                requires_mfa=user.mfa_enabled and False,  # TODO: Implement MFA check
+                doctor_status=user.doctor_status if user.role == "doctor" else None,
+                profile_completed=profile_completed if user.role == "doctor" else None,
+                password_reset_required=user.password_reset_required
             )
             
             return login_response, session_id

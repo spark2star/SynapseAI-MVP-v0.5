@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -11,122 +10,188 @@ import { EyeIcon, EyeSlashIcon, ArrowLeftIcon, CheckCircleIcon } from '@heroicon
 
 import { useAuthStore } from '@/store/authStore';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import type { LoginCredentials } from '@/types';
-
-interface LoginFormData {
-    email: string;
-    password: string;
-    remember_me: boolean;
-}
 
 export default function LoginPage() {
     const router = useRouter();
-    const { login, isAuthenticated, isLoading } = useAuthStore();
+    const { isAuthenticated, isLoading, user } = useAuthStore();
+    const [email, setEmail] = useState('doc@demo.com');
+    const [password, setPassword] = useState('password123');
+    const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isRedirecting, setIsRedirecting] = useState(false);
+    const [error, setError] = useState('');
 
-    const {
-        register,
-        handleSubmit,
-        formState: { errors },
-        setError
-    } = useForm<LoginFormData>();
-
-    // Redirect if already authenticated
-    useEffect(() => {
-        if (!isLoading && isAuthenticated) {
-            router.push('/dashboard');
+    // Smart redirect handler for logo click
+    const handleLogoClick = () => {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            // Redirect to dashboard if logged in
+            const role = user?.role || 'doctor';
+            const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
+            window.location.href = redirectPath;
+        } else {
+            // Redirect to landing page if not logged in
+            window.location.href = '/landing';
         }
-    }, [isAuthenticated, isLoading, router]);
+    };
 
-    const onSubmit = async (data: LoginFormData) => {
+    // Redirect if already authenticated (on page load only)
+    useEffect(() => {
+        if (!isLoading && isAuthenticated && !isSubmitting && !isRedirecting) {
+            console.log('🔄 Already authenticated, redirecting...');
+            const role = user?.role || 'doctor';
+            const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
+            window.location.href = redirectPath;
+        }
+    }, [isLoading]); // Only run on mount and when loading state changes
+
+    // NUCLEAR FIX: Direct button click handler (no form submission)
+    const handleLogin = async () => {
+        console.log('🚀 === LOGIN FLOW START ===');
+        setError('');
         setIsSubmitting(true);
+        setIsRedirecting(true);
 
         try {
-            // Call the API directly to get full response with role and status
+            // Step 1: Direct API call to get full response
+            console.log('📤 Step 1: Calling login API...');
+            console.log('📧 Email:', email);
+            console.log('🔒 Password:', password ? '***' : 'empty');
+
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    email: data.email,
-                    password: data.password,
-                    remember_me: data.remember_me
+                    email,
+                    password,
+                    remember_me: rememberMe
                 })
             });
 
+            console.log('📥 Step 2: Response received, status:', response.status);
             const result = await response.json();
+            console.log('📦 Step 3: Response data:', result);
 
-            // Handle 403 Forbidden (pending/rejected doctors)
+            // Handle 403 Forbidden
             if (response.status === 403) {
                 const detail = result.detail || result.error?.message || {};
-
                 if (typeof detail === 'object' && detail.code === 'APPLICATION_PENDING') {
-                    toast.error('Your application is pending admin approval. You will receive an email once verified.', {
-                        duration: 6000
-                    });
-                    setError('email', { message: 'Application pending verification' });
+                    toast.error('Your application is pending admin approval.', { duration: 6000 });
                 } else if (typeof detail === 'object' && detail.code === 'APPLICATION_REJECTED') {
-                    toast.error(`Your application was rejected. Reason: ${detail.reason || 'Please contact support.'}`, {
-                        duration: 8000
-                    });
-                    setError('email', { message: 'Application rejected' });
+                    toast.error(`Application rejected: ${detail.reason || 'Contact support'}`, { duration: 8000 });
                 } else {
                     toast.error('Access denied. Please contact support.', { duration: 5000 });
-                    setError('email', { message: 'Access denied' });
                 }
                 setIsSubmitting(false);
+                setIsRedirecting(false);
                 return;
             }
 
             // Handle other errors
             if (!response.ok || result.status !== 'success') {
-                setError('email', { message: 'Invalid email or password' });
-                setError('password', { message: 'Invalid email or password' });
-                toast.error('Invalid credentials. Please try again.');
+                console.error('❌ Login failed:', result);
+                const errorMsg = result.error?.message || 'Invalid credentials. Please try again.';
+                setError(errorMsg);
+                toast.error(errorMsg);
                 setIsSubmitting(false);
+                setIsRedirecting(false);
                 return;
             }
 
-            // Successful login - now update auth store
-            const success = await login(data as LoginCredentials);
+            // Extract data from response
+            const { role, doctor_status, profile_completed, password_reset_required, access_token, refresh_token } = result.data;
 
-            if (success) {
-                const { role, doctor_status, profile_completed, password_reset_required } = result.data;
+            console.log('✅ Step 4: Login successful!');
+            console.log('👤 User Role:', role);
+            console.log('🏥 Doctor Status:', doctor_status);
+            console.log('📋 Profile Completed:', profile_completed);
+            console.log('🔑 Has Token:', !!access_token);
 
-                // Role-based routing
-                if (role === 'admin') {
-                    toast.success('Welcome back, Admin!');
-                    router.push('/admin/dashboard');
-                } else if (role === 'doctor') {
-                    if (password_reset_required) {
-                        toast.success('Welcome! Please reset your temporary password.');
-                        router.push('/auth/reset-password');
-                    } else if (doctor_status === 'verified' && !profile_completed) {
-                        toast.success('Welcome! Please complete your profile to get started.');
-                        router.push('/doctor/complete-profile');
-                    } else if (doctor_status === 'verified' && profile_completed) {
-                        toast.success('Welcome back, Doctor!');
-                        router.push('/dashboard');
-                    } else {
-                        toast.error('Account verification pending.');
-                        setIsSubmitting(false);
-                        return;
-                    }
-                } else {
-                    toast.success('Welcome back!');
-                    router.push('/dashboard');
+            // Step 2: Save tokens to localStorage AND cookies
+            console.log('💾 Step 5: Saving auth data...');
+
+            if (access_token) {
+                // Save to localStorage
+                localStorage.setItem('access_token', access_token);
+                if (refresh_token) {
+                    localStorage.setItem('refresh_token', refresh_token);
                 }
+
+                // CRITICAL: Save to cookies for middleware
+                document.cookie = `access_token=${access_token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+                if (refresh_token) {
+                    document.cookie = `refresh_token=${refresh_token}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
+                }
+
+                console.log('✅ Tokens saved to localStorage AND cookies');
+                console.log('🍪 Cookie set for middleware');
             } else {
-                setError('email', { message: 'Invalid email or password' });
-                setError('password', { message: 'Invalid email or password' });
+                console.error('❌ No access_token in response!');
+                toast.error('Login failed - no token received');
+                setIsSubmitting(false);
+                setIsRedirecting(false);
+                return;
             }
+
+            console.log('✅ Step 6: Auth data saved');
+
+            // CRITICAL: Wait for cookies to be written (middleware needs them!)
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Step 3: Role-based redirect
+            console.log('🎯 Step 7: Determining redirect path...');
+
+            let redirectPath = '/dashboard';
+            let welcomeMessage = 'Welcome back!';
+
+            if (role === 'admin') {
+                redirectPath = '/admin/dashboard';
+                welcomeMessage = 'Welcome back, Admin!';
+                console.log('🔐 Admin user detected → /admin/dashboard');
+            } else if (role === 'doctor') {
+                if (password_reset_required) {
+                    redirectPath = '/auth/reset-password';
+                    welcomeMessage = 'Please reset your temporary password.';
+                    console.log('🔒 Password reset required → /auth/reset-password');
+                } else if (doctor_status === 'verified' && !profile_completed) {
+                    redirectPath = '/doctor/complete-profile';
+                    welcomeMessage = 'Please complete your profile to get started.';
+                    console.log('📝 Profile incomplete → /doctor/complete-profile');
+                } else if (doctor_status === 'verified' && profile_completed) {
+                    redirectPath = '/dashboard';
+                    welcomeMessage = 'Welcome back, Doctor!';
+                    console.log('✅ Verified doctor → /dashboard');
+                } else {
+                    console.log('⚠️ Doctor not verified yet');
+                    toast.error('Account verification pending.');
+                    setIsSubmitting(false);
+                    setIsRedirecting(false);
+                    return;
+                }
+            }
+
+            console.log(`🚀 Step 8: Redirecting to ${redirectPath}...`);
+            toast.success(welcomeMessage);
+
+            // CRITICAL: Use replace() to prevent any history/back button issues
+            // and ensure navigation happens immediately without refresh
+            const redirectTimer = setTimeout(() => {
+                console.log('⚡ Executing redirect NOW...');
+                window.location.replace(redirectPath);
+            }, 250); // Small delay for toast to show
+
+            // Prevent form from doing anything else
+            console.log('🛑 Stopping all further form processing...');
+            return false;
+
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('❌ Login error:', error);
             toast.error('Login failed. Please try again.');
-        } finally {
             setIsSubmitting(false);
+            setIsRedirecting(false);
         }
+        // Note: No finally block - don't reset state after successful redirect
     };
 
     if (isLoading) {
@@ -192,14 +257,16 @@ export default function LoginPage() {
                         transition={{ duration: 0.8 }}
                         className="text-center max-w-md"
                     >
-                        {/* Logo */}
-                        <Image
-                            src="/Logo-MVP-v0.5.png"
-                            alt="SynapseAI"
-                            width={80}
-                            height={80}
-                            className="mb-8 mx-auto brightness-0 invert"
-                        />
+                        {/* Logo - Clickable */}
+                        <div onClick={handleLogoClick} className="cursor-pointer inline-block mb-8">
+                            <Image
+                                src="/Logo-MVP-v0.5.png"
+                                alt="SynapseAI"
+                                width={80}
+                                height={80}
+                                className="mx-auto brightness-0 invert hover:scale-105 transition-transform"
+                            />
+                        </div>
 
                         {/* Headline */}
                         <h2 className="text-4xl font-heading font-bold mb-4">
@@ -243,77 +310,98 @@ export default function LoginPage() {
                     {/* Back to Home Link */}
                     <Link
                         href="/landing"
-                        className="inline-flex items-center gap-2 text-body text-neutralGray-700 hover:text-synapseSkyBlue transition-colors mb-8"
+                        className="inline-flex items-center gap-2 text-gray-800 hover:text-blue-600 transition-colors mb-8"
                     >
                         <ArrowLeftIcon className="w-4 h-4" />
                         Back to Home
                     </Link>
 
-                    {/* Mobile Logo */}
+                    {/* Mobile Logo - Clickable */}
                     <div className="lg:hidden mb-8 text-center">
-                        <Image
-                            src="/Logo-MVP-v0.5.png"
-                            alt="SynapseAI"
-                            width={60}
-                            height={60}
-                            className="mx-auto mb-4"
-                        />
-                        <h2 className="text-2xl font-heading font-bold text-synapseDarkBlue">
+                        <div onClick={handleLogoClick} className="cursor-pointer inline-block mb-4">
+                            <Image
+                                src="/Logo-MVP-v0.5.png"
+                                alt="SynapseAI"
+                                width={60}
+                                height={60}
+                                className="mx-auto hover:scale-105 transition-transform"
+                            />
+                        </div>
+                        <h2 className="text-2xl font-heading font-bold text-gray-900">
                             Sign In to SynapseAI
                         </h2>
                     </div>
 
                     {/* Desktop Heading */}
                     <div className="hidden lg:block mb-8">
-                        <h1 className="text-3xl font-heading font-bold text-synapseDarkBlue mb-2">
+                        <h1 className="text-3xl font-heading font-bold text-gray-900 mb-2">
                             Sign In
                         </h1>
-                        <p className="text-body text-neutralGray-700">
+                        <p className="text-gray-700">
                             Enter your credentials to access your account
                         </p>
                     </div>
 
-                    {/* Demo Credentials Notice */}
-                    <div className="mb-6 p-4 bg-synapseSkyBlue/10 border border-synapseSkyBlue/20 rounded-lg">
-                        <p className="text-sm text-synapseDarkBlue font-medium">
-                            <span className="font-bold">Demo Admin:</span> test.doctor@example.com / SecurePass123!
+                    {/* Admin Credentials Notice */}
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-gray-900 font-medium mb-2">
+                            <span className="font-bold">🔑 Admin Access:</span>
+                        </p>
+                        <p className="text-xs text-gray-800 font-mono">
+                            Email: admin@synapseai.com<br />
+                            Password: SynapseAdmin2025!
                         </p>
                     </div>
 
-                    {/* Login Form */}
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                        <Input
-                            label="Email Address"
-                            type="email"
-                            placeholder="doctor@example.com"
-                            error={errors.email?.message}
-                            {...register('email', {
-                                required: 'Email is required',
-                                pattern: {
-                                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                                    message: 'Please enter a valid email address'
-                                }
-                            })}
-                        />
+                    {/* Error Display */}
+                    {error && (
+                        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-red-700 text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    {/* Login Form - NUCLEAR FIX: Using div instead of form to prevent page reload */}
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Email Address
+                            </label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="doc@demo.com"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                disabled={isSubmitting}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                        handleLogin();
+                                    }
+                                }}
+                            />
+                        </div>
 
                         <div className="relative">
-                            <Input
-                                label="Password"
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Password
+                            </label>
+                            <input
                                 type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                error={errors.password?.message}
-                                {...register('password', {
-                                    required: 'Password is required',
-                                    minLength: {
-                                        value: 8,
-                                        message: 'Password must be at least 8 characters'
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
+                                disabled={isSubmitting}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                        handleLogin();
                                     }
-                                })}
+                                }}
                             />
 
                             <button
                                 type="button"
-                                className="absolute right-3 top-9 text-neutralGray-700 hover:text-synapseSkyBlue transition-colors"
+                                className="absolute right-3 top-10 text-gray-600 hover:text-blue-600 transition-colors"
                                 onClick={() => setShowPassword(!showPassword)}
                                 tabIndex={-1}
                             >
@@ -329,48 +417,49 @@ export default function LoginPage() {
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    className="w-4 h-4 text-synapseSkyBlue border-neutralGray-300 rounded focus:ring-synapseSkyBlue"
-                                    {...register('remember_me')}
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                 />
-                                <span className="text-body text-neutralGray-700">Remember me</span>
+                                <span className="text-gray-700">Remember me</span>
                             </label>
 
                             <Link
                                 href="/auth/forgot-password"
-                                className="text-body text-synapseSkyBlue hover:text-synapseDarkBlue transition-colors"
+                                className="text-blue-600 hover:text-blue-800 transition-colors"
                             >
                                 Forgot password?
                             </Link>
                         </div>
 
                         <Button
-                            type="submit"
+                            onClick={handleLogin}
                             variant="primary"
                             className="w-full"
                             isLoading={isSubmitting}
                             disabled={isSubmitting}
                         >
-                            Sign In
+                            {isSubmitting ? 'Signing in...' : 'Sign In'}
                         </Button>
-                    </form>
+                    </div>
 
                     {/* Divider */}
                     <div className="relative my-8">
                         <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-neutralGray-300"></div>
+                            <div className="w-full border-t border-gray-300"></div>
                         </div>
                         <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-neutralGray-700">Or</span>
+                            <span className="px-2 bg-white text-gray-700">Or</span>
                         </div>
                     </div>
 
                     {/* Sign Up Link */}
                     <div className="text-center">
-                        <p className="text-body text-neutralGray-700">
+                        <p className="text-gray-700">
                             Don't have an account?{' '}
                             <Link
                                 href="/register"
-                                className="font-semibold text-synapseSkyBlue hover:text-synapseDarkBlue transition-colors"
+                                className="font-semibold text-blue-600 hover:text-blue-800 transition-colors"
                             >
                                 Sign up for free
                             </Link>
@@ -378,19 +467,16 @@ export default function LoginPage() {
                     </div>
 
                     {/* Trust Indicators */}
-                    <div className="mt-8 pt-8 border-t border-neutralGray-300">
-                        <p className="text-sm text-neutralGray-700 text-center mb-3">
-                            Trusted by psychiatrists across India
-                        </p>
-                        <div className="flex justify-center gap-4 text-xs text-neutralGray-700">
+                    <div className="mt-8 pt-8 border-t border-gray-300">
+                        <div className="flex justify-center gap-4 text-xs text-gray-700">
                             <div className="flex items-center gap-1">
-                                <svg className="w-4 h-4 text-successGreen" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
                                 <span>DPDPA Compliant</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <svg className="w-4 h-4 text-successGreen" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
                                 <span>256-bit Encryption</span>

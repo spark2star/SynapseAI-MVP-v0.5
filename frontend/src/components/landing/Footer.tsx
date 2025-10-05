@@ -23,9 +23,9 @@ export default function Footer() {
                         <Image
                             src="/Logo-MVP-v0.5.png"
                             alt="SynapseAI"
-                            width={150}
-                            height={32}
-                            className="h-8 w-auto mb-4 brightness-0 invert"
+                            width={180}
+                            height={60}
+                            className="h-12 md:h-16 w-auto mb-4 brightness-0 invert"
                         />
                         <p className="text-white/70 text-sm">
                             Effortless Intelligence, Absolute Security.
@@ -42,20 +42,19 @@ export default function Footer() {
                         </ul>
                     </div>
 
-                    {/* Legal */}
+                    {/* Contact */}
                     <div>
-                        <h4 className="font-semibold mb-4">Legal</h4>
+                        <h4 className="font-semibold mb-4">Contact</h4>
                         <ul className="space-y-2 text-sm text-white/70">
-                            <li><a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                            <li><a href="/terms" className="hover:text-white transition-colors">Terms of Service</a></li>
-                            <li><a href="mailto:contact@synapseai.com" className="hover:text-white transition-colors">Contact</a></li>
+                            <li><a href="/demo" className="hover:text-white transition-colors">Request Demo</a></li>
+                            <li><a href="/contact" className="hover:text-white transition-colors">Contact Us</a></li>
                         </ul>
                     </div>
                 </div>
 
-                {/* Copyright */}
-                <div className="border-t border-white/10 pt-8 text-center text-sm text-white/50">
-                    <p>&copy; {new Date().getFullYear()} SynapseAI. All rights reserved.</p>
+                {/* Copyright - Full White Text */}
+                <div className="border-t border-white/10 pt-8 text-center text-sm">
+                    <p className="font-medium text-white">&copy; {new Date().getFullYear()} SynapseAI. All rights reserved.</p>
                 </div>
             </div>
         </footer>

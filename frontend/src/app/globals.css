@@ -34,17 +34,19 @@
   }
 
   p {
-    font-family: var(--font-lato), Lato, sans-serif;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.6;
     color: #1A202C;
+    letter-spacing: -0.01em;
   }
 
   label {
-    font-family: var(--font-lato), Lato, sans-serif;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
     font-size: 14px;
     line-height: 1.5;
     color: #4A5568;
+    font-weight: 500;
   }
 
   /* Smooth Scrolling */
@@ -66,13 +68,15 @@
 
 @layer components {
   /* ============================================================================
-     BUTTONS (Primary, Secondary, Tertiary)
+     BUTTONS (Primary, Secondary, Tertiary) - FIXED VISIBLE COLORS
      ============================================================================ */
 
   .btn-primary {
-    font-family: var(--font-lato), Lato, sans-serif;
-    background-color: #50B9E8;
-    color: #FFFFFF;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
+    background-color: #50B9E8 !important;
+    /* synapseSkyBlue */
+    color: #FFFFFF !important;
+    /* WHITE TEXT - FORCED */
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     @apply px-6 py-3 font-semibold;
@@ -81,53 +85,69 @@
   }
 
   .btn-primary:hover {
-    background-color: #3AA5D6;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    background-color: #0A4D8B !important;
+    /* synapseDarkBlue on hover */
+    color: #FFFFFF !important;
+    /* WHITE TEXT - FORCED */
+    box-shadow: 0 10px 25px rgba(80, 185, 232, 0.3);
+    transform: scale(1.05);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.98);
   }
 
   .btn-primary:disabled {
-    background-color: #CBD5E0;
-    color: #4A5568;
+    background-color: #CBD5E0 !important;
+    color: #4A5568 !important;
     box-shadow: none;
+    opacity: 0.6;
     @apply cursor-not-allowed;
   }
 
   .btn-secondary {
-    font-family: var(--font-lato), Lato, sans-serif;
-    background-color: transparent;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
+    background-color: transparent !important;
     border: 2px solid #50B9E8;
     border-radius: 8px;
-    color: #50B9E8;
+    color: #0A4D8B !important;
+    /* DARK TEXT - ALWAYS VISIBLE */
     @apply px-6 py-3 font-semibold;
     @apply transition-all duration-200 ease-in-out;
     @apply active:scale-95;
   }
 
   .btn-secondary:hover {
-    background-color: #E0F5FF;
+    background-color: rgba(80, 185, 232, 0.1) !important;
+    color: #0A4D8B !important;
   }
 
   .btn-secondary:disabled {
     border-color: #CBD5E0;
-    color: #4A5568;
+    color: #4A5568 !important;
     @apply cursor-not-allowed;
   }
 
   .btn-tertiary {
-    font-family: var(--font-lato), Lato, sans-serif;
-    background-color: transparent;
-    color: #50B9E8;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
+    background-color: transparent !important;
+    color: #0A4D8B !important;
+    /* DARK TEXT */
     @apply px-4 py-2 font-medium;
     @apply transition-all duration-200 ease-in-out;
-    @apply hover:underline;
+  }
+
+  .btn-tertiary:hover {
+    color: #50B9E8 !important;
+    text-decoration: underline;
   }
 
   .btn-tertiary:active {
-    color: #0A4D8B;
+    color: #0A4D8B !important;
   }
 
   .btn-tertiary:disabled {
-    color: #4A5568;
+    color: #4A5568 !important;
     @apply cursor-not-allowed no-underline;
   }
 
@@ -160,7 +180,7 @@
      ============================================================================ */
 
   .input-field {
-    font-family: var(--font-lato), Lato, sans-serif;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
     font-size: 16px;
     color: #1A202C;
     background-color: #FFFFFF;
@@ -195,9 +215,10 @@
   }
 
   .input-label {
-    font-family: var(--font-lato), Lato, sans-serif;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
     font-size: 14px;
     color: #4A5568;
+    font-weight: 500;
     @apply block mb-2;
   }
 

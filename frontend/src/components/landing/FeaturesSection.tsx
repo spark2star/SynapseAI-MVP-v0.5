@@ -47,10 +47,24 @@ export default function FeaturesSection() {
     const Icon = currentFeature.icon;
 
     return (
-        <section id="features" ref={ref} className="py-24 px-6 bg-[#F9FAFB] relative overflow-hidden">
+        <section id="features" ref={ref} className="relative py-24 px-6 overflow-hidden">
+            {/* Background with Blue Gradient */}
+            <div
+                className="absolute inset-0"
+                style={{
+                    background: 'linear-gradient(135deg, rgba(227, 244, 252, 0.3) 0%, #F7FAFC 50%, rgba(227, 244, 252, 0.3) 100%)',
+                }}
+            />
+
             {/* Background Gradient Blobs */}
-            <div className="absolute top-0 left-0 w-96 h-96 bg-[#50B9E8]/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#0A4D8B]/10 rounded-full blur-3xl" />
+            <div
+                className="absolute top-0 left-0 w-96 h-96 rounded-full blur-3xl"
+                style={{ backgroundColor: 'rgba(80, 185, 232, 0.12)' }}
+            />
+            <div
+                className="absolute bottom-0 right-0 w-96 h-96 rounded-full blur-3xl"
+                style={{ backgroundColor: 'rgba(10, 77, 139, 0.12)' }}
+            />
 
             <div className="max-w-6xl mx-auto relative z-10">
                 {/* Headline */}
@@ -60,9 +74,21 @@ export default function FeaturesSection() {
                     transition={{ duration: 0.6 }}
                     className="text-center mb-16"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold text-[#0A4D8B] mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <h2
+                        className="text-4xl md:text-5xl font-bold mb-4"
+                        style={{
+                            fontFamily: 'Poppins, sans-serif',
+                            color: '#0A4D8B'
+                        }}
+                    >
                         A Smarter Way to Document.
                     </h2>
+                    <p
+                        className="text-lg max-w-2xl mx-auto"
+                        style={{ color: '#4A5568' }}
+                    >
+                        Everything you need to deliver exceptional care while staying protected.
+                    </p>
                 </motion.div>
 
                 {/* Tab Navigation */}
@@ -74,80 +100,90 @@ export default function FeaturesSection() {
                 >
                     {features.map((feature) => {
                         const FeatureIcon = feature.icon;
+                        const isActive = activeFeature === feature.id;
                         return (
                             <button
                                 key={feature.id}
                                 onClick={() => setActiveFeature(feature.id)}
-                                className={`px-6 py-4 rounded-xl font-medium transition-all duration-300 flex items-center gap-3 ${activeFeature === feature.id
-                                        ? 'bg-[#50B9E8] text-white shadow-lg scale-105'
-                                        : 'bg-white text-gray-600 hover:bg-white/80 hover:text-[#50B9E8]'
-                                    }`}
+                                className="flex items-center gap-3 px-6 py-3 rounded-full transition-all duration-300 border-2"
+                                style={{
+                                    backgroundColor: isActive ? '#50B9E8' : '#FFFFFF',
+                                    borderColor: isActive ? '#50B9E8' : 'rgba(80, 185, 232, 0.2)',
+                                    color: isActive ? '#FFFFFF' : '#1A202C',
+                                    transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                    boxShadow: isActive ? '0 10px 15px -3px rgba(80, 185, 232, 0.3)' : '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.borderColor = '#50B9E8';
+                                        e.currentTarget.style.transform = 'scale(1.02)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.borderColor = 'rgba(80, 185, 232, 0.2)';
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                    }
+                                }}
                             >
-                                <FeatureIcon className="w-5 h-5" strokeWidth={2} />
-                                <span className="hidden sm:inline">{feature.title}</span>
+                                <FeatureIcon
+                                    className="w-5 h-5"
+                                    strokeWidth={2}
+                                    style={{ color: isActive ? '#FFFFFF' : '#50B9E8' }}
+                                />
+                                <span className="font-medium">{feature.title}</span>
                             </button>
                         );
                     })}
                 </motion.div>
 
-                {/* Feature Content - Glassmorphism Card */}
+                {/* Feature Details */}
                 <motion.div
-                    key={activeFeature}
+                    key={currentFeature.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5 }}
-                    className="relative"
+                    className="bg-white rounded-3xl p-12 border-2"
+                    style={{
+                        borderColor: 'rgba(80, 185, 232, 0.2)',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+                    }}
                 >
-                    {/* Glassmorphism Card */}
-                    <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-white/40 relative overflow-hidden">
-                        {/* Gradient Overlay */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#50B9E8]/20 to-transparent rounded-full blur-3xl" />
+                    <div className="flex flex-col md:flex-row items-center gap-12">
+                        {/* Icon */}
+                        <div
+                            className="w-32 h-32 rounded-3xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: 'linear-gradient(135deg, #50B9E8 0%, #0A4D8B 100%)',
+                                boxShadow: '0 20px 25px -5px rgba(80, 185, 232, 0.4)'
+                            }}
+                        >
+                            <Icon className="w-16 h-16 text-white" strokeWidth={1.5} />
+                        </div>
 
-                        <div className="flex flex-col md:flex-row items-center gap-12 relative z-10">
-                            {/* Left: Icon and Text */}
-                            <div className="flex-1">
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="w-16 h-16 bg-[#50B9E8] rounded-2xl flex items-center justify-center shadow-lg">
-                                        <Icon className="w-8 h-8 text-white" strokeWidth={2} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                            {currentFeature.title}
-                                        </h3>
-                                        <p className="text-base text-[#50B9E8] font-medium">
-                                            {currentFeature.benefit}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <p className="text-lg text-gray-600 leading-relaxed">
-                                    {currentFeature.details}
-                                </p>
-                            </div>
-
-                            {/* Right: Visual Mockup */}
-                            <div className="flex-1 flex items-center justify-center">
-                                <div className="w-full max-w-sm h-80 bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/60 p-6">
-                                    {/* Placeholder for feature-specific UI mockup */}
-                                    <div className="h-full flex flex-col justify-between">
-                                        <div className="space-y-3">
-                                            {[100, 90, 85, 95].map((width, i) => (
-                                                <motion.div
-                                                    key={i}
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${width}%` }}
-                                                    transition={{ duration: 0.5, delay: i * 0.1 }}
-                                                    className="h-3 bg-gradient-to-r from-[#E3F4FC] to-[#50B9E8]/30 rounded"
-                                                />
-                                            ))}
-                                        </div>
-
-                                        <div className="flex items-center justify-center">
-                                            <Icon className="w-32 h-32 text-[#50B9E8]/20" strokeWidth={1} />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        {/* Content */}
+                        <div className="flex-1">
+                            <h3
+                                className="text-3xl font-bold mb-3"
+                                style={{
+                                    fontFamily: 'Poppins, sans-serif',
+                                    color: '#0A4D8B'
+                                }}
+                            >
+                                {currentFeature.title}
+                            </h3>
+                            <p
+                                className="text-xl mb-4 font-medium"
+                                style={{ color: '#50B9E8' }}
+                            >
+                                {currentFeature.benefit}
+                            </p>
+                            <p
+                                className="text-lg leading-relaxed"
+                                style={{ color: '#4A5568' }}
+                            >
+                                {currentFeature.details}
+                            </p>
                         </div>
                     </div>
                 </motion.div>
@@ -155,4 +191,3 @@ export default function FeaturesSection() {
         </section>
     );
 }
-

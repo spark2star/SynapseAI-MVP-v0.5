@@ -17,7 +17,7 @@ import {
     HeartIcon,
     ArrowPathIcon
 } from '@heroicons/react/24/outline'
-import { Button } from '@/components/ui/Button'
+import Button from '@/components/ui/Button'
 import PatientSelectionModal from '@/components/consultation/PatientSelectionModal'
 import { toast } from 'react-hot-toast'
 

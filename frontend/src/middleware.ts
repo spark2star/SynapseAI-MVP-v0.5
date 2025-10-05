@@ -4,40 +4,41 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
-    // Get token from cookies or check if it exists
-    const token = request.cookies.get('access_token')?.value ||
-        request.headers.get('authorization')?.replace('Bearer ', '');
+    // Get token from cookies
+    const token = request.cookies.get('access_token')?.value;
 
-    // Public routes that don't require authentication
-    const publicRoutes = ['/auth/login', '/register', '/auth/forgot-password', '/'];
+    console.log('🛡️ Middleware:', {
+        path: pathname,
+        hasToken: !!token,
+        tokenPreview: token ? token.substring(0, 20) + '...' : 'none'
+    });
 
-    // Check if current path is public
-    const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+    // Public paths that don't require authentication
+    const publicPaths = ['/', '/landing', '/auth/login', '/auth/signup', '/register', '/auth/forgot-password', '/about', '/contact'];
+    const isPublicPath = publicPaths.some(path => pathname === path || pathname.startsWith(path + '/'));
 
-    // If no token and trying to access protected route, redirect to login
-    if (!token && !isPublicRoute) {
+    // CRITICAL: If authenticated and on login page, redirect to dashboard
+    if (token && pathname.startsWith('/auth/login')) {
+        console.log('✅ Authenticated user on login page → Redirecting to /dashboard');
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    // If on public path, allow access
+    if (isPublicPath) {
+        console.log('✅ Public path, allowing access');
+        return NextResponse.next();
+    }
+
+    // Protected paths - require authentication
+    if (!token) {
+        console.log('❌ No token on protected path → Redirecting to /auth/login');
         const loginUrl = new URL('/auth/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
         return NextResponse.redirect(loginUrl);
     }
 
-    // Admin routes protection
-    if (pathname.startsWith('/admin')) {
-        // In a real app, you'd decode the JWT to check the role
-        // For now, we'll rely on backend validation
-        // The frontend will handle the redirect after login based on role
-        if (!token) {
-            return NextResponse.redirect(new URL('/auth/login', request.url));
-        }
-    }
-
-    // Doctor routes protection
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/doctor')) {
-        if (!token) {
-            return NextResponse.redirect(new URL('/auth/login', request.url));
-        }
-    }
-
+    // Has token, allow access to protected routes
+    console.log('✅ Token present, allowing access to protected route');
     return NextResponse.next();
 }
 

@@ -105,6 +105,34 @@ check_prerequisites() {
     success "All prerequisites are available"
 }
 
+# Clean up existing processes
+cleanup_existing_processes() {
+    log "🧹 Cleaning up existing processes..."
+    
+    # Kill any existing backend processes on port 8080
+    if lsof -ti:8080 > /dev/null 2>&1; then
+        warning "Stopping existing backend on port 8080..."
+        lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+        sleep 2
+    fi
+    
+    # Kill any existing frontend processes on port 3000
+    if lsof -ti:3000 > /dev/null 2>&1; then
+        warning "Stopping existing frontend on port 3000..."
+        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+        sleep 2
+    fi
+    
+    # Kill any duplicate frontend on port 3001
+    if lsof -ti:3001 > /dev/null 2>&1; then
+        warning "Stopping duplicate frontend on port 3001..."
+        lsof -ti:3001 | xargs kill -9 2>/dev/null || true
+        sleep 2
+    fi
+    
+    success "Existing processes cleaned up"
+}
+
 # Start infrastructure services
 start_infrastructure() {
     log "🚀 Starting infrastructure services (PostgreSQL + Redis)..."
@@ -147,59 +175,113 @@ start_backend() {
     log "📦 Installing Python dependencies..."
     pip install -r requirements.txt > /dev/null 2>&1
     
-    # Set environment variables
-    export DATABASE_URL="postgresql://emr_user:emr_password@localhost:5432/emr_db"
-    export REDIS_URL="redis://localhost:6379/0"
-    export ENVIRONMENT="development"
-    export DEBUG="True"
-    
-    # Security keys (for development only - use secure keys in production)
-    export SECRET_KEY="dev-secret-key-change-in-development"
-    export JWT_SECRET_KEY="dev-jwt-secret-key-change-in-development"
-    export ENCRYPTION_KEY="dev-encryption-key-32-bytes-long!"
-    export FIELD_ENCRYPTION_KEY="dev-field-encryption-key-32-bytes!"
-    
-    # API Configuration
-    export API_V1_PREFIX="/api/v1"
-    export API_HOST="0.0.0.0"
-    export API_PORT="8080"
-    
-    # Google Cloud (if available)
-    export GCP_CREDENTIALS_PATH="${BACKEND_DIR}/gcp-credentials.json"
-    export GCP_PROJECT_ID="synapse-product-1"
-    
-    # CORS - use defaults from config.py instead of exporting here
-    # export ALLOWED_ORIGINS="http://localhost:3000,http://localhost:8000"
-    
-    # Logging
-    export LOG_LEVEL="INFO"
-    export ENABLE_AUDIT_LOGGING="True"
-    
-    # Check if .env file exists, load it if present
-    # Note: .env loading is commented out to avoid issues with unquoted values
-    # The script exports all necessary variables above
-    # if [[ -f ".env" ]]; then
-    #     log "📝 Loading environment from .env file..."
-    #     set -a
-    #     source .env
-    #     set +a
-    # fi
+    # Create .env file if it doesn't exist
+    if [[ ! -f ".env" ]]; then
+        log "📝 Creating .env file..."
+        cat > .env << 'ENVEOF'
+# SynapseAI EMR System - Environment Configuration
+APP_NAME=SynapseAI - Intelligent EMR System
+VERSION=1.0.0
+ENVIRONMENT=development
+DEBUG=True
+API_HOST=0.0.0.0
+API_PORT=8080
+API_V1_PREFIX=/api/v1
+DATABASE_URL=postgresql://emr_user:emr_password@localhost:5432/emr_db
+DATABASE_POOL_SIZE=20
+DATABASE_MAX_OVERFLOW=10
+REDIS_URL=redis://localhost:6379/0
+REDIS_SESSION_DB=1
+SECRET_KEY=dev-secret-key-change-in-development
+JWT_SECRET_KEY=dev-jwt-secret-key-change-in-development
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+BCRYPT_ROUNDS=12
+ENCRYPTION_KEY=dev-encryption-key-32-bytes-long!
+FIELD_ENCRYPTION_KEY=dev-field-encryption-key-32-bytes!
+GCP_CREDENTIALS_PATH=gcp-credentials.json
+GCP_PROJECT_ID=synapse-product-1
+GOOGLE_CLOUD_PROJECT=synapse-product-1
+GOOGLE_STT_MODEL=latest_long
+GOOGLE_STT_PRIMARY_LANGUAGE=mr-IN
+GOOGLE_STT_SAMPLE_RATE=48000
+GOOGLE_STT_ENABLE_WORD_CONFIDENCE=true
+GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS=true
+VERTEX_AI_LOCATION=us-central1
+GEMINI_MODEL=gemini-2.5-flash
+LOG_LEVEL=INFO
+ENABLE_AUDIT_LOGGING=True
+MAX_FILE_SIZE=10485760
+SESSION_EXPIRE_MINUTES=30
+ENVEOF
+        success ".env file created"
+    fi
     
     # Run database migrations
-    log "🔄 Running database migrations..."
-    alembic upgrade head || warning "Migration failed - database may not be initialized"
+    # DISABLED: Migrations cause crashes - tables are created by SQLAlchemy directly
+    # log "🔄 Running database migrations..."
+    # alembic upgrade head || warning "Migration failed - database may not be initialized"
+    log "⏭️  Skipping migrations (tables created by SQLAlchemy)"
+    
+    # Create admin user if it doesn't exist
+    log "👤 Creating admin and demo users..."
+    python -c "
+from app.core.database import SessionLocal
+from app.models.user import User
+from app.core.encryption import HashingUtility
+
+db = SessionLocal()
+try:
+    # Create admin user
+    email = 'admin@synapseai.com'
+    email_hash = User.hash_email(email)
+    admin = db.query(User).filter(User.email_hash == email_hash).first()
+    if not admin:
+        admin = User(
+            email=email,
+            email_hash=email_hash,
+            password_hash=HashingUtility.hash_password('SynapseAdmin2025!'),
+            role='admin',
+            is_verified=True,
+            is_active=True
+        )
+        db.add(admin)
+        print('Admin user created successfully')
+    else:
+        print('Admin user already exists')
+    
+    # Create demo doctor user
+    doc_email = 'doc@demo.com'
+    doc_email_hash = User.hash_email(doc_email)
+    doctor = db.query(User).filter(User.email_hash == doc_email_hash).first()
+    if not doctor:
+        doctor = User(
+            email=doc_email,
+            email_hash=doc_email_hash,
+            password_hash=HashingUtility.hash_password('password123'),
+            role='doctor',
+            doctor_status='verified',
+            is_verified=True,
+            is_active=True
+        )
+        db.add(doctor)
+        print('Demo doctor user created successfully')
+    else:
+        print('Demo doctor user already exists')
+    
+    db.commit()
+finally:
+    db.close()
+" || warning "User creation may have failed"
     
     # Start backend server
     log "🖥️  Starting FastAPI backend on port 8080..."
-    # Note: Using simple_main temporarily due to auth.py caching issue
-    # All backend code is complete and ready - just needs cache resolution
-    # Temporarily using simple_main for Vertex AI STT testing (generates real JWT now)
-    # TODO: Switch back to app.main:app once all backend errors are fixed
     uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
     BACKEND_PID=$!
     
     # Wait a moment for backend to start
-    sleep 5
+    sleep 8
     
     # Check if backend is running
     if curl -s http://localhost:8080/health > /dev/null; then
@@ -280,6 +362,9 @@ main() {
     
     # Check prerequisites
     check_prerequisites
+    
+    # Clean up existing processes
+    cleanup_existing_processes
     
     # Start infrastructure
     start_infrastructure

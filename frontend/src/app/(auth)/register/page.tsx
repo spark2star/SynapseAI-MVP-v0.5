@@ -2,41 +2,20 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
 // Indian State Medical Councils
 const MEDICAL_COUNCILS = [
-    'Andhra Pradesh',
-    'Arunachal Pradesh',
-    'Assam',
-    'Bihar',
-    'Chhattisgarh',
-    'Delhi',
-    'Goa',
-    'Gujarat',
-    'Haryana',
-    'Himachal Pradesh',
-    'Jharkhand',
-    'Karnataka',
-    'Kerala',
-    'Madhya Pradesh',
-    'Maharashtra',
-    'Manipur',
-    'Meghalaya',
-    'Mizoram',
-    'Nagaland',
-    'Odisha',
-    'Punjab',
-    'Rajasthan',
-    'Sikkim',
-    'Tamil Nadu',
-    'Telangana',
-    'Tripura',
-    'Uttar Pradesh',
-    'Uttarakhand',
-    'West Bengal'
+    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+    'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
+    'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+    'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan',
+    'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh',
+    'Uttarakhand', 'West Bengal'
 ];
 
 interface PasswordStrength {
@@ -66,7 +45,7 @@ export default function DoctorRegistrationPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-    const [applicationId, setApplicationId] = useState<string | null>(null);
+    const [responseData, setResponseData] = useState<any>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -82,17 +61,17 @@ export default function DoctorRegistrationPage() {
         const score = Object.values(requirements).filter(Boolean).length;
 
         let label = 'Weak';
-        let color = 'bg-red-500';
+        let color = '#E53E3E';
 
         if (score === 4) {
             label = 'Strong';
-            color = 'bg-green-500';
+            color = '#38A169';
         } else if (score === 3) {
             label = 'Good';
-            color = 'bg-yellow-500';
+            color = '#F59E0B';
         } else if (score === 2) {
             label = 'Fair';
-            color = 'bg-orange-500';
+            color = '#F97316';
         }
 
         return { score, label, color, requirements };
@@ -132,13 +111,9 @@ export default function DoctorRegistrationPage() {
             });
 
             if (response.data.status === 'success') {
-                setApplicationId(response.data.data.application_id);
+                setResponseData(response.data.data);
                 setSuccess(true);
-
-                // Redirect to login after 5 seconds
-                setTimeout(() => {
-                    router.push('/auth/login');
-                }, 5000);
+                // ✅ NO AUTO-REDIRECT - User controls when to leave via "Back to Home" button
             }
         } catch (err: any) {
             console.error('Registration error:', err);
@@ -160,71 +135,225 @@ export default function DoctorRegistrationPage() {
 
     if (success) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
-                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center animate-fadeIn">
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+                {/* Background */}
+                <div
+                    className="absolute inset-0"
+                    style={{
+                        background: 'linear-gradient(135deg, rgba(227, 244, 252, 0.5) 0%, #F7FAFC 50%, rgba(227, 244, 252, 0.5) 100%)',
+                    }}
+                />
+                <div
+                    className="absolute top-10 right-10 w-96 h-96 rounded-full blur-3xl"
+                    style={{ backgroundColor: 'rgba(80, 185, 232, 0.15)' }}
+                />
+                <div
+                    className="absolute bottom-10 left-10 w-96 h-96 rounded-full blur-3xl"
+                    style={{ backgroundColor: 'rgba(10, 77, 139, 0.15)' }}
+                />
+
+                <div className="bg-white p-8 rounded-2xl max-w-2xl w-full relative z-10 border-2"
+                    style={{
+                        borderColor: 'rgba(80, 185, 232, 0.2)',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.08)'
+                    }}
+                >
+                    {/* Success Icon */}
+                    <div
+                        className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8"
+                        style={{ backgroundColor: 'rgba(56, 161, 105, 0.1)' }}
+                    >
+                        <svg className="w-12 h-12" fill="#38A169" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
                     </div>
 
-                    <h2 className="text-3xl font-bold text-gray-800 mb-3">
-                        Application Received!
+                    {/* Main Message */}
+                    <h2 className="text-3xl font-bold text-center mb-4" style={{ fontFamily: 'Poppins, sans-serif', color: '#0A4D8B' }}>
+                        Application Submitted Successfully!
                     </h2>
 
-                    <p className="text-gray-600 mb-4 leading-relaxed">
-                        Thank you for applying to join SynapseAI. We will verify your credentials and get back to you within <strong>2-3 business days</strong>.
+                    <p className="text-lg text-center mb-8 leading-relaxed" style={{ color: '#4A5568' }}>
+                        Thank you for applying to join SynapseAI as a verified psychiatrist.
+                        We&apos;ve received your application and will review it shortly.
                     </p>
 
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                        <p className="text-sm text-blue-800 font-medium mb-1">Application ID</p>
-                        <p className="text-xs text-blue-600 font-mono break-all">{applicationId}</p>
+                    {/* What Happens Next Section */}
+                    <div className="rounded-2xl p-6 mb-8 border-2" style={{ backgroundColor: '#F7FAFC', borderColor: '#E2E8F0' }}>
+                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ fontFamily: 'Poppins, sans-serif', color: '#0A4D8B' }}>
+                            <svg className="w-5 h-5" fill="#50B9E8" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            What Happens Next?
+                        </h3>
+                        <ol className="space-y-3 text-sm" style={{ color: '#4A5568' }}>
+                            <li className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 text-white rounded-full flex items-center justify-center text-xs font-bold"
+                                    style={{ backgroundColor: '#50B9E8' }}>
+                                    1
+                                </span>
+                                <span><strong>Credential Verification:</strong> Our team will verify your medical registration with your State Medical Council</span>
+                            </li>
+                            <li className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 text-white rounded-full flex items-center justify-center text-xs font-bold"
+                                    style={{ backgroundColor: '#50B9E8' }}>
+                                    2
+                                </span>
+                                <span><strong>Application Review:</strong> We&apos;ll review your application within 2-3 business days</span>
+                            </li>
+                            <li className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 text-white rounded-full flex items-center justify-center text-xs font-bold"
+                                    style={{ backgroundColor: '#50B9E8' }}>
+                                    3
+                                </span>
+                                <span><strong>Email Notification:</strong> You&apos;ll receive an approval email once your application is verified</span>
+                            </li>
+                            <li className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 text-white rounded-full flex items-center justify-center text-xs font-bold"
+                                    style={{ backgroundColor: '#50B9E8' }}>
+                                    4
+                                </span>
+                                <span><strong>Account Activation:</strong> After approval, you can log in and start using SynapseAI</span>
+                            </li>
+                        </ol>
                     </div>
 
-                    <div className="space-y-2 text-sm text-gray-600 mb-6">
-                        <div className="flex items-start gap-2">
-                            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    {/* Email Confirmation Notice */}
+                    <div className="rounded-2xl p-4 mb-8 border-2" style={{ backgroundColor: 'rgba(80, 185, 232, 0.05)', borderColor: 'rgba(80, 185, 232, 0.2)' }}>
+                        <div className="flex items-center gap-3">
+                            <svg className="w-6 h-6 flex-shrink-0" fill="#50B9E8" viewBox="0 0 20 20">
+                                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                             </svg>
-                            <span>You will receive an email once your application is reviewed</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>Check your spam folder if you don't see our email</span>
+                            <div className="text-left">
+                                <p className="text-sm font-medium" style={{ color: '#0A4D8B' }}>
+                                    Confirmation email sent!
+                                </p>
+                                <p className="text-xs" style={{ color: '#4A5568' }}>
+                                    Check your inbox for detailed application status and next steps.
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    <p className="text-sm text-gray-500">
-                        Redirecting to login page in 5 seconds...
-                    </p>
+                    {/* System Information - Clearly Labeled */}
+                    <div className="rounded-lg border-l-4 p-4 mb-8"
+                        style={{ backgroundColor: '#F7FAFC', borderColor: '#CBD5E0' }}>
+                        <p className="text-xs font-medium mb-2" style={{ color: '#4A5568' }}>
+                            📋 System Information (for internal tracking only)
+                        </p>
+                        <div className="text-xs space-y-1" style={{ color: '#718096' }}>
+                            <p>Application ID: {responseData?.user_id || 'Generated automatically'}</p>
+                            <p>Submitted: {new Date().toLocaleString()}</p>
+                            <p className="italic">
+                                ⚠️ Note: These details are for our internal tracking. You don&apos;t need to save or remember them.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Contact Information */}
+                    <div className="text-center mb-8">
+                        <p className="text-sm mb-2" style={{ color: '#4A5568' }}>
+                            Questions about your application?
+                        </p>
+                        <a
+                            href="mailto:support@synapseai.com"
+                            className="text-sm font-medium hover:underline transition-all"
+                            style={{ color: '#50B9E8' }}
+                        >
+                            📧 support@synapseai.com
+                        </a>
+                    </div>
+
+                    {/* Back to Home Button - NO AUTO REDIRECT */}
+                    <div className="text-center">
+                        <Link href="/">
+                            <button
+                                className="py-3 px-8 rounded-lg font-semibold transition-all duration-200"
+                                style={{
+                                    background: 'linear-gradient(135deg, #50B9E8 0%, #0A4D8B 100%)',
+                                    color: '#FFFFFF',
+                                    boxShadow: '0 10px 15px -3px rgba(80, 185, 232, 0.3)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                    e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(80, 185, 232, 0.4)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                    e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(80, 185, 232, 0.3)';
+                                }}
+                            >
+                                Back to Home
+                            </button>
+                        </Link>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-2xl w-full">
-                {/* Header */}
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Background Gradient */}
+            <div
+                className="absolute inset-0"
+                style={{
+                    background: 'linear-gradient(135deg, rgba(227, 244, 252, 0.5) 0%, #F7FAFC 50%, rgba(227, 244, 252, 0.5) 100%)',
+                }}
+            />
+
+            {/* Decorative Orbs */}
+            <div
+                className="absolute top-10 right-10 w-96 h-96 rounded-full blur-3xl"
+                style={{ backgroundColor: 'rgba(80, 185, 232, 0.15)' }}
+            />
+            <div
+                className="absolute bottom-10 left-10 w-96 h-96 rounded-full blur-3xl"
+                style={{ backgroundColor: 'rgba(10, 77, 139, 0.15)' }}
+            />
+
+            <div className="bg-white p-8 rounded-2xl max-w-2xl w-full relative z-10 border-2"
+                style={{
+                    borderColor: 'rgba(80, 185, 232, 0.2)',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.08)'
+                }}
+            >
+                {/* Header with Logo */}
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
-                    <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                    <Link href="/landing" className="inline-block mb-4 cursor-pointer hover:opacity-80 transition-opacity">
+                        <Image
+                            src="/Logo-MVP-v0.5.png"
+                            alt="SynapseAI Logo"
+                            width={64}
+                            height={64}
+                            className="h-16 w-auto"
+                        />
+                    </Link>
+                    <h1
+                        className="text-3xl font-bold mb-2"
+                        style={{
+                            fontFamily: 'Poppins, sans-serif',
+                            color: '#0A4D8B'
+                        }}
+                    >
                         Doctor Registration
                     </h1>
-                    <p className="text-gray-600">
+                    <p style={{ color: '#4A5568' }}>
                         Join SynapseAI as a verified psychiatrist
                     </p>
                 </div>
 
                 {/* Error Message */}
                 {error && (
-                    <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-start gap-3">
+                    <div
+                        className="border-l-4 px-4 py-3 rounded-lg mb-6 flex items-start gap-3"
+                        style={{
+                            backgroundColor: 'rgba(229, 62, 62, 0.05)',
+                            borderColor: '#E53E3E',
+                            color: '#E53E3E'
+                        }}
+                    >
                         <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                         </svg>
@@ -236,8 +365,8 @@ export default function DoctorRegistrationPage() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Full Name */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Full Name <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#4A5568' }}>
+                            Full Name <span style={{ color: '#E53E3E' }}>*</span>
                         </label>
                         <input
                             type="text"
@@ -246,30 +375,54 @@ export default function DoctorRegistrationPage() {
                             maxLength={255}
                             value={formData.fullName}
                             onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                            className="w-full px-4 py-3 border-2 rounded-lg transition-all"
+                            style={{
+                                borderColor: '#CBD5E0',
+                                color: '#1A202C'
+                            }}
                             placeholder="Dr. John Doe"
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = '#50B9E8';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(80, 185, 232, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = '#CBD5E0';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
                         />
                     </div>
 
                     {/* Email */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Email Address <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#4A5568' }}>
+                            Email Address <span style={{ color: '#E53E3E' }}>*</span>
                         </label>
                         <input
                             type="email"
                             required
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                            className="w-full px-4 py-3 border-2 rounded-lg transition-all"
+                            style={{
+                                borderColor: '#CBD5E0',
+                                color: '#1A202C'
+                            }}
                             placeholder="doctor@example.com"
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = '#50B9E8';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(80, 185, 232, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = '#CBD5E0';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
                         />
                     </div>
 
                     {/* Medical Registration Number */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Medical Registration Number <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#4A5568' }}>
+                            Medical Registration Number <span style={{ color: '#E53E3E' }}>*</span>
                         </label>
                         <input
                             type="text"
@@ -278,24 +431,48 @@ export default function DoctorRegistrationPage() {
                             maxLength={100}
                             value={formData.medicalRegistrationNumber}
                             onChange={(e) => setFormData({ ...formData, medicalRegistrationNumber: e.target.value.toUpperCase() })}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition font-mono"
+                            className="w-full px-4 py-3 border-2 rounded-lg transition-all font-mono"
+                            style={{
+                                borderColor: '#CBD5E0',
+                                color: '#1A202C'
+                            }}
                             placeholder="e.g., 12345/A/2020"
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = '#50B9E8';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(80, 185, 232, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = '#CBD5E0';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
                         />
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs mt-1" style={{ color: '#4A5568' }}>
                             Your unique medical registration number from your state medical council
                         </p>
                     </div>
 
                     {/* State Medical Council */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            State Medical Council <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#4A5568' }}>
+                            State Medical Council <span style={{ color: '#E53E3E' }}>*</span>
                         </label>
                         <select
                             required
                             value={formData.stateMedicalCouncil}
                             onChange={(e) => setFormData({ ...formData, stateMedicalCouncil: e.target.value })}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                            className="w-full px-4 py-3 border-2 rounded-lg transition-all"
+                            style={{
+                                borderColor: '#CBD5E0',
+                                color: '#1A202C'
+                            }}
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = '#50B9E8';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(80, 185, 232, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = '#CBD5E0';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
                         >
                             <option value="">Select your state medical council</option>
                             {MEDICAL_COUNCILS.map((council) => (
@@ -308,8 +485,8 @@ export default function DoctorRegistrationPage() {
 
                     {/* Password */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Password <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#4A5568' }}>
+                            Password <span style={{ color: '#E53E3E' }}>*</span>
                         </label>
                         <div className="relative">
                             <input
@@ -318,13 +495,28 @@ export default function DoctorRegistrationPage() {
                                 minLength={8}
                                 value={formData.password}
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition pr-12"
+                                className="w-full px-4 py-3 border-2 rounded-lg transition-all pr-12"
+                                style={{
+                                    borderColor: '#CBD5E0',
+                                    color: '#1A202C'
+                                }}
                                 placeholder="Min 8 characters"
+                                onFocus={(e) => {
+                                    e.currentTarget.style.borderColor = '#50B9E8';
+                                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(80, 185, 232, 0.1)';
+                                }}
+                                onBlur={(e) => {
+                                    e.currentTarget.style.borderColor = '#CBD5E0';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                                style={{ color: '#4A5568' }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = '#1A202C'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = '#4A5568'}
                             >
                                 {showPassword ? (
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -343,19 +535,18 @@ export default function DoctorRegistrationPage() {
                         {formData.password && (
                             <div className="mt-3">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-medium text-gray-700">Password Strength:</span>
-                                    <span className={`text-xs font-medium ${passwordStrength.score === 4 ? 'text-green-600' :
-                                            passwordStrength.score === 3 ? 'text-yellow-600' :
-                                                passwordStrength.score === 2 ? 'text-orange-600' :
-                                                    'text-red-600'
-                                        }`}>
+                                    <span className="text-xs font-medium" style={{ color: '#4A5568' }}>Password Strength:</span>
+                                    <span className="text-xs font-medium" style={{ color: passwordStrength.color }}>
                                         {passwordStrength.label}
                                     </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                                     <div
-                                        className={`h-2 rounded-full transition-all duration-300 ${passwordStrength.color}`}
-                                        style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                                        className="h-2 rounded-full transition-all duration-300"
+                                        style={{
+                                            width: `${(passwordStrength.score / 4) * 100}%`,
+                                            backgroundColor: passwordStrength.color
+                                        }}
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -367,15 +558,15 @@ export default function DoctorRegistrationPage() {
                                     ].map(({ key, label }) => (
                                         <div key={key} className="flex items-center gap-2 text-xs">
                                             {passwordStrength.requirements[key as keyof typeof passwordStrength.requirements] ? (
-                                                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                                <svg className="w-4 h-4" fill="#38A169" viewBox="0 0 20 20">
                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                 </svg>
                                             ) : (
-                                                <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                                <svg className="w-4 h-4" fill="#CBD5E0" viewBox="0 0 20 20">
                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                                 </svg>
                                             )}
-                                            <span className={passwordStrength.requirements[key as keyof typeof passwordStrength.requirements] ? 'text-gray-700' : 'text-gray-500'}>
+                                            <span style={{ color: passwordStrength.requirements[key as keyof typeof passwordStrength.requirements] ? '#1A202C' : '#4A5568' }}>
                                                 {label}
                                             </span>
                                         </div>
@@ -387,8 +578,8 @@ export default function DoctorRegistrationPage() {
 
                     {/* Confirm Password */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Confirm Password <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#4A5568' }}>
+                            Confirm Password <span style={{ color: '#E53E3E' }}>*</span>
                         </label>
                         <div className="relative">
                             <input
@@ -396,13 +587,28 @@ export default function DoctorRegistrationPage() {
                                 required
                                 value={formData.confirmPassword}
                                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition pr-12"
+                                className="w-full px-4 py-3 border-2 rounded-lg transition-all pr-12"
+                                style={{
+                                    borderColor: '#CBD5E0',
+                                    color: '#1A202C'
+                                }}
                                 placeholder="Re-enter password"
+                                onFocus={(e) => {
+                                    e.currentTarget.style.borderColor = '#50B9E8';
+                                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(80, 185, 232, 0.1)';
+                                }}
+                                onBlur={(e) => {
+                                    e.currentTarget.style.borderColor = '#CBD5E0';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                                style={{ color: '#4A5568' }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = '#1A202C'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = '#4A5568'}
                             >
                                 {showConfirmPassword ? (
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -417,7 +623,7 @@ export default function DoctorRegistrationPage() {
                             </button>
                         </div>
                         {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                            <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                            <p className="text-xs mt-1 flex items-center gap-1" style={{ color: '#E53E3E' }}>
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                 </svg>
@@ -425,7 +631,7 @@ export default function DoctorRegistrationPage() {
                             </p>
                         )}
                         {formData.confirmPassword && formData.password === formData.confirmPassword && (
-                            <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                            <p className="text-xs mt-1 flex items-center gap-1" style={{ color: '#38A169' }}>
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
@@ -438,7 +644,24 @@ export default function DoctorRegistrationPage() {
                     <button
                         type="submit"
                         disabled={loading || passwordStrength.score < 4}
-                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                        className="w-full py-3 rounded-lg font-semibold transition-all duration-200"
+                        style={{
+                            background: loading || passwordStrength.score < 4 ? '#CBD5E0' : 'linear-gradient(135deg, #50B9E8 0%, #0A4D8B 100%)',
+                            color: '#FFFFFF',
+                            opacity: loading || passwordStrength.score < 4 ? 0.6 : 1,
+                            cursor: loading || passwordStrength.score < 4 ? 'not-allowed' : 'pointer',
+                            boxShadow: loading || passwordStrength.score < 4 ? 'none' : '0 10px 15px -3px rgba(80, 185, 232, 0.3)'
+                        }}
+                        onMouseEnter={(e) => {
+                            if (!loading && passwordStrength.score >= 4) {
+                                e.currentTarget.style.transform = 'scale(1.02)';
+                                e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(80, 185, 232, 0.4)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.boxShadow = loading || passwordStrength.score < 4 ? 'none' : '0 10px 15px -3px rgba(80, 185, 232, 0.3)';
+                        }}
                     >
                         {loading ? (
                             <span className="flex items-center justify-center gap-2">
@@ -455,15 +678,19 @@ export default function DoctorRegistrationPage() {
                 </form>
 
                 {/* Footer */}
-                <p className="text-sm text-gray-600 mt-6 text-center">
+                <p className="text-sm mt-6 text-center" style={{ color: '#4A5568' }}>
                     Already have an account?{' '}
-                    <a href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium hover:underline">
+                    <a
+                        href="/auth/login"
+                        className="font-medium hover:underline"
+                        style={{ color: '#50B9E8' }}
+                    >
                         Login here
                     </a>
                 </p>
 
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                    <p className="text-xs text-gray-500 text-center">
+                <div className="mt-6 pt-6 border-t" style={{ borderColor: '#E2E8F0' }}>
+                    <p className="text-xs text-center" style={{ color: '#4A5568' }}>
                         By submitting this application, you agree to our Terms of Service and Privacy Policy.
                         Your information will be verified and kept confidential.
                     </p>
@@ -472,4 +699,3 @@ export default function DoctorRegistrationPage() {
         </div>
     );
 }
-

@@ -64,6 +64,9 @@ async def login(
                 "user_id": login_response.user_id,
                 "role": login_response.role,
                 "requires_mfa": login_response.requires_mfa,
+                "doctor_status": login_response.doctor_status,
+                "profile_completed": login_response.profile_completed,
+                "password_reset_required": login_response.password_reset_required,
                 "session_id": session_id
             },
             "metadata": {

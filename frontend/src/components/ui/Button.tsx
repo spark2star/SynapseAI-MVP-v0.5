@@ -18,26 +18,60 @@ export default function Button({
     children,
     className = '',
     disabled,
+    style = {},
     ...props
 }: ButtonProps) {
-    const baseClasses = 'inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200 ease-in-out';
-
-    const variantClasses = {
-        primary: 'btn-primary',
-        secondary: 'btn-secondary',
-        tertiary: 'btn-tertiary',
-    };
-
     const sizeClasses = {
         sm: 'px-4 py-2 text-sm',
         md: 'px-6 py-3 text-base',
         lg: 'px-8 py-4 text-lg',
     };
 
+    // FORCE CORRECT COLORS WITH INLINE STYLES
+    const variantStyles = {
+        primary: {
+            backgroundColor: '#50B9E8',
+            color: '#FFFFFF',
+        },
+        secondary: {
+            backgroundColor: 'transparent',
+            color: '#0A4D8B',
+            border: '2px solid #50B9E8',
+        },
+        tertiary: {
+            backgroundColor: 'transparent',
+            color: '#0A4D8B',
+        },
+    };
+
     return (
         <button
-            className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+            className={`inline-flex items-center justify-center gap-2 font-body font-semibold rounded-button transition-all duration-200 ${sizeClasses[size]} ${className}`}
+            style={{
+                ...variantStyles[variant],
+                ...style,
+            }}
             disabled={disabled || isLoading}
+            onMouseEnter={(e) => {
+                if (variant === 'primary') {
+                    e.currentTarget.style.backgroundColor = '#0A4D8B';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                } else if (variant === 'secondary') {
+                    e.currentTarget.style.backgroundColor = 'rgba(80, 185, 232, 0.1)';
+                } else if (variant === 'tertiary') {
+                    e.currentTarget.style.color = '#50B9E8';
+                }
+            }}
+            onMouseLeave={(e) => {
+                if (variant === 'primary') {
+                    e.currentTarget.style.backgroundColor = '#50B9E8';
+                    e.currentTarget.style.transform = 'scale(1)';
+                } else if (variant === 'secondary') {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                } else if (variant === 'tertiary') {
+                    e.currentTarget.style.color = '#0A4D8B';
+                }
+            }}
             {...props}
         >
             {isLoading ? (

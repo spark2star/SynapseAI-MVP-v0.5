@@ -69,3 +69,24 @@ SESSION_EXPIRE_MINUTES=30
 
 
 
+
+# ============================================================================
+# EMAIL CONFIGURATION
+# ============================================================================
+
+# Gmail SMTP Settings
+# IMPORTANT: App Password must be 16 characters with NO SPACES
+# Get from: https://myaccount.google.com/apppasswords
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=mohdanees1717@gmail.com
+SMTP_PASSWORD=vsddnipjookqvixz
+SMTP_FROM_EMAIL=mohdanees1717@gmail.com
+SMTP_FROM_NAME=SynapseAI Notifications
+
+# Admin notification email
+ADMIN_EMAIL=mohdanees1717@gmail.com
+ADMIN_NOTIFICATION_ENABLED=true
+
+# Frontend URL
+FRONTEND_URL=http://localhost:3000

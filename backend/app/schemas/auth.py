@@ -23,6 +23,9 @@ class LoginResponse(BaseModel):
     user_id: str = Field(..., description="User ID")
     role: str = Field(..., description="User role")
     requires_mfa: bool = Field(False, description="Whether MFA is required")
+    doctor_status: Optional[str] = Field(None, description="Doctor verification status")
+    profile_completed: Optional[bool] = Field(None, description="Whether profile is completed")
+    password_reset_required: bool = Field(False, description="Whether password reset is required")
 
 
 class RefreshTokenRequest(BaseModel):

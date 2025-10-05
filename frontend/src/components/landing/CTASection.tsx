@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import Button from '@/components/ui/Button';
@@ -11,11 +12,24 @@ export default function CTASection() {
         threshold: 0.1,
     });
 
+    // Fix hydration mismatch: Generate positions client-side only
+    const [particlePositions, setParticlePositions] = useState<Array<{ left: number; top: number }>>([]);
+
+    useEffect(() => {
+        // Generate random positions only on client side
+        setParticlePositions(
+            Array.from({ length: 20 }, () => ({
+                left: Math.random() * 100,
+                top: Math.random() * 100,
+            }))
+        );
+    }, []);
+
     return (
         <section id="demo" ref={ref} className="py-24 px-6 bg-gradient-to-br from-[#0A4D8B] via-[#50B9E8] to-[#0A4D8B] relative overflow-hidden">
             {/* Animated Background Elements */}
             <div className="absolute inset-0 opacity-10">
-                {[...Array(20)].map((_, i) => (
+                {particlePositions.map((pos, i) => (
                     <motion.div
                         key={i}
                         animate={{
@@ -29,8 +43,8 @@ export default function CTASection() {
                         }}
                         className="absolute w-2 h-2 bg-white rounded-full"
                         style={{
-                            left: `${Math.random() * 100}%`,
-                            top: `${Math.random() * 100}%`,
+                            left: `${pos.left}%`,
+                            top: `${pos.top}%`,
                         }}
                     />
                 ))}
@@ -68,7 +82,7 @@ export default function CTASection() {
                     <Button
                         variant="secondary"
                         size="lg"
-                        onClick={() => window.location.href = 'mailto:demo@synapseai.com'}
+                        onClick={() => window.location.href = '/demo'}
                         className="shadow-2xl"
                     >
                         <span>Request a Free Demo</span>
@@ -76,7 +90,7 @@ export default function CTASection() {
                     </Button>
 
                     <a
-                        href="mailto:contact@synapseai.com"
+                        href="/contact"
                         className="text-white/90 hover:text-white font-medium flex items-center gap-2 transition-colors"
                     >
                         <Mail className="w-5 h-5" />

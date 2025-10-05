@@ -38,6 +38,7 @@ services:
       dockerfile: Dockerfile
       target: dev
     container_name: synapseai_backend
+    
     environment:
       DATABASE_URL: postgresql://emr_user:emr_password@db:5432/emr_db
       REDIS_URL: redis://redis:6379/0

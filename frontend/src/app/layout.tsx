@@ -51,7 +51,7 @@ export default function RootLayout({
                 <link rel="manifest" href="/manifest.json" />
             </head>
             <body
-                className={`${lato.className} h-full bg-white text-neutralBlack antialiased transition-all duration-300 ease-in-out`}
+                className={`${inter.className} h-full bg-white text-neutralBlack antialiased transition-all duration-300 ease-in-out`}
                 suppressHydrationWarning
             >
                 <ThemeProvider>

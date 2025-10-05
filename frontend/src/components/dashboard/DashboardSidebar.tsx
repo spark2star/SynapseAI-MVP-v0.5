@@ -18,7 +18,7 @@ import { useAuthStore } from '@/store/authStore'
 import type { NavItem } from '@/types'
 import Logo from '@/components/ui/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
-import { Button } from '@/components/ui/Button'
+import Button from '@/components/ui/Button'
 import { toast } from 'react-hot-toast'
 
 export default function DashboardSidebar() {

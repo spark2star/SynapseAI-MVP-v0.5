@@ -274,6 +274,31 @@ class ApiService {
             return false
         }
     }
+
+    // Demo Request
+    public async submitDemoRequest(data: {
+        full_name: string;
+        email: string;
+        phone?: string;
+        organization?: string;
+        job_title?: string;
+        message?: string;
+        preferred_date?: string;
+    }): Promise<ApiResponse> {
+        return this.post('/forms/demo-requests', data)
+    }
+
+    // Contact Message
+    public async submitContactMessage(data: {
+        full_name: string;
+        email: string;
+        phone?: string;
+        subject: string;
+        message: string;
+        category?: string;
+    }): Promise<ApiResponse> {
+        return this.post('/forms/contact-messages', data)
+    }
 }
 
 // Create singleton instance

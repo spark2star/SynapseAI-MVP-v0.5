@@ -100,6 +100,21 @@ class Settings(BaseSettings):
     # MFA
     MFA_ISSUER: str = "EMR-System"
     
+    # Email Configuration
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "SynapseAI Notifications"
+    
+    # Admin Notifications
+    ADMIN_EMAIL: str = ""
+    ADMIN_NOTIFICATION_ENABLED: bool = True
+    
+    # Frontend URL
+    FRONTEND_URL: str = "http://localhost:3000"
+    
     @validator("ENVIRONMENT")
     def validate_environment(cls, v):
         """Ensure environment is one of the allowed values."""
