@@ -18,10 +18,28 @@ export function middleware(request: NextRequest) {
     const isPublicPath = publicPaths.some(path => pathname === path || pathname.startsWith(path + '/'));
 
     // CRITICAL: If authenticated and on login page, redirect to dashboard
+    // if (token && pathname.startsWith('/auth/login')) {
+    //     console.log('✅ Authenticated user on login page → Redirecting to /dashboard');
+    //     return NextResponse.redirect(new URL('/dashboard', request.url));
+    // }
+    // CRITICAL: If authenticated and on login page, redirect based on role
     if (token && pathname.startsWith('/auth/login')) {
-        console.log('✅ Authenticated user on login page → Redirecting to /dashboard');
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        console.log('✅ Authenticated user on login page → Checking role...');
+        
+        // Decode JWT to get role (simple way)
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const role = payload.role || 'doctor';
+            const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
+            
+            console.log(`✅ Redirecting ${role} to ${redirectPath}`);
+            return NextResponse.redirect(new URL(redirectPath, request.url));
+        } catch (error) {
+            console.log('⚠️ Could not decode token, redirecting to /dashboard');
+            return NextResponse.redirect(new URL('/dashboard', request.url));
+        }
     }
+
 
     // If on public path, allow access
     if (isPublicPath) {
@@ -35,6 +53,12 @@ export function middleware(request: NextRequest) {
         const loginUrl = new URL('/auth/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
         return NextResponse.redirect(loginUrl);
+    }
+
+    // ✅ ADD THIS: Allow authenticated users to access dashboard and admin routes
+    if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
+        console.log('✅ Authenticated user accessing protected route');
+        return NextResponse.next();
     }
 
     // Has token, allow access to protected routes

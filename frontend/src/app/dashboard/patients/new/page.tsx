@@ -69,8 +69,8 @@ export default function NewPatientPage() {
 
             if (response.status === 'success') {
                 toast.success(`Patient registration completed! Added ${symptoms.length} symptoms.`)
-                // Redirect directly to starting a session for this new patient as First visit
-                router.replace(`/dashboard/patients/${createdPatient.patient_id}?first_visit=true`)
+                // Redirect directly to patient detail page with first session modal auto-open
+                router.replace(`/dashboard/patients/${createdPatient.patient_id}?newPatient=true&sessionType=first_session`)
             } else {
                 throw new Error(response.error?.message || 'Failed to save symptoms')
             }

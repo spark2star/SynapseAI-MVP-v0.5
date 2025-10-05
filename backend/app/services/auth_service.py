@@ -126,8 +126,11 @@ class AuthenticationService:
         Validation:
         - Medical registration number uniqueness
         - Email uniqueness
-        - Password strength (handled by Pydantic validator)
+        - Phone number format
         - State medical council is valid
+        
+        Note: No password required during registration.
+        Admin will generate temporary password upon approval.
         
         Returns:
             - Success message
@@ -174,7 +177,10 @@ class AuthenticationService:
                 )
             
             # Create user with role=doctor, status=pending
-            password_hash = self.hash_util.hash_password(registration_data.password)
+            # Generate a placeholder password that will be replaced upon approval
+            import secrets
+            placeholder_password = secrets.token_urlsafe(32)
+            password_hash = self.hash_util.hash_password(placeholder_password)
             
             user = User(
                 email=registration_data.email,
@@ -184,6 +190,7 @@ class AuthenticationService:
                 doctor_status="pending",  # Set initial status
                 is_active=False,  # Inactive until approved
                 is_verified=True,  # Skip email verification for doctors (admin will verify)
+                password_reset_required=True,  # Will be set to True again with temp password on approval
                 created_at=datetime.now(timezone.utc)
             )
             
@@ -192,19 +199,20 @@ class AuthenticationService:
             
             logger.info(f"[{request_id}] ✅ User created: {user.id}")
             
-            # Create doctor profile
+            # Create doctor profile with phone number
             doctor_profile = DoctorProfile(
                 user_id=user.id,
                 full_name=registration_data.full_name,
                 medical_registration_number=registration_data.medical_registration_number.upper(),
                 state_medical_council=registration_data.state_medical_council,
+                phone_number=registration_data.phone,  # Store phone number
                 application_date=datetime.now(timezone.utc),
                 profile_completed=False
             )
             
             self.db.add(doctor_profile)
             
-            logger.info(f"[{request_id}] ✅ Doctor profile created")
+            logger.info(f"[{request_id}] ✅ Doctor profile created with phone: {registration_data.phone}")
             
             # Queue welcome email
             from app.models.email_queue import EmailQueue

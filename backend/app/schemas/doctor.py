@@ -56,22 +56,25 @@ class DoctorRegistrationRequest(CamelCaseModel):
     """Request schema for doctor registration."""
     full_name: str = Field(..., min_length=3, max_length=255, description="Doctor's full name")
     email: EmailStr = Field(..., description="Doctor's email address")
-    password: str = Field(..., min_length=8, max_length=100, description="Password (min 8 characters)")
+    phone: str = Field(..., min_length=10, max_length=15, description="Phone/contact number")
     medical_registration_number: str = Field(..., min_length=5, max_length=100, description="Medical registration number")
     state_medical_council: str = Field(..., description="State medical council")
     
-    @validator('password')
-    def validate_password(cls, v):
-        """Validate password strength."""
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
-        if not any(char.isupper() for char in v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not any(char.isdigit() for char in v):
-            raise ValueError('Password must contain at least one number')
-        if not any(char in '!@#$%^&*()_+-=[]{}|;:,.<>?' for char in v):
-            raise ValueError('Password must contain at least one special character')
-        return v
+    @validator('phone')
+    def validate_phone(cls, v):
+        """Validate phone number format (Indian format)."""
+        # Remove any spaces or special characters
+        phone = v.strip().replace(' ', '').replace('-', '').replace('+', '')
+        
+        # Check if it's a valid 10-digit Indian number starting with 6-9
+        if len(phone) == 10 and phone[0] in '6789' and phone.isdigit():
+            return phone
+        
+        # Check if it has country code (+91)
+        if len(phone) == 12 and phone.startswith('91') and phone[2] in '6789' and phone.isdigit():
+            return phone[2:]  # Return without country code
+        
+        raise ValueError('Phone number must be a valid 10-digit Indian mobile number starting with 6-9')
     
     @validator('medical_registration_number')
     def validate_med_reg_number(cls, v):

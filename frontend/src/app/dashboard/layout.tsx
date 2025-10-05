@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import DashboardSidebar from '@/components/dashboard/DashboardSidebar'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 export default function DashboardLayout({
     children,
@@ -16,13 +15,12 @@ export default function DashboardLayout({
     const { isAuthenticated, isLoading, checkAuth } = useAuthStore()
 
     useEffect(() => {
-        // Only check auth once when dashboard loads
         if (!isAuthenticated && !isLoading) {
             checkAuth().catch(error => {
                 console.error('Dashboard auth check failed:', error)
             })
         }
-    }, [isAuthenticated, isLoading]) // Remove checkAuth from dependencies
+    }, [isAuthenticated, isLoading])
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
@@ -32,10 +30,10 @@ export default function DashboardLayout({
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center transition-all duration-300">
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <LoadingSpinner size="lg" />
-                    <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading dashboard...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="mt-4 text-gray-600">Loading dashboard...</p>
                 </div>
             </div>
         )
@@ -46,7 +44,7 @@ export default function DashboardLayout({
     }
 
     return (
-        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-all duration-300">
+        <div className="min-h-screen bg-gray-50">
             <div className="flex">
                 {/* Sidebar */}
                 <div className="hidden lg:block lg:fixed lg:inset-y-0 lg:z-40 lg:w-64">

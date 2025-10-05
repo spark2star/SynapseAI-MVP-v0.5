@@ -16,8 +16,8 @@ import {
 
 import { useAuthStore } from '@/store/authStore'
 import type { NavItem } from '@/types'
-import Logo from '@/components/ui/Logo'
-import ThemeToggle from '@/components/ui/ThemeToggle'
+// import Logo from '@/components/ui/Logo'
+// import ThemeToggle from '@/components/ui/ThemeToggle'
 import Button from '@/components/ui/Button'
 import { toast } from 'react-hot-toast'
 
@@ -91,7 +91,13 @@ export default function DashboardSidebar() {
         <div className="flex h-full flex-col bg-white dark:bg-neutral-900 transition-all duration-300 ease-in-out">
             {/* Logo */}
             <div className="flex h-16 items-center px-6 border-b border-neutral-100 dark:border-neutral-800/50">
-                <Logo size="md" showText={true} />
+                {/* <Logo size="md" showText={true} /> */}
+                <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-xl">S</span>
+                    </div>
+                    <span className="text-xl font-bold">SynapseAI</span>
+                </div>
             </div>
 
             {/* Navigation */}
@@ -146,7 +152,8 @@ export default function DashboardSidebar() {
             <div className="border-t border-neutral-100 dark:border-neutral-800/50 p-4 space-y-4">
                 {/* Theme Toggle */}
                 <div className="flex justify-center">
-                    <ThemeToggle />
+                    {/* <ThemeToggle /> */}
+                    <div className="text-sm text-gray-500">Light Mode</div>
                 </div>
 
                 {/* User info */}

@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import Button from '@/components/ui/Button'  // ✅ Line 4 - FIXED
+import Input from '@/components/ui/Input'    // ✅ Line 5 - FIXED
+import Select from '@/components/ui/Select'  // ✅ Line 6 - FIXED
 import { UserIcon, CalendarIcon, HomeIcon, ClockIcon } from '@heroicons/react/24/outline'
 
 export interface Stage1Data {

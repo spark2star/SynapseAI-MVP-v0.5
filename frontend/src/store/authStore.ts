@@ -98,27 +98,54 @@ export const useAuthStore = create<AuthState>()(
             // Logout action
             logout: () => {
                 try {
-                    // Check if token exists before calling logout endpoint
                     if (apiService.isAuthenticated()) {
                         console.log('🚪 Logging out with valid token...')
-                        // Call logout endpoint (fire and forget)
                         apiService.post('/auth/logout').catch(console.error)
-                    } else {
-                        console.warn('⚠️ No token found during logout')
                     }
                 } catch (error) {
                     console.error('Logout error:', error)
                 } finally {
-                    // Clear local state regardless of API call result
+                    console.log('🧹 Clearing all auth data...')
+                    
+                    // Clear API service tokens
                     apiService.clearAuthTokens()
+                    
+                    // Clear localStorage
+                    localStorage.clear()
+                    sessionStorage.clear()
+                    
+                    // Clear ALL cookies (more aggressive)
+                    const cookies = document.cookie.split(";");
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i];
+                        const eqPos = cookie.indexOf("=");
+                        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+                        
+                        // Delete cookie for all paths
+                        document.cookie = name + "=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+                        document.cookie = name + "=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                    }
+                    
+                    // Clear state
                     set({
                         user: null,
                         profile: null,
                         isAuthenticated: false,
                         isLoading: false
                     })
+                    
+                    // Verify cookies are cleared
+                    setTimeout(() => {
+                        console.log('🔍 After clear - Cookies:', document.cookie);
+                        console.log('🔍 After clear - LocalStorage:', Object.keys(localStorage));
+                        console.log('🏠 Redirecting to home page...')
+                        
+                        // Force reload to clear everything
+                        window.location.replace('/')
+                    }, 100)
                 }
             },
+            
 
             // Check authentication status
             checkAuth: async (): Promise<void> => {

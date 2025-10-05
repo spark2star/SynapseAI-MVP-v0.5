@@ -39,22 +39,16 @@ async def register_doctor(
     Request Body:
     - full_name: Doctor's full name (3-255 characters)
     - email: Valid email address
-    - password: Strong password (min 8 chars, uppercase, number, special char)
+    - phone: Phone/contact number (10-digit Indian format)
     - medical_registration_number: Unique medical registration number (5-100 characters)
     - state_medical_council: State medical council (from predefined list)
-    
-    Password Requirements:
-    - Minimum 8 characters
-    - At least one uppercase letter
-    - At least one number
-    - At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)
     
     Process:
     1. Validates all input data
     2. Checks for duplicate medical registration number
     3. Checks for duplicate email
     4. Creates user account (role=doctor, status=pending, inactive)
-    5. Creates doctor profile
+    5. Creates doctor profile with phone number
     6. Queues confirmation email
     7. Logs registration event
     
@@ -64,8 +58,11 @@ async def register_doctor(
     - Expected review timeline
     - Next steps information
     
-    Note: Account will be inactive until admin approves the application.
-    You will receive an email once your application is reviewed.
+    Note: 
+    - Account will be inactive until admin approves the application
+    - No password is required during registration
+    - Admin will generate a temporary password upon approval
+    - Temporary password will be emailed to doctor on approval
     """
     auth_service = AuthenticationService(db)
     

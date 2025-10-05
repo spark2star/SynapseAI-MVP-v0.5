@@ -67,6 +67,8 @@ export default function PatientDetailPage() {
     const searchParams = useSearchParams()
     const patientId = params?.id as string
     const isFollowUpMode = searchParams?.get('followup') === 'true'
+    const isNewPatient = searchParams?.get('newPatient') === 'true'
+    const preSelectedSessionType = searchParams?.get('sessionType')
     const { user } = useAuthStore()
 
     const [patient, setPatient] = useState<Patient | null>(null)
@@ -79,6 +81,7 @@ export default function PatientDetailPage() {
     const [chiefComplaint, setChiefComplaint] = useState('')
     const [showNewConsultation, setShowNewConsultation] = useState(false)
     const [isFollowUpSession, setIsFollowUpSession] = useState(false)
+    const [sessionType, setSessionType] = useState<string>('')
     const [liveTranscription, setLiveTranscription] = useState('')
     const [finalTranscription, setFinalTranscription] = useState('')
     const [isGeneratingReport, setIsGeneratingReport] = useState(false)
@@ -102,6 +105,18 @@ export default function PatientDetailPage() {
             setChiefComplaint("Follow-up consultation") // Auto-fill for follow-up
         }
     }, [isFollowUpMode, patient, isRecording, showNewConsultation])
+
+    // Auto-trigger first session for new patients
+    useEffect(() => {
+        if (isNewPatient && patient && !isRecording && !showNewConsultation) {
+            console.log('🆕 New patient detected, opening session modal with type:', preSelectedSessionType)
+            // Auto-open the consultation modal with pre-selected session type
+            setShowNewConsultation(true)
+            setSessionType(preSelectedSessionType || 'first_session')
+            setChiefComplaint('First session - Initial assessment')
+            toast.success('✅ Patient registered! You can now start the first session.')
+        }
+    }, [isNewPatient, patient, isRecording, showNewConsultation, preSelectedSessionType])
 
     useEffect(() => {
         let interval: NodeJS.Timeout
@@ -147,12 +162,12 @@ export default function PatientDetailPage() {
     const fetchConsultationSessions = async () => {
         try {
             console.log('📋 Fetching consultation history for patient:', patientId)
-            
+
             const consultationService = (await import('@/services/consultationService')).default
             const history = await consultationService.getHistory(patientId)
-            
+
             console.log(`✅ Loaded ${history.total_consultations} consultations`)
-            
+
             const mappedSessions: ConsultationSession[] = history.consultations.map(c => ({
                 id: c.id,
                 session_id: c.session_id,
@@ -165,7 +180,7 @@ export default function PatientDetailPage() {
                 has_transcription: c.has_transcription,
                 created_at: c.created_at
             }))
-            
+
             setSessions(mappedSessions)
         } catch (error) {
             console.error('❌ Error fetching consultation sessions:', error)
@@ -578,8 +593,10 @@ export default function PatientDetailPage() {
                                         </label>
                                         <select
                                             className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                            defaultValue="follow-up"
+                                            value={sessionType}
+                                            onChange={(e) => setSessionType(e.target.value)}
                                         >
+                                            <option value="first_session">First Session</option>
                                             <option value="follow-up">Follow-up Session</option>
                                             <option value="therapy">Therapy Session</option>
                                             <option value="assessment">Mental Health Assessment</option>

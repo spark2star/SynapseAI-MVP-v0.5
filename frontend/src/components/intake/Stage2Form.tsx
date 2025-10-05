@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import Button from '@/components/ui/Button'  // ✅ Line 4 - FIXED
+import Input from '@/components/ui/Input'    // ✅ Line 5 - FIXED
+import Select from '@/components/ui/Select'  // ✅ Line 6 - FIXED
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import {
     PuzzlePieceIcon,

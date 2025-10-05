@@ -30,7 +30,9 @@ interface DashboardStats {
 
 export default function AdminDashboard() {
     const router = useRouter();
-    const { user, logout, isLoading } = useAuthStore();
+    const { logout } = useAuthStore(); // ✅ Removed user and isLoading
+    
+    const [userEmail, setUserEmail] = useState<string>(''); // ✅ Added for email from token
     const [stats, setStats] = useState<DashboardStats>({
         totalDoctors: 0,
         pendingApplications: 0,
@@ -41,17 +43,51 @@ export default function AdminDashboard() {
     });
     const [loading, setLoading] = useState(true);
 
+    // ✅ Get email from token
     useEffect(() => {
-        // Verify admin access
-        if (!isLoading && (!user || user.role !== 'admin')) {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                setUserEmail(payload.email || 'Admin User');
+            } catch (error) {
+                setUserEmail('Admin User');
+            }
+        }
+    }, []);
+
+    // ✅ Check admin access using token
+    useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        
+        console.log('🔍 Admin Dashboard Check:', { 
+            hasToken: !!token 
+        });
+        
+        if (!token) {
+            console.log('❌ No token, redirecting to login');
             router.push('/auth/login');
             return;
         }
-
-        if (user && user.role === 'admin') {
+        
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            console.log('✅ Token payload:', payload);
+            
+            if (payload.role !== 'admin') {
+                console.log('❌ Not admin, redirecting to dashboard');
+                router.push('/dashboard');
+                return;
+            }
+            
+            console.log('✅ Admin verified, fetching stats');
             fetchDashboardStats();
+            
+        } catch (error) {
+            console.error('❌ Token decode error:', error);
+            router.push('/auth/login');
         }
-    }, [user, isLoading, router]);
+    }, [router]);
 
     const fetchDashboardStats = async () => {
         try {
@@ -77,7 +113,7 @@ export default function AdminDashboard() {
         router.push('/auth/login');
     };
 
-    if (isLoading || loading) {
+    if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-neutralGray-100">
                 <div className="text-center">
@@ -115,8 +151,9 @@ export default function AdminDashboard() {
 
                     <div className="flex items-center gap-4">
                         <div className="hidden md:block text-right mr-4">
+                            {/* ✅ Changed to use userEmail from token */}
                             <p className="text-sm font-medium text-synapseDarkBlue">
-                                {user?.email || 'Admin User'}
+                                {userEmail}
                             </p>
                             <p className="text-xs text-neutralGray-700">System Administrator</p>
                         </div>
