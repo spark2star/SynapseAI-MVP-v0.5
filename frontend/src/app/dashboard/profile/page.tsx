@@ -4,7 +4,7 @@ import { useState, useEffect, ChangeEvent, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { PractitionerProfile, PractitionerProfileUpdateResponse } from '@/types'
 import { useAuthStore } from '@/store/authStore'
-import apiService from '@/services/api'
+import { apiService } from '@/services/api'
 
 interface ValidationErrors {
     [key: string]: string
@@ -188,7 +188,7 @@ export default function ProfilePage() {
 
             // Send request using apiService with custom handling for FormData
             const token = apiService.getToken()
-            const response = await fetch(`${apiService.baseURL}/profile/`, {
+            const response = await fetch(`${apiService.getBaseURL()}/profile/`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`

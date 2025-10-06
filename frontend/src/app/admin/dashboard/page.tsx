@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
     Users,
@@ -31,7 +30,7 @@ interface DashboardStats {
 export default function AdminDashboard() {
     const router = useRouter();
     const { logout } = useAuthStore(); // ✅ Removed user and isLoading
-    
+
     const [userEmail, setUserEmail] = useState<string>(''); // ✅ Added for email from token
     const [stats, setStats] = useState<DashboardStats>({
         totalDoctors: 0,
@@ -59,30 +58,30 @@ export default function AdminDashboard() {
     // ✅ Check admin access using token
     useEffect(() => {
         const token = localStorage.getItem('access_token');
-        
-        console.log('🔍 Admin Dashboard Check:', { 
-            hasToken: !!token 
+
+        console.log('🔍 Admin Dashboard Check:', {
+            hasToken: !!token
         });
-        
+
         if (!token) {
             console.log('❌ No token, redirecting to login');
             router.push('/auth/login');
             return;
         }
-        
+
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             console.log('✅ Token payload:', payload);
-            
+
             if (payload.role !== 'admin') {
                 console.log('❌ Not admin, redirecting to dashboard');
                 router.push('/dashboard');
                 return;
             }
-            
+
             console.log('✅ Admin verified, fetching stats');
             fetchDashboardStats();
-            
+
         } catch (error) {
             console.error('❌ Token decode error:', error);
             router.push('/auth/login');
@@ -132,12 +131,10 @@ export default function AdminDashboard() {
             <header className="bg-white border-b border-neutralGray-300 sticky top-0 z-50 shadow-sm">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
                     <Link href="/landing" className="flex items-center gap-3 group">
-                        <Image
+                        <img
                             src="/Logo-MVP-v0.5.png"
                             alt="SynapseAI"
-                            width={48}
-                            height={48}
-                            className="h-12 w-auto transition-transform duration-300 group-hover:scale-105"
+                            className="w-20 h-20 ..."
                         />
                         <div>
                             <span className="text-xl font-heading font-bold text-synapseDarkBlue">

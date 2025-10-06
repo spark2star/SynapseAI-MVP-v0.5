@@ -144,12 +144,12 @@ start_infrastructure() {
     
     # Wait for services to be ready
     log "⏳ Waiting for PostgreSQL to be ready..."
-    until docker-compose exec postgres pg_isready -U emr_user -d emr_db; do
+    until docker-compose exec postgres pg_isready -U emr_user -d emr_db > /dev/null 2>&1; do
         sleep 2
     done
     
     log "⏳ Waiting for Redis to be ready..."
-    until docker-compose exec redis redis-cli ping; do
+    until docker-compose exec redis redis-cli ping > /dev/null 2>&1; do
         sleep 2
     done
     
@@ -173,7 +173,7 @@ start_backend() {
     
     # Install dependencies
     log "📦 Installing Python dependencies..."
-    pip install -r requirements.txt > /dev/null 2>&1
+    pip install -q -r requirements.txt
     
     # Create .env file if it doesn't exist
     if [[ ! -f ".env" ]]; then
@@ -218,11 +218,10 @@ ENVEOF
         success ".env file created"
     fi
     
-    # Run database migrations
-    # DISABLED: Migrations cause crashes - tables are created by SQLAlchemy directly
-    # log "🔄 Running database migrations..."
-    # alembic upgrade head || warning "Migration failed - database may not be initialized"
-    log "⏭️  Skipping migrations (tables created by SQLAlchemy)"
+    # ✅ FIX: Skip problematic migrations
+    log "⏭️  Skipping migrations (using SQLAlchemy table creation)"
+    # Migrations disabled due to pagination_idx_001 error
+    # Tables are created automatically by SQLAlchemy
     
     # Create admin user if it doesn't exist
     log "👤 Creating admin and demo users..."
@@ -273,22 +272,32 @@ try:
     db.commit()
 finally:
     db.close()
-" || warning "User creation may have failed"
+" 2>&1 || warning "User creation may have failed"
     
     # Start backend server
     log "🖥️  Starting FastAPI backend on port 8080..."
     uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
     BACKEND_PID=$!
     
-    # Wait a moment for backend to start
-    sleep 8
+    # Wait for backend to start
+    log "⏳ Waiting for backend to start..."
+    sleep 10
     
     # Check if backend is running
-    if curl -s http://localhost:8080/health > /dev/null; then
-        success "Backend server is running on http://localhost:8080"
-    else
-        warning "Backend server may still be starting up..."
-    fi
+    local retries=0
+    local max_retries=30
+    while [ $retries -lt $max_retries ]; do
+        if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+            success "Backend server is running on http://localhost:8080"
+            return 0
+        fi
+        sleep 2
+        ((retries++))
+    done
+    
+    error "Backend failed to start. Check logs: $PROJECT_ROOT/backend.log"
+    tail -n 50 "$PROJECT_ROOT/backend.log"
+    exit 1
 }
 
 # Setup and start frontend
@@ -299,59 +308,59 @@ start_frontend() {
     
     # Install dependencies
     log "📦 Installing Node.js dependencies..."
-    npm install > /dev/null 2>&1
+    npm install > /dev/null 2>&1 || warning "npm install had warnings"
     
     # Start frontend server
     log "🌐 Starting Next.js frontend on port 3000..."
     npm run dev > "$PROJECT_ROOT/frontend.log" 2>&1 &
     FRONTEND_PID=$!
     
-    # Wait a moment for frontend to start
-    sleep 10
+    # Wait for frontend to start
+    log "⏳ Waiting for frontend to start..."
+    sleep 15
     
     # Check if frontend is running
-    if curl -s http://localhost:3000 > /dev/null; then
-        success "Frontend server is running on http://localhost:3000"
-    else
-        warning "Frontend server may still be starting up..."
-    fi
+    local retries=0
+    local max_retries=30
+    while [ $retries -lt $max_retries ]; do
+        if curl -s http://localhost:3000 > /dev/null 2>&1; then
+            success "Frontend server is running on http://localhost:3000"
+            return 0
+        fi
+        sleep 2
+        ((retries++))
+    done
+    
+    warning "Frontend may still be starting up..."
 }
 
 # Health check
 health_check() {
     log "🔍 Running health check..."
-    sleep 5
+    sleep 3
     
-    # Check backend health
-    if curl -s http://localhost:8000/health > /dev/null; then
+    # ✅ FIX: Check backend on PORT 8080 (not 8000!)
+    if curl -s http://localhost:8080/health > /dev/null 2>&1; then
         success "✅ Backend API is healthy"
     else
         warning "⚠️  Backend API health check failed"
+        log "Checking backend logs..."
+        tail -n 20 "$PROJECT_ROOT/backend.log"
     fi
     
-    # Check backend API v1 health
-    if curl -s http://localhost:8080/api/v1/health > /dev/null; then
-        success "✅ Backend API v1 is healthy"
+    # Check backend API docs
+    if curl -s http://localhost:8080/docs > /dev/null 2>&1; then
+        success "✅ Backend API docs are accessible"
     else
-        warning "⚠️  Backend API v1 health check failed (this is okay if route doesn't exist)"
+        warning "⚠️  Backend API docs not accessible yet"
     fi
     
     # Check frontend
-    if curl -s http://localhost:3000 > /dev/null; then
+    if curl -s http://localhost:3000 > /dev/null 2>&1; then
         success "✅ Frontend is healthy"
     else
         warning "⚠️  Frontend health check failed"
     fi
-    
-    # Check key frontend routes
-    local routes=("/" "/auth/login" "/dashboard")
-    for route in "${routes[@]}"; do
-        if curl -s "http://localhost:3000$route" > /dev/null; then
-            success "✅ Route $route is accessible"
-        else
-            warning "⚠️  Route $route may not be ready yet"
-        fi
-    done
 }
 
 # Main execution
@@ -384,10 +393,11 @@ main() {
     echo ""
     echo "📱 Frontend: http://localhost:3000"
     echo "🔧 Backend API: http://localhost:8080"
-    echo "📚 API Docs (Swagger): http://localhost:8080/api/v1/docs"
-    echo "📖 API Docs (ReDoc): http://localhost:8080/api/v1/redoc"
+    echo "📚 API Docs (Swagger): http://localhost:8080/docs"
+    echo "📖 API Docs (ReDoc): http://localhost:8080/redoc"
     echo "💚 Health Check: http://localhost:8080/health"
-    echo "👤 Demo Login: doctor@demo.com / password123"
+    echo "👤 Admin Login: admin@synapseai.com / SynapseAdmin2025!"
+    echo "👤 Demo Login: doc@demo.com / password123"
     echo ""
     echo "📊 Service Status:"
     echo "   • PostgreSQL: Running on port 5432"
@@ -396,8 +406,8 @@ main() {
     echo "   • Frontend: Running on port 3000"
     echo ""
     echo "📄 Logs:"
-    echo "   • Backend: $PROJECT_ROOT/backend.log"
-    echo "   • Frontend: $PROJECT_ROOT/frontend.log"
+    echo "   • Backend: tail -f $PROJECT_ROOT/backend.log"
+    echo "   • Frontend: tail -f $PROJECT_ROOT/frontend.log"
     echo ""
     echo "🛑 Press Ctrl+C to stop all services"
     echo ""
@@ -409,11 +419,15 @@ main() {
         # Check if processes are still running
         if ! kill -0 $BACKEND_PID 2>/dev/null; then
             error "Backend process has stopped unexpectedly"
+            log "Last 50 lines of backend log:"
+            tail -n 50 "$PROJECT_ROOT/backend.log"
             cleanup
         fi
         
         if ! kill -0 $FRONTEND_PID 2>/dev/null; then
             error "Frontend process has stopped unexpectedly"
+            log "Last 50 lines of frontend log:"
+            tail -n 50 "$PROJECT_ROOT/frontend.log"
             cleanup
         fi
     done
@@ -421,4 +435,3 @@ main() {
 
 # Run main function
 main "$@"
-

@@ -30,7 +30,7 @@ import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
 import { useAuthStore } from '@/store/authStore'
-import apiService from '@/services/api'
+import { apiService } from '@/services/api'
 
 interface Patient {
     id: string

@@ -1,307 +1,303 @@
-// API service for making HTTP requests to the backend
-
-import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios'
-import { toast } from 'react-hot-toast'
-import type { ApiResponse } from '@/types'
+import axios, { AxiosInstance, AxiosError } from 'axios';
 
 class ApiService {
-    private api: AxiosInstance
-    private _baseURL: string
+  private api: AxiosInstance;
+  private baseURL: string;
 
-    constructor() {
-        // Get API URL from environment variable with correct fallback
-        this._baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
+  constructor() {
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+    
+    console.log('🔧 API Service initialized with base URL:', this.baseURL);
+    
+    this.api = axios.create({
+      baseURL: this.baseURL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-        // Debug log to verify correct URL is being used
-        console.log('🔧 API Service initialized with URL:', this._baseURL)
-        console.log('📝 Environment variable NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL || '(not set - using default)')
-
-        this.api = axios.create({
-            baseURL: this._baseURL,
-            timeout: 10000, // 10 seconds - optimized for better UX
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-        })
-
-        this.setupInterceptors()
-    }
-
-    private setupInterceptors() {
-        // Request interceptor - add auth token
-        this.api.interceptors.request.use(
-            (config) => {
-                const token = this.getAccessToken()
-                if (token) {
-                    config.headers.Authorization = `Bearer ${token}`
-                    console.log('🔑 Auth header added for:', config.url)
-                } else {
-                    console.warn('⚠️ No token found for:', config.url)
-                }
-
-                // Log full request URL for debugging
-                const fullUrl = `${config.baseURL}${config.url}`
-                console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${fullUrl}`)
-
-                return config
-            },
-            (error) => {
-                console.error('❌ Request interceptor error:', error)
-                return Promise.reject(error)
-            }
-        )
-
-        // Response interceptor - handle errors and token refresh
-        this.api.interceptors.response.use(
-            (response: AxiosResponse) => {
-                console.log(`✅ API Response: ${response.config.url} - Status ${response.status}`)
-                return response
-            },
-            async (error: AxiosError) => {
-                // Enhanced error logging
-                if (error.response) {
-                    // Server responded with error status
-                    console.error(`❌ API Error: ${error.response.status} - ${error.response.config.url}`)
-                    console.error('Response data:', error.response.data)
-                } else if (error.request) {
-                    // Request made but no response received - likely connection refused
-                    console.error('❌ Network Error - Cannot connect to backend')
-                    console.error('Attempted URL:', error.config?.baseURL)
-                    console.error('Check if backend is running on:', this._baseURL)
-                    toast.error('Cannot connect to server. Please ensure backend is running on port 8080.')
-                } else {
-                    console.error('❌ Request Error:', error.message)
-                }
-
-                const originalRequest = error.config as any
-
-                // Handle 401 errors (unauthorized)
-                if (error.response?.status === 401 && !originalRequest._retry) {
-                    originalRequest._retry = true
-
-                    try {
-                        // Try to refresh token
-                        const refreshToken = this.getRefreshToken()
-                        if (refreshToken) {
-                            await this.refreshAccessToken(refreshToken)
-                            // Retry original request with new token
-                            const token = this.getAccessToken()
-                            if (token) {
-                                originalRequest.headers.Authorization = `Bearer ${token}`
-                                return this.api(originalRequest)
-                            }
-                        }
-                    } catch (refreshError) {
-                        // Refresh failed, redirect to login
-                        this.handleAuthError()
-                    }
-                }
-
-                // Handle other errors
-                this.handleApiError(error)
-                return Promise.reject(error)
-            }
-        )
-    }
-
-    private handleApiError(error: AxiosError) {
-        const response = error.response?.data as ApiResponse
-
-        if (error.response?.status === 429) {
-            toast.error('Too many requests. Please try again later.')
-            return
+    // Request interceptor to add auth token
+    this.api.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+          console.log('🔑 Auth header added for:', config.url);
         }
+        
+        console.log('🚀 API Request:', config.method?.toUpperCase(), `${this.baseURL}${config.url}`);
+        return config;
+      },
+      (error) => {
+        console.error('❌ Request error:', error);
+        return Promise.reject(error);
+      }
+    );
 
-        if (error.response?.status === 500) {
-            toast.error('Server error. Please try again later.')
-            return
+    // Response interceptor
+    this.api.interceptors.response.use(
+      (response) => {
+        console.log('✅ API Response:', response.config.url, '- Status', response.status);
+        return response;
+      },
+      (error: AxiosError) => {
+        console.error('❌ API Error:', error.response?.status, '-', error.config?.url);
+        console.error('Response data:', error.response?.data);
+        
+        // Handle 401 Unauthorized
+        if (error.response?.status === 401) {
+          localStorage.removeItem('access_token');
+          window.location.href = '/login';
         }
+        
+        return Promise.reject(error);
+      }
+    );
+  }
 
-        if (error.response?.status === 503) {
-            toast.error('Service temporarily unavailable. Please try again later.')
-            return
-        }
+  // ============================================================================
+  // GENERIC HTTP METHODS
+  // ============================================================================
 
-        // Show specific error message if available
-        if (response?.error?.message) {
-            toast.error(response.error.message)
-        } else if (error.message) {
-            toast.error(error.message)
-        } else {
-            toast.error('An unexpected error occurred')
-        }
+  /**
+   * Generic GET request
+   */
+  async get(endpoint: string, params?: any) {
+    const response = await this.api.get(endpoint, { params });
+    return response.data;
+  }
+
+  /**
+   * Generic POST request
+   */
+  async post(endpoint: string, data?: any) {
+    const response = await this.api.post(endpoint, data);
+    return response.data;
+  }
+
+  /**
+   * Generic PUT request
+   */
+  async put(endpoint: string, data?: any) {
+    const response = await this.api.put(endpoint, data);
+    return response.data;
+  }
+
+  /**
+   * Generic PATCH request
+   */
+  async patch(endpoint: string, data?: any) {
+    const response = await this.api.patch(endpoint, data);
+    return response.data;
+  }
+
+  /**
+   * Generic DELETE request
+   */
+  async delete(endpoint: string) {
+    const response = await this.api.delete(endpoint);
+    return response.data;
+  }
+
+  // ============================================================================
+  // AUTHENTICATION HELPER METHODS
+  // ============================================================================
+
+  /**
+   * Get auth token
+   */
+  getToken(): string | null {
+    return localStorage.getItem('access_token');
+  }
+
+  /**
+   * Get base URL
+   */
+  getBaseURL(): string {
+    return this.baseURL;
+  }
+
+  /**
+   * Check if user is currently authenticated
+   */
+  isAuthenticated(): boolean {
+    const token = localStorage.getItem('access_token');
+    return !!token;
+  }
+
+  /**
+   * Clear all authentication tokens and user data
+   */
+  clearAuthTokens(): void {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    console.log('✅ Auth tokens cleared');
+  }
+
+  /**
+   * Set access token
+   */
+  setAuthToken(token: string): void {
+    localStorage.setItem('access_token', token);
+  }
+
+  /**
+   * Set refresh token
+   */
+  setRefreshToken(token: string): void {
+    localStorage.setItem('refresh_token', token);
+  }
+
+  /**
+   * Get refresh token
+   */
+  getRefreshToken(): string | null {
+    return localStorage.getItem('refresh_token');
+  }
+
+  /**
+   * Set both access and refresh tokens at once
+   */
+  setAuthTokens(accessToken: string, refreshToken?: string): void {
+    this.setAuthToken(accessToken);
+    if (refreshToken) {
+      this.setRefreshToken(refreshToken);
     }
+    console.log('✅ Auth tokens set');
+  }
 
-    private handleAuthError() {
-        // Clear tokens
-        this.clearTokens()
+  // ============================================================================
+  // AUTH ENDPOINTS
+  // ============================================================================
 
-        // Redirect to login page
-        if (typeof window !== 'undefined') {
-            window.location.href = '/auth/login'
-        }
-    }
+  async login(email: string, password: string) {
+    const response = await this.api.post('/auth/login', { email, password });
+    return response.data;
+  }
 
-    private getAccessToken(): string | null {
-        if (typeof window === 'undefined') return null
-        return localStorage.getItem('access_token')
-    }
+  async register(userData: any) {
+    const response = await this.api.post('/auth/register', userData);
+    return response.data;
+  }
 
-    private getRefreshToken(): string | null {
-        if (typeof window === 'undefined') return null
-        return localStorage.getItem('refresh_token')
-    }
+  async getUserProfile() {
+    const response = await this.api.get('/users/profile');
+    return response.data;
+  }
 
-    private setTokens(accessToken: string, refreshToken: string) {
-        if (typeof window === 'undefined') return
-        localStorage.setItem('access_token', accessToken)
-        localStorage.setItem('refresh_token', refreshToken)
-    }
+  // ============================================================================
+  // PATIENT ENDPOINTS
+  // ============================================================================
 
-    private clearTokens() {
-        if (typeof window === 'undefined') return
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user_data')
-    }
+  /**
+   * Get paginated list of patients
+   */
+  async getPatients(params: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+  }) {
+    const response = await this.api.get('/patients/list/', { params });
+    return response.data;
+  }
 
-    private async refreshAccessToken(refreshToken: string) {
-        const response = await axios.post(`${this._baseURL}/auth/refresh`, {
-            refresh_token: refreshToken
-        })
+  /**
+   * Create new patient
+   */
+  async createPatient(patientData: any) {
+    const response = await this.api.post('/patients', patientData);
+    return response.data;
+  }
 
-        const data = response.data.data
-        this.setTokens(data.access_token, refreshToken)
-        return data.access_token
-    }
+  /**
+   * Get patient by ID
+   */
+  async getPatientById(patientId: string) {
+    const response = await this.api.get(`/patients/${patientId}`);
+    return response.data;
+  }
 
-    // Public methods
+  /**
+   * Get patient sessions
+   */
+  async getPatientSessions(patientId: string) {
+    const response = await this.api.get(`/patients/${patientId}/sessions`);
+    return response.data;
+  }
 
-    public setAuthTokens(accessToken: string, refreshToken: string) {
-        this.setTokens(accessToken, refreshToken)
-    }
+  // ============================================================================
+  // CONSULTATION ENDPOINTS
+  // ============================================================================
 
-    public clearAuthTokens() {
-        this.clearTokens()
-    }
+  /**
+   * Get consultation history for a patient
+   */
+  async getConsultationHistory(patientId: string) {
+    const response = await this.api.get(`/consultation/history/${patientId}`);
+    return response.data;
+  }
 
-    public isAuthenticated(): boolean {
-        return !!this.getAccessToken()
-    }
+  /**
+   * Create new consultation session
+   */
+  async createConsultation(consultationData: any) {
+    const response = await this.api.post('/consultation', consultationData);
+    return response.data;
+  }
 
-    public getToken(): string | null {
-        return this.getAccessToken()
-    }
+  // ============================================================================
+  // ADMIN ENDPOINTS
+  // ============================================================================
 
-    public get baseURL(): string {
-        return this._baseURL
-    }
+  /**
+   * Get doctor applications for admin review
+   */
+  async getDoctorApplications(status?: string) {
+    const params = status ? { status } : {};
+    const response = await this.api.get('/admin/doctor-applications', { params });
+    return response.data;
+  }
 
-    // Generic API methods
-    public async get<T = any>(url: string, params?: any): Promise<ApiResponse<T>> {
-        const response = await this.api.get(url, { params })
-        return response.data
-    }
+  /**
+   * Approve doctor application
+   */
+  async approveDoctorApplication(userId: string) {
+    const response = await this.api.post(`/admin/doctor-applications/${userId}/approve`);
+    return response.data;
+  }
 
-    public async post<T = any>(url: string, data?: any, config?: any): Promise<ApiResponse<T>> {
-        const response = await this.api.post(url, data, config)
-        return response.data
-    }
+  /**
+   * Reject doctor application
+   */
+  async rejectDoctorApplication(userId: string, reason: string) {
+    const response = await this.api.post(`/admin/doctor-applications/${userId}/reject`, { reason });
+    return response.data;
+  }
 
-    public async put<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
-        const response = await this.api.put(url, data)
-        return response.data
-    }
+  // ============================================================================
+  // DEMO & CONTACT FORM ENDPOINTS
+  // ============================================================================
 
-    public async patch<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
-        const response = await this.api.patch(url, data)
-        return response.data
-    }
+  /**
+   * Submit demo request
+   */
+  async submitDemoRequest(data: any) {
+    const response = await this.api.post('/forms/demo-requests', data);
+    return response.data;
+  }
 
-    public async delete<T = any>(url: string): Promise<ApiResponse<T>> {
-        const response = await this.api.delete(url)
-        return response.data
-    }
-
-    // File upload method
-    public async uploadFile<T = any>(
-        url: string,
-        file: File,
-        onProgress?: (progress: number) => void
-    ): Promise<ApiResponse<T>> {
-        const formData = new FormData()
-        formData.append('file', file)
-
-        const response = await this.api.post(url, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-            onUploadProgress: (progressEvent) => {
-                if (onProgress && progressEvent.total) {
-                    const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-                    onProgress(progress)
-                }
-            },
-        })
-
-        return response.data
-    }
-
-    // Download file method
-    public async downloadFile(url: string, filename?: string): Promise<void> {
-        const response = await this.api.get(url, {
-            responseType: 'blob',
-        })
-
-        const blob = new Blob([response.data])
-        const downloadUrl = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = downloadUrl
-        link.download = filename || 'download'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(downloadUrl)
-    }
-
-    // Health check method
-    public async healthCheck(): Promise<boolean> {
-        try {
-            await this.api.get('/health/check')
-            return true
-        } catch (error) {
-            return false
-        }
-    }
-
-    // Demo Request
-    public async submitDemoRequest(data: {
-        full_name: string;
-        email: string;
-        phone?: string;
-        organization?: string;
-        job_title?: string;
-        message?: string;
-        preferred_date?: string;
-    }): Promise<ApiResponse> {
-        return this.post('/forms/demo-requests', data)
-    }
-
-    // Contact Message
-    public async submitContactMessage(data: {
-        full_name: string;
-        email: string;
-        phone?: string;
-        subject: string;
-        message: string;
-        category?: string;
-    }): Promise<ApiResponse> {
-        return this.post('/forms/contact-messages', data)
-    }
+  /**
+   * Submit contact message
+   */
+  async submitContactMessage(data: any) {
+    const response = await this.api.post('/forms/contact-messages', data);
+    return response.data;
+  }
 }
 
-// Create singleton instance
-const apiService = new ApiService()
+// Export singleton instance
+export const apiService = new ApiService();
 
-export default apiService
+// Also export class for testing
+export default ApiService;

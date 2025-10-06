@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 import time
 from datetime import datetime, timezone
+from app.core.dependencies import get_current_user
 
 from app.core.database import get_db
 from app.core.security import (
@@ -371,3 +372,27 @@ async def verify_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Email verification service temporarily unavailable"
         )
+
+
+@router.get("/validate-token")
+async def validate_token(
+    current_user = Depends(get_current_user)
+):
+    """
+    Validate the current authentication token
+    """
+    try:
+        logger.info(f"🔐 Validating token for user: {current_user.id}")
+        
+        return {
+            "status": "success",
+            "data": {
+                "valid": True,
+                "user_id": current_user.id,
+                "email": current_user.email,
+                "role": current_user.role
+            }
+        }
+    except Exception as e:
+        logger.error(f"❌ Token validation error: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid token")

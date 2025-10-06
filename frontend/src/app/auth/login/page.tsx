@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { EyeIcon, EyeSlashIcon, ArrowLeftIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
@@ -19,181 +18,110 @@ export default function LoginPage() {
     const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isRedirecting, setIsRedirecting] = useState(false);
     const [error, setError] = useState('');
+
+    // ✅ SINGLE AUTH CHECK - Only on mount, no dependencies
+    useEffect(() => {
+        // Don't check during submission
+        if (isSubmitting) return;
+
+        // If already authenticated, redirect immediately
+        if (!isLoading && isAuthenticated && user) {
+            const role = user.role || 'doctor';
+            const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
+            window.location.href = redirectPath;
+        }
+    }, []); // ← Run only once on mount
 
     // Smart redirect handler for logo click
     const handleLogoClick = () => {
         const token = localStorage.getItem('access_token');
         if (token) {
-            // Redirect to dashboard if logged in
             const role = user?.role || 'doctor';
             const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
             window.location.href = redirectPath;
         } else {
-            // Redirect to landing page if not logged in
             window.location.href = '/landing';
         }
     };
 
-    // Redirect if already authenticated (on page load only)
-    useEffect(() => {
-        if (!isLoading && isAuthenticated && !isSubmitting && !isRedirecting) {
-            console.log('🔄 Already authenticated, redirecting...');
-            const role = user?.role || 'doctor';
-            const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
-            window.location.href = redirectPath;
-        }
-    }, [isLoading]); // Only run on mount and when loading state changes
-
-    // NUCLEAR FIX: Direct button click handler (no form submission)
+    // ✅ FIXED LOGIN HANDLER
     const handleLogin = async () => {
         console.log('🚀 === LOGIN FLOW START ===');
         setError('');
         setIsSubmitting(true);
-        setIsRedirecting(true);
 
         try {
-            // Step 1: Direct API call to get full response
-            console.log('📤 Step 1: Calling login API...');
+            console.log('📤 Attempting login via Zustand store...');
             console.log('📧 Email:', email);
-            console.log('🔒 Password:', password ? '***' : 'empty');
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email,
-                    password,
-                    remember_me: rememberMe
-                })
-            });
+            // Get login function from Zustand
+            const { login } = useAuthStore.getState();
 
-            console.log('📥 Step 2: Response received, status:', response.status);
-            const result = await response.json();
-            console.log('📦 Step 3: Response data:', result);
+            // Call login
+            const success = await login({ email, password });
 
-            // Handle 403 Forbidden
-            if (response.status === 403) {
-                const detail = result.detail || result.error?.message || {};
-                if (typeof detail === 'object' && detail.code === 'APPLICATION_PENDING') {
-                    toast.error('Your application is pending admin approval.', { duration: 6000 });
-                } else if (typeof detail === 'object' && detail.code === 'APPLICATION_REJECTED') {
-                    toast.error(`Application rejected: ${detail.reason || 'Contact support'}`, { duration: 8000 });
-                } else {
-                    toast.error('Access denied. Please contact support.', { duration: 5000 });
-                }
+            console.log('📥 Login response received:', success);
+
+            if (!success) {
+                console.error('❌ Login failed - invalid credentials');
+                setError('Invalid email or password');
+                toast.error('Invalid email or password');
                 setIsSubmitting(false);
-                setIsRedirecting(false);
                 return;
             }
 
-            // Handle other errors
-            if (!response.ok || result.status !== 'success') {
-                console.error('❌ Login failed:', result);
-                const errorMsg = result.error?.message || 'Invalid credentials. Please try again.';
-                setError(errorMsg);
-                toast.error(errorMsg);
-                setIsSubmitting(false);
-                setIsRedirecting(false);
-                return;
-            }
+            console.log('✅ Login successful via Zustand!');
 
-            // Extract data from response
-            const { role, doctor_status, profile_completed, password_reset_required, access_token, refresh_token } = result.data;
+            // Get updated auth state
+            const { user: loggedInUser } = useAuthStore.getState();
+            const role = loggedInUser?.role || 'doctor';
 
-            console.log('✅ Step 4: Login successful!');
             console.log('👤 User Role:', role);
-            console.log('🏥 Doctor Status:', doctor_status);
-            console.log('📋 Profile Completed:', profile_completed);
-            console.log('🔑 Has Token:', !!access_token);
+            console.log('🔐 Password Reset Required:', loggedInUser?.password_reset_required);
 
-            // Step 2: Save tokens to localStorage AND cookies
-            console.log('💾 Step 5: Saving auth data...');
+            // CHECK IF PASSWORD RESET REQUIRED
+            if (loggedInUser?.password_reset_required) {
+                console.log('⚠️ Password reset required, redirecting to change password...');
+                toast('You must change your password before continuing', {
+                    icon: '⚠️',
+                    duration: 4000
+                });
 
-            if (access_token) {
-                // Save to localStorage
-                localStorage.setItem('access_token', access_token);
-                if (refresh_token) {
-                    localStorage.setItem('refresh_token', refresh_token);
-                }
-
-                // CRITICAL: Save to cookies for middleware
-                document.cookie = `access_token=${access_token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-                if (refresh_token) {
-                    document.cookie = `refresh_token=${refresh_token}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
-                }
-
-                console.log('✅ Tokens saved to localStorage AND cookies');
-                console.log('🍪 Cookie set for middleware');
-            } else {
-                console.error('❌ No access_token in response!');
-                toast.error('Login failed - no token received');
-                setIsSubmitting(false);
-                setIsRedirecting(false);
+                setTimeout(() => {
+                    window.location.href = '/auth/change-password';
+                }, 500);
                 return;
             }
 
-            console.log('✅ Step 6: Auth data saved');
+            // Determine redirect path
+            const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
+            const welcomeMessage = role === 'admin' ? 'Welcome back, Admin!' : 'Welcome back, Doctor!';
 
-            // CRITICAL: Wait for cookies to be written (middleware needs them!)
-            await new Promise(resolve => setTimeout(resolve, 500));
+            console.log(`🚀 Redirecting to ${redirectPath}...`);
 
-            // Step 3: Role-based redirect
-            console.log('🎯 Step 7: Determining redirect path...');
-
-            let redirectPath = '/dashboard';
-            let welcomeMessage = 'Welcome back!';
-
-            if (role === 'admin') {
-                redirectPath = '/admin/dashboard';
-                welcomeMessage = 'Welcome back, Admin!';
-                console.log('🔐 Admin user detected → /admin/dashboard');
-            } else if (role === 'doctor') {
-                if (password_reset_required) {
-                    redirectPath = '/auth/reset-password';
-                    welcomeMessage = 'Please reset your temporary password.';
-                    console.log('🔒 Password reset required → /auth/reset-password');
-                } else if (doctor_status === 'verified' && !profile_completed) {
-                    redirectPath = '/doctor/complete-profile';
-                    welcomeMessage = 'Please complete your profile to get started.';
-                    console.log('📝 Profile incomplete → /doctor/complete-profile');
-                } else if (doctor_status === 'verified' && profile_completed) {
-                    redirectPath = '/dashboard';
-                    welcomeMessage = 'Welcome back, Doctor!';
-                    console.log('✅ Verified doctor → /dashboard');
-                } else {
-                    console.log('⚠️ Doctor not verified yet');
-                    toast.error('Account verification pending.');
-                    setIsSubmitting(false);
-                    setIsRedirecting(false);
-                    return;
-                }
-            }
-
-            console.log(`🚀 Step 8: Redirecting to ${redirectPath}...`);
+            // Show success message
             toast.success(welcomeMessage);
 
-            // CRITICAL: Use replace() to prevent any history/back button issues
-            // and ensure navigation happens immediately without refresh
-            const redirectTimer = setTimeout(() => {
-                console.log('⚡ Executing redirect NOW...');
-                window.location.replace(redirectPath);
-            }, 250); // Small delay for toast to show
-
-            // Prevent form from doing anything else
-            console.log('🛑 Stopping all further form processing...');
-            return false;
+            // ✅ IMMEDIATE REDIRECT - No setTimeout, no delay
+            window.location.href = redirectPath;
 
         } catch (error) {
             console.error('❌ Login error:', error);
-            toast.error('Login failed. Please try again.');
+
+            if (error instanceof Error && error.message.includes('timeout')) {
+                toast.error('Login request timed out. Please check your connection.');
+                setError('Request timed out. Please try again.');
+            } else {
+                toast.error('Login failed. Please try again.');
+                setError('An error occurred. Please try again.');
+            }
+
             setIsSubmitting(false);
-            setIsRedirecting(false);
         }
-        // Note: No finally block - don't reset state after successful redirect
     };
 
+    // Loading state
     if (isLoading) {
         return (
             <div className="min-h-screen bg-white flex items-center justify-center">
@@ -259,12 +187,10 @@ export default function LoginPage() {
                     >
                         {/* Logo - Clickable */}
                         <div onClick={handleLogoClick} className="cursor-pointer inline-block mb-8">
-                            <Image
+                            <img
                                 src="/Logo-MVP-v0.5.png"
                                 alt="SynapseAI"
-                                width={80}
-                                height={80}
-                                className="mx-auto brightness-0 invert hover:scale-105 transition-transform"
+                                className="w-20 h-20 mx-auto brightness-0 invert hover:scale-105 transition-transform"
                             />
                         </div>
 
@@ -319,12 +245,10 @@ export default function LoginPage() {
                     {/* Mobile Logo - Clickable */}
                     <div className="lg:hidden mb-8 text-center">
                         <div onClick={handleLogoClick} className="cursor-pointer inline-block mb-4">
-                            <Image
+                            <img
                                 src="/Logo-MVP-v0.5.png"
                                 alt="SynapseAI"
-                                width={60}
-                                height={60}
-                                className="mx-auto hover:scale-105 transition-transform"
+                                className="w-15 h-15 mx-auto hover:scale-105 transition-transform"
                             />
                         </div>
                         <h2 className="text-2xl font-heading font-bold text-gray-900">
@@ -360,7 +284,7 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    {/* Login Form - NUCLEAR FIX: Using div instead of form to prevent page reload */}
+                    {/* Login Form */}
                     <div className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">

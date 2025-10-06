@@ -20,7 +20,7 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Pagination from '@/components/Pagination'
 import { useAuthStore } from '@/store/authStore'
-import apiService from '@/services/api'
+import { apiService } from '@/services/api'
 
 interface Patient {
     id: string

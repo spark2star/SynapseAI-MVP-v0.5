@@ -1,171 +1,178 @@
-'use client';
+'use client'
 
-import React from 'react';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 
 interface PaginationProps {
-  currentPage: number;
-  totalPages: number;
-  totalItems?: number;
-  itemsPerPage?: number;
-  onPageChange: (page: number) => void;
+    total: number        // Total number of items
+    limit: number        // Items per page
+    offset: number       // Current offset
+    onPageChange: (newOffset: number) => void
 }
 
-const Pagination: React.FC<PaginationProps> = ({
-  currentPage,
-  totalPages,
-  totalItems,
-  itemsPerPage,
-  onPageChange,
-}) => {
-  const handlePrevious = () => {
-    if (currentPage > 1) {
-      onPageChange(currentPage - 1);
-    }
-  };
+export default function Pagination({ total, limit, offset, onPageChange }: PaginationProps) {
+    const currentPage = Math.floor(offset / limit) + 1
+    const totalPages = Math.ceil(total / limit)
+    const hasNextPage = offset + limit < total
+    const hasPreviousPage = offset > 0
 
-  const handleNext = () => {
-    if (currentPage < totalPages) {
-      onPageChange(currentPage + 1);
-    }
-  };
-
-  const handlePageClick = (page: number) => {
-    onPageChange(page);
-  };
-
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    const maxVisiblePages = 5;
-
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      pages.push(1);
-
-      if (currentPage > 3) {
-        pages.push('...');
-      }
-
-      for (
-        let i = Math.max(2, currentPage - 1);
-        i <= Math.min(totalPages - 1, currentPage + 1);
-        i++
-      ) {
-        pages.push(i);
-      }
-
-      if (currentPage < totalPages - 2) {
-        pages.push('...');
-      }
-
-      pages.push(totalPages);
+    const handlePrevious = () => {
+        if (hasPreviousPage) {
+            onPageChange(Math.max(0, offset - limit))
+        }
     }
 
-    return pages;
-  };
+    const handleNext = () => {
+        if (hasNextPage) {
+            onPageChange(offset + limit)
+        }
+    }
 
-  if (totalPages <= 1) {
-    return null;
-  }
+    const handlePageClick = (page: number) => {
+        const newOffset = (page - 1) * limit
+        onPageChange(newOffset)
+    }
 
-  return (
-    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
-      <div className="flex flex-1 justify-between sm:hidden">
-        <button
-          onClick={handlePrevious}
-          disabled={currentPage === 1}
-          className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Previous
-        </button>
-        <button
-          onClick={handleNext}
-          disabled={currentPage === totalPages}
-          className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Next
-        </button>
-      </div>
+    // Generate page numbers to display
+    const getPageNumbers = () => {
+        const pages: (number | string)[] = []
+        const maxPagesToShow = 7
 
-      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-gray-700">
-            Showing{' '}
-            <span className="font-medium">
-              {Math.min((currentPage - 1) * (itemsPerPage || 10) + 1, totalItems || 0)}
-            </span>{' '}
-            to{' '}
-            <span className="font-medium">
-              {Math.min(currentPage * (itemsPerPage || 10), totalItems || 0)}
-            </span>{' '}
-            of <span className="font-medium">{totalItems || 0}</span> results
-          </p>
-        </div>
-        <div>
-          <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm">
-            <button
-              onClick={handlePrevious}
-              disabled={currentPage === 1}
-              className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="sr-only">Previous</span>
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
+        if (totalPages <= maxPagesToShow) {
+            // Show all pages if total is small
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i)
+            }
+        } else {
+            // Always show first page
+            pages.push(1)
 
-            {getPageNumbers().map((page, index) => {
-              if (page === '...') {
-                return (
-                  <span
-                    key={`ellipsis-${index}`}
-                    className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300"
-                  >
-                    ...
-                  </span>
-                );
-              }
+            if (currentPage > 3) {
+                pages.push('...')
+            }
 
-              return (
+            // Show pages around current page
+            const start = Math.max(2, currentPage - 1)
+            const end = Math.min(totalPages - 1, currentPage + 1)
+
+            for (let i = start; i <= end; i++) {
+                pages.push(i)
+            }
+
+            if (currentPage < totalPages - 2) {
+                pages.push('...')
+            }
+
+            // Always show last page
+            pages.push(totalPages)
+        }
+
+        return pages
+    }
+
+    if (totalPages <= 1) {
+        return null // Don't show pagination if there's only one page
+    }
+
+    return (
+        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 sm:px-6">
+            {/* Mobile View */}
+            <div className="flex flex-1 justify-between sm:hidden">
                 <button
-                  key={page}
-                  onClick={() => handlePageClick(page as number)}
-                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                    currentPage === page
-                      ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
-                      : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'
-                  }`}
+                    onClick={handlePrevious}
+                    disabled={!hasPreviousPage}
+                    className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                        hasPreviousPage
+                            ? 'text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600'
+                            : 'text-slate-400 dark:text-slate-600 bg-slate-100 dark:bg-slate-800 cursor-not-allowed'
+                    }`}
                 >
-                  {page}
+                    Previous
                 </button>
-              );
-            })}
+                <button
+                    onClick={handleNext}
+                    disabled={!hasNextPage}
+                    className={`relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                        hasNextPage
+                            ? 'text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600'
+                            : 'text-slate-400 dark:text-slate-600 bg-slate-100 dark:bg-slate-800 cursor-not-allowed'
+                    }`}
+                >
+                    Next
+                </button>
+            </div>
 
-            <button
-              onClick={handleNext}
-              disabled={currentPage === totalPages}
-              className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="sr-only">Next</span>
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          </nav>
+            {/* Desktop View */}
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                        Showing <span className="font-medium">{offset + 1}</span> to{' '}
+                        <span className="font-medium">{Math.min(offset + limit, total)}</span> of{' '}
+                        <span className="font-medium">{total}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                        {/* Previous Button */}
+                        <button
+                            onClick={handlePrevious}
+                            disabled={!hasPreviousPage}
+                            className={`relative inline-flex items-center rounded-l-md px-2 py-2 ${
+                                hasPreviousPage
+                                    ? 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                    : 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                            } ring-1 ring-inset ring-slate-300 dark:ring-slate-600 focus:z-20 focus:outline-offset-0`}
+                        >
+                            <span className="sr-only">Previous</span>
+                            <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
+                        </button>
+
+                        {/* Page Numbers */}
+                        {getPageNumbers().map((page, index) => {
+                            if (page === '...') {
+                                return (
+                                    <span
+                                        key={`ellipsis-${index}`}
+                                        className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 ring-1 ring-inset ring-slate-300 dark:ring-slate-600"
+                                    >
+                                        ...
+                                    </span>
+                                )
+                            }
+
+                            const pageNumber = page as number
+                            const isCurrentPage = pageNumber === currentPage
+
+                            return (
+                                <button
+                                    key={pageNumber}
+                                    onClick={() => handlePageClick(pageNumber)}
+                                    className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                                        isCurrentPage
+                                            ? 'z-10 bg-sky-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600'
+                                            : 'text-slate-900 dark:text-slate-300 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 focus:z-20 focus:outline-offset-0'
+                                    }`}
+                                >
+                                    {pageNumber}
+                                </button>
+                            )
+                        })}
+
+                        {/* Next Button */}
+                        <button
+                            onClick={handleNext}
+                            disabled={!hasNextPage}
+                            className={`relative inline-flex items-center rounded-r-md px-2 py-2 ${
+                                hasNextPage
+                                    ? 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                    : 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                            } ring-1 ring-inset ring-slate-300 dark:ring-slate-600 focus:z-20 focus:outline-offset-0`}
+                        >
+                            <span className="sr-only">Next</span>
+                            <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    </nav>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
-};
-
-export default Pagination;
+    )
+}

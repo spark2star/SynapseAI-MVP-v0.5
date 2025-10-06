@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import apiService from '@/services/api'
+import { apiService } from '@/services/api'
 import type { User, UserProfile, LoginCredentials, AuthTokens } from '@/types'
 
 // Global auth check lock to prevent multiple simultaneous calls
@@ -22,6 +22,7 @@ interface AuthState {
     updateProfile: (profileData: Partial<UserProfile>) => Promise<boolean>
     refreshToken: () => Promise<boolean>
     fetchUserProfile: () => Promise<void>
+    changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>
 
     // Helpers
     hasRole: (role: string) => boolean
@@ -42,6 +43,8 @@ export const useAuthStore = create<AuthState>()(
                 try {
                     set({ isLoading: true })
 
+                    console.log('🔐 Attempting login for:', credentials.email)
+
                     const response = await apiService.post('/auth/login', credentials)
 
                     if (response.status === 'success' && response.data) {
@@ -49,22 +52,37 @@ export const useAuthStore = create<AuthState>()(
                             access_token,
                             refresh_token,
                             user_id,
-                            role
+                            role,
+                            password_reset_required
                         } = response.data
 
-                        // Store tokens in API service
+                        console.log('✅ Login successful, storing tokens...')
+                        console.log('📦 Access Token:', access_token ? 'EXISTS' : 'MISSING')
+                        console.log('📦 Refresh Token:', refresh_token ? 'EXISTS' : 'MISSING')
+                        console.log('🔐 Password Reset Required:', password_reset_required || false)
+
+                        // Store tokens in API service (localStorage)
                         apiService.setAuthTokens(access_token, refresh_token)
 
-                        // Debug: Verify token storage
-                        console.log('✅ Token stored:', localStorage.getItem('access_token') ? 'YES' : 'NO')
+                        // ✅ ALSO store tokens in cookies (for middleware)
+                        document.cookie = `access_token=${access_token}; path=/; max-age=1800; SameSite=Lax`;
+                        document.cookie = `refresh_token=${refresh_token}; path=/; max-age=604800; SameSite=Lax`;
+
+                        console.log('🍪 Tokens stored in both localStorage AND cookies')
+
+                        // Verify token was stored
+                        const storedToken = localStorage.getItem('access_token')
+                        console.log('🔍 Stored token verified:', storedToken ? 'YES ✅' : 'NO ❌')
+                        console.log('🔍 Cookie set verified:', document.cookie.includes('access_token') ? 'YES ✅' : 'NO ❌')
 
                         // Create user object
                         const user: User = {
                             id: user_id,
                             email: credentials.email,
                             role: role as User['role'],
-                            is_verified: true, // Assuming verified if login succeeded
+                            is_verified: true,
                             is_active: true,
+                            password_reset_required: password_reset_required || false,
                             created_at: new Date().toISOString(),
                             updated_at: new Date().toISOString()
                         }
@@ -75,16 +93,19 @@ export const useAuthStore = create<AuthState>()(
                             isLoading: false
                         })
 
+                        console.log('✅ Auth state updated, user authenticated')
+
                         // Fetch user profile
                         await get().fetchUserProfile()
 
                         return true
                     }
 
+                    console.log('❌ Login failed: Invalid response')
                     set({ isLoading: false })
                     return false
                 } catch (error) {
-                    console.error('Login error:', error)
+                    console.error('❌ Login error:', error)
                     set({
                         user: null,
                         profile: null,
@@ -94,6 +115,9 @@ export const useAuthStore = create<AuthState>()(
                     return false
                 }
             },
+
+
+
 
             // Logout action
             logout: () => {
@@ -106,26 +130,26 @@ export const useAuthStore = create<AuthState>()(
                     console.error('Logout error:', error)
                 } finally {
                     console.log('🧹 Clearing all auth data...')
-                    
+
                     // Clear API service tokens
                     apiService.clearAuthTokens()
-                    
+
                     // Clear localStorage
                     localStorage.clear()
                     sessionStorage.clear()
-                    
+
                     // Clear ALL cookies (more aggressive)
                     const cookies = document.cookie.split(";");
                     for (let i = 0; i < cookies.length; i++) {
                         const cookie = cookies[i];
                         const eqPos = cookie.indexOf("=");
                         const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-                        
+
                         // Delete cookie for all paths
                         document.cookie = name + "=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
                         document.cookie = name + "=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
                     }
-                    
+
                     // Clear state
                     set({
                         user: null,
@@ -133,48 +157,51 @@ export const useAuthStore = create<AuthState>()(
                         isAuthenticated: false,
                         isLoading: false
                     })
-                    
+
                     // Verify cookies are cleared
                     setTimeout(() => {
                         console.log('🔍 After clear - Cookies:', document.cookie);
                         console.log('🔍 After clear - LocalStorage:', Object.keys(localStorage));
                         console.log('🏠 Redirecting to home page...')
-                        
+
                         // Force reload to clear everything
                         window.location.replace('/')
                     }, 100)
                 }
             },
-            
+
 
             // Check authentication status
             checkAuth: async (): Promise<void> => {
                 // Prevent multiple simultaneous auth checks globally
                 if (authCheckInProgress) {
-                    console.log('Auth check already in progress globally, skipping...')
+                    console.log('⏳ Auth check already in progress globally, skipping...')
                     return
                 }
 
                 const currentState = get()
                 if (currentState.isLoading) {
-                    console.log('Auth check already in progress locally, skipping...')
+                    console.log('⏳ Auth check already in progress locally, skipping...')
+                    return
+                }
+
+                // Check if token exists first
+                if (!apiService.isAuthenticated()) {
+                    console.log('❌ No token found, user not authenticated')
+                    set({
+                        user: null,
+                        profile: null,
+                        isAuthenticated: false,
+                        isLoading: false
+                    })
                     return
                 }
 
                 authCheckInProgress = true
+                set({ isLoading: true })
 
                 try {
-                    set({ isLoading: true })
-
-                    if (!apiService.isAuthenticated()) {
-                        set({
-                            user: null,
-                            profile: null,
-                            isAuthenticated: false,
-                            isLoading: false
-                        })
-                        return
-                    }
+                    console.log('🔐 Validating auth token...')
 
                     // Add timeout to prevent hanging
                     const timeoutPromise = new Promise((_, reject) =>
@@ -200,32 +227,26 @@ export const useAuthStore = create<AuthState>()(
                             updated_at: new Date().toISOString()
                         }
 
+                        console.log('✅ Auth validated, user:', user.email)
+
                         set({
                             user,
                             isAuthenticated: true,
                             isLoading: false
                         })
 
-                        // Fetch user profile (don't await to prevent blocking)
-                        get().fetchUserProfile().catch(console.error)
+                        // Fetch user profile in background (non-blocking)
+                        get().fetchUserProfile().catch(err =>
+                            console.warn('⚠️ Profile fetch failed:', err)
+                        )
                     } else {
-                        // Token is invalid
-                        apiService.clearAuthTokens()
-                        set({
-                            user: null,
-                            profile: null,
-                            isAuthenticated: false,
-                            isLoading: false
-                        })
+                        console.log('❌ Token validation failed')
+                        throw new Error('Token invalid')
                     }
                 } catch (error) {
-                    console.error('Auth check error:', error)
+                    console.error('❌ Auth check error:', error)
 
-                    // Handle different error types
-                    if (error instanceof Error && error.message === 'Auth check timeout') {
-                        console.warn('Auth check timed out - assuming not authenticated')
-                    }
-
+                    // Clear auth on any error
                     apiService.clearAuthTokens()
                     set({
                         user: null,
@@ -235,8 +256,11 @@ export const useAuthStore = create<AuthState>()(
                     })
                 } finally {
                     authCheckInProgress = false
+                    // Force set loading to false as safety net
+                    set({ isLoading: false })
                 }
             },
+
 
             // Fetch user profile (internal method)
             fetchUserProfile: async (): Promise<void> => {
@@ -290,6 +314,44 @@ export const useAuthStore = create<AuthState>()(
                 }
             },
 
+            // Change password
+            changePassword: async (currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+                try {
+                    console.log('🔐 Changing password...')
+
+                    const response = await apiService.post('/auth/change-password', {
+                        current_password: currentPassword,
+                        new_password: newPassword,
+                        confirm_password: newPassword
+                    })
+
+                    if (response.status === 'success') {
+                        console.log('✅ Password changed successfully')
+
+                        // Update user state to clear password_reset_required
+                        const currentUser = get().user
+                        if (currentUser) {
+                            set({
+                                user: {
+                                    ...currentUser,
+                                    password_reset_required: false
+                                }
+                            })
+                        }
+
+                        return { success: true }
+                    }
+
+                    return { success: false, error: 'Failed to change password' }
+                } catch (error: any) {
+                    console.error('❌ Password change error:', error)
+                    return {
+                        success: false,
+                        error: error.response?.data?.error?.message || error.response?.data?.detail || 'Failed to change password'
+                    }
+                }
+            },
+
             // Check if user has specific role
             hasRole: (role: string): boolean => {
                 const { user } = get()
@@ -307,7 +369,7 @@ export const useAuthStore = create<AuthState>()(
             storage: createJSONStorage(() => {
                 // Use sessionStorage for security in medical app
                 if (typeof window !== 'undefined') {
-                    return window.sessionStorage
+                    return window.localStorage
                 }
                 return {
                     getItem: () => null,

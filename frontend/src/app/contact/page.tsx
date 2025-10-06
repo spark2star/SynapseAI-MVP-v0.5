@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import apiService from '@/services/api';
+import { apiService } from '@/services/api';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
@@ -92,12 +91,10 @@ export default function ContactPage() {
                 </Link>
 
                 <div className="flex items-center gap-3 mb-8">
-                    <Image
+                    <img
                         src="/Logo-MVP-v0.5.png"
                         alt="SynapseAI"
-                        width={48}
-                        height={48}
-                        className="h-12 w-auto"
+                        className="w-20 h-20 ..."
                     />
                     <div>
                         <h1 className="text-3xl font-heading font-bold text-synapseDarkBlue">

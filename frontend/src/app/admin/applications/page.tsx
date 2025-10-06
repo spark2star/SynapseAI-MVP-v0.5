@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users,
@@ -22,7 +21,7 @@ import {
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { useAuthStore } from '@/store/authStore';
-import apiService from '@/services/api';
+import { apiService } from '@/services/api';
 import { toast } from 'react-hot-toast';
 import ApplicationCard from '@/components/admin/ApplicationCard';
 import ApplicationTable from '@/components/admin/ApplicationTable';
@@ -130,7 +129,8 @@ export default function AdminApplicationsPage() {
             // ✅ Map user_id to id
             const mappedApplications = applicationsArray.map((app: any) => ({
                 ...app,
-                id: app.user_id || app.id
+                id: app.user_id || app.id,
+                doctor_status: app.status || app.doctor_status  // ✅ ADD THIS LINE
             }));
 
             console.log('✅ Mapped applications:', mappedApplications);
@@ -346,12 +346,10 @@ export default function AdminApplicationsPage() {
                 <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
                     <Link href="/admin/dashboard" className="flex items-center gap-3 group">
                         <ArrowLeft className="w-5 h-5 text-synapseDarkBlue group-hover:translate-x-[-4px] transition-transform" />
-                        <Image
+                        <img
                             src="/Logo-MVP-v0.5.png"
                             alt="SynapseAI"
-                            width={48}
-                            height={48}
-                            className="h-12 w-auto transition-transform duration-300 group-hover:scale-105"
+                            className="w-20 h-20 ..."
                         />
                         <div>
                             <span className="text-xl font-heading font-bold text-synapseDarkBlue">

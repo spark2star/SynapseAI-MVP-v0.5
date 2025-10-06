@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
-import apiService from '@/services/api'
+import { apiService } from '@/services/api'
 import Stage1Form, { Stage1Data } from '@/components/intake/Stage1Form'
 import Stage2Form, { PatientSymptom } from '@/components/intake/Stage2Form'
 import { CheckCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'

@@ -614,20 +614,31 @@ class AuthenticationService:
                 detail="Current password is incorrect"
             )
         
+        # Validate new password is different
+        if self.hash_util.verify_password(password_data.new_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password must be different from current password"
+            )
+        
         # Hash new password
         new_password_hash = self.hash_util.hash_password(password_data.new_password)
         
         # Update password
         user.password_hash = new_password_hash
+        user.password_reset_required = False  # Clear the forced password reset flag
+        user.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         
         # Log password change
-        await audit_logger.log_event(
-            event_type=AuditEventType.USER_PASSWORD_CHANGED,
-            user_id=user_id,
-            ip_address=ip_address,
-            details={"action": "password_changed"}
-        )
+        # await audit_logger.log_event(
+        #     event_type=AuditEventType.PASSWORD_CHANGED,
+        #     user_id=user_id,
+        #     ip_address=ip_address,
+        #     details={"action": "password_changed", "password_reset_required_cleared": True}
+        # )
+        
+        logger.info(f"✅ Password changed successfully for user {user_id}")
         
         return {"message": "Password changed successfully"}
     

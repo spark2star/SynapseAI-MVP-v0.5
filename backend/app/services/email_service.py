@@ -514,6 +514,321 @@ class EmailService:
         """
         
         return self._send_email(email, subject, html_body)
+    
+    def send_doctor_approval_email(
+        self, 
+        to_email: str, 
+        doctor_name: str, 
+        login_email: str, 
+        temporary_password: str,
+        login_url: str
+    ) -> bool:
+        """Send approval email to doctor with login credentials"""
+        logger.info(f"📧 Sending approval email to doctor: {to_email}")
+        
+        subject = "🎉 Your SynapseAI Doctor Account Has Been Approved"
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; color: #333; line-height: 1.6; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ 
+                    background: linear-gradient(135deg, #10B981, #059669); 
+                    color: white; 
+                    padding: 40px; 
+                    text-align: center; 
+                    border-radius: 8px 8px 0 0; 
+                }}
+                .content {{ 
+                    background: #f9f9f9; 
+                    padding: 30px; 
+                    border-radius: 0 0 8px 8px; 
+                }}
+                .credentials-box {{
+                    background: white;
+                    border: 2px solid #10B981;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin: 20px 0;
+                }}
+                .credential-item {{
+                    margin: 10px 0;
+                    padding: 10px;
+                    background: #F0FDF4;
+                    border-radius: 4px;
+                }}
+                .credential-label {{
+                    font-weight: bold;
+                    color: #059669;
+                    display: block;
+                    margin-bottom: 5px;
+                }}
+                .credential-value {{
+                    font-family: 'Courier New', monospace;
+                    font-size: 16px;
+                    color: #1F2937;
+                    background: white;
+                    padding: 8px;
+                    border-radius: 4px;
+                    border: 1px solid #D1FAE5;
+                }}
+                .warning-box {{
+                    background: #FEF3C7;
+                    border-left: 4px solid #F59E0B;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border-radius: 4px;
+                }}
+                .login-button {{
+                    display: inline-block;
+                    padding: 15px 30px;
+                    background: #10B981;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 20px 0;
+                }}
+                .steps {{
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin: 20px 0;
+                }}
+                .step {{
+                    display: flex;
+                    gap: 15px;
+                    margin-bottom: 15px;
+                    align-items: flex-start;
+                }}
+                .step-number {{
+                    background: #10B981;
+                    color: white;
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    flex-shrink: 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1 style="margin: 0; font-size: 28px;">🎉 Congratulations!</h1>
+                    <p style="margin: 10px 0 0 0; opacity: 0.95; font-size: 16px;">Your Application Has Been Approved</p>
+                </div>
+                <div class="content">
+                    <p><strong>Dear Dr. {doctor_name},</strong></p>
+                    
+                    <p>Congratulations! We're thrilled to inform you that your SynapseAI doctor account has been <strong>approved and activated</strong>.</p>
+                    
+                    <p>You can now access your account using the credentials below:</p>
+                    
+                    <div class="credentials-box">
+                        <h3 style="color: #059669; margin-top: 0;">🔐 Your Login Credentials</h3>
+                        
+                        <div class="credential-item">
+                            <span class="credential-label">Email:</span>
+                            <div class="credential-value">{login_email}</div>
+                        </div>
+                        
+                        <div class="credential-item">
+                            <span class="credential-label">Temporary Password:</span>
+                            <div class="credential-value">{temporary_password}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="warning-box">
+                        <strong>⚠️ Important Security Notice:</strong><br>
+                        For your security, you will be required to <strong>change your password immediately</strong> upon first login. Please choose a strong password.
+                    </div>
+                    
+                    <div class="steps">
+                        <h3 style="color: #059669; margin-top: 0;">📋 Next Steps:</h3>
+                        
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div>
+                                <strong>Login to Your Account</strong><br>
+                                Click the button below to access your dashboard
+                            </div>
+                        </div>
+                        
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div>
+                                <strong>Change Your Password</strong><br>
+                                You'll be prompted to create a new secure password
+                            </div>
+                        </div>
+                        
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div>
+                                <strong>Complete Your Profile</strong><br>
+                                Add additional details and preferences
+                            </div>
+                        </div>
+                        
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <div>
+                                <strong>Start Using SynapseAI</strong><br>
+                                Begin managing consultations and patient care
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{login_url}" class="login-button">
+                            🚀 Login to Your Dashboard
+                        </a>
+                    </div>
+                    
+                    <p style="margin-top: 30px; padding: 20px; background: #E3F4FC; border-radius: 8px;">
+                        <strong>💡 Pro Tip:</strong> Save your temporary password securely until you complete your first login and password change.
+                    </p>
+                    
+                    <p style="margin-top: 30px; font-size: 14px; color: #666;">
+                        <strong>Need Help?</strong><br>
+                        If you have any questions or need assistance, contact us at <a href="mailto:{self.admin_email}">{self.admin_email}</a>
+                    </p>
+                    
+                    <p style="margin-top: 30px;">
+                    Welcome to the SynapseAI family!<br>
+                    <strong>The SynapseAI Team</strong><br>
+                    <em>Effortless Intelligence, Absolute Security</em>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return self._send_email(to_email, subject, html_body)
+    
+    def send_doctor_rejection_email(
+        self,
+        to_email: str,
+        doctor_name: str,
+        rejection_reason: str
+    ) -> bool:
+        """Send rejection email to doctor with reason"""
+        logger.info(f"📧 Sending rejection email to doctor: {to_email}")
+        
+        subject = "Update on Your SynapseAI Doctor Application"
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; color: #333; line-height: 1.6; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ 
+                    background: linear-gradient(135deg, #64748B, #475569); 
+                    color: white; 
+                    padding: 40px; 
+                    text-align: center; 
+                    border-radius: 8px 8px 0 0; 
+                }}
+                .content {{ 
+                    background: #f9f9f9; 
+                    padding: 30px; 
+                    border-radius: 0 0 8px 8px; 
+                }}
+                .reason-box {{
+                    background: #FEF2F2;
+                    border-left: 4px solid #EF4444;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 4px;
+                }}
+                .info-box {{
+                    background: #EFF6FF;
+                    border: 1px solid #BFDBFE;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin: 20px 0;
+                }}
+                .contact-box {{
+                    background: white;
+                    border: 2px solid #50B9E8;
+                    padding: 20px;
+                    border-radius: 8px;
+                    text-align: center;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1 style="margin: 0; font-size: 28px;">Update on Your Application</h1>
+                    <p style="margin: 10px 0 0 0; opacity: 0.95;">SynapseAI Doctor Registration</p>
+                </div>
+                <div class="content">
+                    <p><strong>Dear Dr. {doctor_name},</strong></p>
+                    
+                    <p>Thank you for your interest in joining the SynapseAI platform as a verified doctor.</p>
+                    
+                    <p>After careful review of your application, we regret to inform you that we are unable to approve your registration at this time.</p>
+                    
+                    <div class="reason-box">
+                        <h3 style="color: #DC2626; margin-top: 0;">📋 Reason for Decision:</h3>
+                        <p style="margin: 0; font-size: 15px;">{rejection_reason}</p>
+                    </div>
+                    
+                    <div class="info-box">
+                        <h3 style="color: #2563EB; margin-top: 0;">💡 What This Means:</h3>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>Your current application has been closed</li>
+                            <li>No further action is required from you</li>
+                            <li>You may address the issue and reapply in the future if eligible</li>
+                        </ul>
+                    </div>
+                    
+                    <p>We appreciate your understanding and wish you the best in your professional endeavors.</p>
+                    
+                    <div class="contact-box">
+                        <h3 style="color: #0A4D8B; margin-top: 0;">📞 Questions or Concerns?</h3>
+                        <p style="margin: 10px 0;">
+                            If you have questions about this decision or believe there has been an error, 
+                            please don't hesitate to contact us:
+                        </p>
+                        <p style="margin: 10px 0;">
+                            <strong>Email:</strong> <a href="mailto:{self.admin_email}">{self.admin_email}</a>
+                        </p>
+                        <p style="margin: 10px 0; font-size: 14px; color: #666;">
+                            We typically respond within 1-2 business days.
+                        </p>
+                    </div>
+                    
+                    <p style="margin-top: 30px; padding: 15px; background: #F9FAFB; border-radius: 8px; font-size: 14px;">
+                        <strong>Note:</strong> This decision is based on the information provided in your application. 
+                        If circumstances change or you can provide additional documentation, you may be eligible to reapply.
+                    </p>
+                    
+                    <p style="margin-top: 30px;">
+                    Thank you for considering SynapseAI,<br>
+                    <strong>The SynapseAI Team</strong><br>
+                    <em>Effortless Intelligence, Absolute Security</em>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return self._send_email(to_email, subject, html_body)
 
 
 email_service = EmailService()

@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
@@ -28,13 +27,10 @@ export default function Logo({ size = 'md', className = '', showText = true }: L
     <div className={`flex items-center gap-1 ${className}`}>
       {/* Logo Image - Transparent PNG (380x364) with true alpha channel for perfect blending */}
       <div className={`relative ${sizeClasses[size]} flex-shrink-0`}>
-        <Image
+        <img
           src="/Logo-MVP-v0.5.png"
-          alt="SynapseAI Logo"
-          fill
-          sizes="(max-width: 768px) 96px, 112px"
-          className="object-contain transition-all duration-300 [image-rendering:auto] bg-transparent mix-blend-multiply dark:mix-blend-screen"
-          priority
+          alt="SynapseAI"
+          className="w-20 h-20 ..."
         />
       </div>
 

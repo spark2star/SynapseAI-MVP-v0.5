@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
 import MouseFollowGlow from '@/components/animations/MouseFollowGlow';
 
 export default function Footer() {
@@ -20,12 +19,10 @@ export default function Footer() {
                 <div className="grid md:grid-cols-3 gap-8 mb-8">
                     {/* Logo & Tagline */}
                     <div>
-                        <Image
+                        <img
                             src="/Logo-MVP-v0.5.png"
                             alt="SynapseAI"
-                            width={180}
-                            height={60}
-                            className="h-12 md:h-16 w-auto mb-4 brightness-0 invert"
+                            className="w-20 h-20 ..."
                         />
                         <p className="text-white/70 text-sm">
                             Effortless Intelligence, Absolute Security.

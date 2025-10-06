@@ -11,7 +11,7 @@ from app.api.api_v1.endpoints import (
 )
 from app.api.api_v1.endpoints import sessions, templates
 from app.api.websocket import consultation
-
+from app.api.api_v1.endpoints import auth
 api_router = APIRouter()
 
 # Include all endpoint routers
@@ -30,6 +30,7 @@ api_router.include_router(newsletter.router, prefix="/newsletter", tags=["newsle
 api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
 api_router.include_router(intake.router, prefix="/intake", tags=["patient-intake"])
 api_router.include_router(forms.router, prefix="/forms", tags=["forms"])
+api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 
 # Include WebSocket routers (no prefix for WebSocket endpoints)
 api_router.include_router(consultation.router, tags=["websocket"])

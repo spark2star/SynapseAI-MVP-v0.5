@@ -11,7 +11,7 @@ import {
     CalendarIcon,
     UserIcon
 } from '@heroicons/react/24/outline'
-import { Button } from '@/components/ui/Button'
+import  Button  from '@/components/ui/Button'
 import { jsPDF } from 'jspdf'
 
 interface ReportData {

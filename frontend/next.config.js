@@ -9,17 +9,25 @@ const nextConfig = {
     // Disable x-powered-by header for security
     poweredByHeader: false,
 
-    // Optimize images
+    // Optimize images - FIXED
     images: {
         remotePatterns: [
             {
                 protocol: 'http',
                 hostname: 'localhost',
-                port: '',
+                port: '3000',  // Added port
+                pathname: '/**',
+            },
+            {
+                protocol: 'http',
+                hostname: 'localhost',
+                port: '8080',  // Backend port (if images served from there)
                 pathname: '/**',
             },
         ],
         formats: ['image/webp', 'image/avif'],
+        // Allow images from public folder
+        unoptimized: false,
     },
 
     // Enable SWC minification for better performance

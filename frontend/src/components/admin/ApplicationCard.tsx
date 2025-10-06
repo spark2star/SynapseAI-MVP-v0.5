@@ -36,6 +36,11 @@ export default function ApplicationCard({
     onReject,
     isLoading = false
 }: ApplicationCardProps) {
+    console.log('🃏 ApplicationCard received:', {
+        name: application.full_name,
+        doctor_status: application.doctor_status,
+        all_fields: Object.keys(application)
+    });
     // ========================================================================
     // UTILITIES
     // ========================================================================
@@ -173,37 +178,37 @@ export default function ApplicationCard({
 
                 {/* Approve and Reject - Only for pending applications */}
                 {/* {application.doctor_status === 'pending' && ( */}
-                {true && (
-                    <>
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => onApprove(application.id)}
-                            isLoading={isLoading}
-                            className="flex-1"
-                            style={{ backgroundColor: '#10B981' }}
-                            aria-label={`Approve application for ${application.full_name}`}
-                        >
-                            <CheckCircle className="w-4 h-4" />
-                            Approve
-                        </Button>
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => onReject(application.id)}
-                            isLoading={isLoading}
-                            className="flex-1"
-                            style={{
-                                borderColor: '#EF4444',
-                                color: '#EF4444'
-                            }}
-                            aria-label={`Reject application for ${application.full_name}`}
-                        >
-                            <XCircle className="w-4 h-4" />
-                            Reject
-                        </Button>
-                    </>
-                )}
+                {application.doctor_status?.toLowerCase() === 'pending' && (
+                        <>
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => onApprove(application.id)}
+                                isLoading={isLoading}
+                                className="flex-1"
+                                style={{ backgroundColor: '#10B981' }}
+                                aria-label={`Approve application for ${application.full_name}`}
+                            >
+                                <CheckCircle className="w-4 h-4" />
+                                Approve
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => onReject(application.id)}
+                                isLoading={isLoading}
+                                className="flex-1"
+                                style={{
+                                    borderColor: '#EF4444',
+                                    color: '#EF4444'
+                                }}
+                                aria-label={`Reject application for ${application.full_name}`}
+                            >
+                                <XCircle className="w-4 h-4" />
+                                Reject
+                            </Button>
+                        </>
+                    )}
             </div>
         </motion.div>
     );

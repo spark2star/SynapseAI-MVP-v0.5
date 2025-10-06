@@ -22,6 +22,7 @@ export interface User {
     role: 'admin' | 'doctor' | 'receptionist'
     is_verified: boolean
     is_active: boolean
+    password_reset_required?: boolean
     created_at: string
     updated_at: string
 }

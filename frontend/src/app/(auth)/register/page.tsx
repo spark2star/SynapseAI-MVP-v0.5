@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
@@ -274,12 +273,10 @@ export default function DoctorRegistrationPage() {
                 {/* Header with Logo */}
                 <div className="text-center mb-8">
                     <Link href="/landing" className="inline-block mb-4 cursor-pointer hover:opacity-80 transition-opacity">
-                        <Image
+                        <img
                             src="/Logo-MVP-v0.5.png"
-                            alt="SynapseAI Logo"
-                            width={64}
-                            height={64}
-                            className="h-16 w-auto"
+                            alt="SynapseAI"
+                            className="w-20 h-20 ..."
                         />
                     </Link>
                     <h1

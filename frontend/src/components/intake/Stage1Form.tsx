@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import Button from '@/components/ui/Button'  // ✅ Line 4 - FIXED
-import Input from '@/components/ui/Input'    // ✅ Line 5 - FIXED
-import Select from '@/components/ui/Select'  // ✅ Line 6 - FIXED
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
+import Select from '@/components/ui/Select'
 import { UserIcon, CalendarIcon, HomeIcon, ClockIcon } from '@heroicons/react/24/outline'
 
 export interface Stage1Data {
@@ -182,7 +182,9 @@ export default function Stage1Form({ onNext, initialData, isLoading = false }: S
                                             </label>
                                             <Select
                                                 value={formData.sex}
-                                                onValueChange={(value) => setFormData(prev => ({ ...prev, sex: value as any }))}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+                                                    setFormData(prev => ({ ...prev, sex: e.target.value as 'Male' | 'Female' | 'Other' }))
+                                                }
                                                 options={[
                                                     { value: 'Male', label: 'Male' },
                                                     { value: 'Female', label: 'Female' },
@@ -291,13 +293,15 @@ export default function Stage1Form({ onNext, initialData, isLoading = false }: S
                                             />
                                             <Select
                                                 value={formData.illness_duration.unit}
-                                                onValueChange={(value) => setFormData(prev => ({
-                                                    ...prev,
-                                                    illness_duration: {
-                                                        ...prev.illness_duration,
-                                                        unit: value as 'Days' | 'Weeks' | 'Months' | 'Years'
-                                                    }
-                                                }))}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        illness_duration: {
+                                                            ...prev.illness_duration,
+                                                            unit: e.target.value as 'Days' | 'Weeks' | 'Months' | 'Years'
+                                                        }
+                                                    }))
+                                                }
                                                 options={[
                                                     { value: 'Days', label: 'Days' },
                                                     { value: 'Weeks', label: 'Weeks' },

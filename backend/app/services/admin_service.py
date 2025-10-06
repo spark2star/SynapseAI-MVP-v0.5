@@ -17,6 +17,7 @@ from app.models.audit_log import AuditLog, AuditEventType
 from app.models.email_queue import EmailQueue, EmailTemplate
 from app.core.encryption import HashingUtility
 from app.core.config import settings
+from app.services.email_service import email_service
 
 logger = logging.getLogger(__name__)
 
@@ -315,22 +316,6 @@ class AdminService:
             profile.verification_date = datetime.now(timezone.utc)
             profile.verified_by_admin_id = admin_user_id
             
-            # Queue approval email
-            email_job = EmailQueue(
-                recipient_email=doctor.email,
-                template_name=EmailTemplate.APPROVAL.value,
-                template_data={
-                    "full_name": profile.full_name,
-                    "email": doctor.email,
-                    "temporary_password": temp_password,
-                    "login_url": f"{settings.FRONTEND_URL}/login" if hasattr(settings, 'FRONTEND_URL') else "http://localhost:3000/login",
-                    "admin_name": admin.profile.full_name if admin.profile else "SynapseAI Team"
-                },
-                status="pending"
-            )
-            
-            self.db.add(email_job)
-            
             # Audit log
             audit_log = AuditLog.log_event(
                 db_session=self.db,
@@ -348,11 +333,32 @@ class AdminService:
             
             logger.info(f"[{request_id}] ✅ Doctor approved successfully: {doctor.id} by admin: {admin_user_id}")
             
+            # Send approval email with credentials
+            login_url = f"{settings.FRONTEND_URL}/auth/login" if hasattr(settings, 'FRONTEND_URL') else "http://localhost:3000/auth/login"
+            
+            try:
+                email_sent = email_service.send_doctor_approval_email(
+                    to_email=doctor.email,
+                    doctor_name=profile.full_name,
+                    login_email=doctor.email,
+                    temporary_password=temp_password,
+                    login_url=login_url
+                )
+                
+                if email_sent:
+                    logger.info(f"[{request_id}] ✅ Approval email sent successfully to {doctor.email}")
+                else:
+                    logger.error(f"[{request_id}] ❌ Failed to send approval email to {doctor.email}")
+            except Exception as e:
+                logger.error(f"[{request_id}] ❌ Error sending approval email: {str(e)}", exc_info=True)
+                # Don't fail the approval if email fails
+            
             return {
                 "message": "Doctor application approved successfully",
                 "doctor_id": str(doctor.id),
                 "doctor_email": doctor.email,
-                "temporary_password_sent": True,
+                "temporary_password": temp_password,  # Return temp password for admin convenience
+                "email_sent": True,
                 "request_id": request_id
             }
         
@@ -433,21 +439,6 @@ class AdminService:
             profile.verified_by_admin_id = admin_user_id
             profile.rejection_reason = rejection_reason
             
-            # Queue rejection email
-            email_job = EmailQueue(
-                recipient_email=doctor.email,
-                template_name=EmailTemplate.REJECTION.value,
-                template_data={
-                    "full_name": profile.full_name,
-                    "rejection_reason": rejection_reason,
-                    "support_email": settings.SUPPORT_EMAIL if hasattr(settings, 'SUPPORT_EMAIL') else "support@synapseai.com",
-                    "admin_name": admin.profile.full_name if admin.profile else "SynapseAI Team"
-                },
-                status="pending"
-            )
-            
-            self.db.add(email_job)
-            
             # Audit log
             audit_log = AuditLog.log_event(
                 db_session=self.db,
@@ -466,10 +457,26 @@ class AdminService:
             
             logger.info(f"[{request_id}] ✅ Doctor rejected successfully: {doctor.id} by admin: {admin_user_id}")
             
+            # Send rejection email with reason
+            try:
+                email_sent = email_service.send_doctor_rejection_email(
+                    to_email=doctor.email,
+                    doctor_name=profile.full_name,
+                    rejection_reason=rejection_reason
+                )
+                
+                if email_sent:
+                    logger.info(f"[{request_id}] ✅ Rejection email sent successfully to {doctor.email}")
+                else:
+                    logger.error(f"[{request_id}] ❌ Failed to send rejection email to {doctor.email}")
+            except Exception as e:
+                logger.error(f"[{request_id}] ❌ Error sending rejection email: {str(e)}", exc_info=True)
+                # Don't fail the rejection if email fails
+            
             return {
                 "message": "Doctor application rejected",
                 "doctor_id": str(doctor.id),
-                "rejection_email_sent": True,
+                "email_sent": True,
                 "request_id": request_id
             }
         

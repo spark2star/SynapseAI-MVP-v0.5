@@ -14,7 +14,7 @@ export function middleware(request: NextRequest) {
     });
 
     // Public paths that don't require authentication
-    const publicPaths = ['/', '/landing', '/auth/login', '/auth/signup', '/register', '/auth/forgot-password', '/about', '/contact'];
+    const publicPaths = ['/', '/landing', '/auth/login', '/auth/signup', '/register', '/auth/forgot-password', '/auth/change-password', '/about', '/contact'];
     const isPublicPath = publicPaths.some(path => pathname === path || pathname.startsWith(path + '/'));
 
     // CRITICAL: If authenticated and on login page, redirect to dashboard
@@ -25,13 +25,13 @@ export function middleware(request: NextRequest) {
     // CRITICAL: If authenticated and on login page, redirect based on role
     if (token && pathname.startsWith('/auth/login')) {
         console.log('✅ Authenticated user on login page → Checking role...');
-        
+
         // Decode JWT to get role (simple way)
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             const role = payload.role || 'doctor';
             const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
-            
+
             console.log(`✅ Redirecting ${role} to ${redirectPath}`);
             return NextResponse.redirect(new URL(redirectPath, request.url));
         } catch (error) {

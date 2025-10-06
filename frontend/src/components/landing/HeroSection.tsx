@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import Image from 'next/image';
 import Button from '@/components/ui/Button';
 import VoiceWaveform from '@/components/animations/VoiceWaveform';
 import ParallaxBackground from '@/components/landing/ParallaxBackground';
@@ -31,13 +30,10 @@ export default function HeroSection() {
                 <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
                     {/* Logo with Product Name - DARK TEXT FOR VISIBILITY */}
                     <a href="/" className="flex items-center gap-3 group">
-                        <Image
+                        <img
                             src="/Logo-MVP-v0.5.png"
-                            alt="SynapseAI Logo"
-                            width={56}
-                            height={56}
-                            priority
-                            className="h-14 w-auto transition-transform duration-300 group-hover:scale-105"
+                            alt="SynapseAI"
+                            className="w-20 h-20 ..."
                         />
                         <div className="flex flex-col">
                             <span

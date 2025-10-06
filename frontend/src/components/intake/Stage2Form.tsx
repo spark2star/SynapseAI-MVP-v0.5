@@ -1,9 +1,10 @@
 'use client'
 
+import { apiService } from '@/services/api';
 import { useState, useEffect } from 'react'
-import Button from '@/components/ui/Button'  // ✅ Line 4 - FIXED
-import Input from '@/components/ui/Input'    // ✅ Line 5 - FIXED
-import Select from '@/components/ui/Select'  // ✅ Line 6 - FIXED
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
+import Select from '@/components/ui/Select'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import {
     PuzzlePieceIcon,
@@ -73,7 +74,7 @@ export default function Stage2Form({
         setIsSearching(true)
         try {
             const data = await symptomAPI.search(query)
-            const mapped: Symptom[] = (data || []).map((r, idx) => ({
+            const mapped: Symptom[] = (data || []).map((r: any, idx: number) => ({
                 id: String(r.source_id ?? `g-${idx}-${r.name}`),
                 name: r.name,
                 description: undefined,
@@ -88,6 +89,7 @@ export default function Stage2Form({
             setIsSearching(false)
         }
     }
+
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -282,7 +284,8 @@ export default function Stage2Form({
                                                     setNewSymptomName(searchQuery)
                                                     setShowNewSymptomModal(true)
                                                 }}
-                                                className="text-sm bg-amber-600 hover:bg-amber-700 text-white px-3 py-2"
+                                                variant="secondary"
+                                                className="text-sm px-3 py-2"
                                             >
                                                 <PlusIcon className="h-4 w-4 mr-2" />
                                                 Create Custom Symptom
@@ -330,7 +333,7 @@ export default function Stage2Form({
                         <Button
                             type="button"
                             onClick={onBack}
-                            variant="outline"
+                            variant="secondary"
                             className="px-6 py-3"
                         >
                             ← Back to Demographics
@@ -376,7 +379,7 @@ export default function Stage2Form({
                                     setShowNewSymptomModal(false)
                                     setNewSymptomName('')
                                 }}
-                                variant="outline"
+                                variant="secondary"
                             >
                                 Cancel
                             </Button>
@@ -450,7 +453,9 @@ function SymptomCard({ symptom, onUpdate, onRemove }: SymptomCardProps) {
                     </label>
                     <Select
                         value={symptom.severity}
-                        onValueChange={(value) => onUpdate(symptom.symptom_id, { severity: value as any })}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                            onUpdate(symptom.symptom_id, { severity: e.target.value as 'Mild' | 'Moderate' | 'Severe' })
+                        }
                         options={[
                             { value: 'Mild', label: 'Mild' },
                             { value: 'Moderate', label: 'Moderate' },
@@ -465,7 +470,9 @@ function SymptomCard({ symptom, onUpdate, onRemove }: SymptomCardProps) {
                     </label>
                     <Select
                         value={symptom.frequency}
-                        onValueChange={(value) => onUpdate(symptom.symptom_id, { frequency: value as any })}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                            onUpdate(symptom.symptom_id, { frequency: e.target.value as 'Hourly' | 'Daily' | 'Weekly' | 'Constant' })
+                        }
                         options={[
                             { value: 'Hourly', label: 'Hourly' },
                             { value: 'Daily', label: 'Daily' },
@@ -492,9 +499,11 @@ function SymptomCard({ symptom, onUpdate, onRemove }: SymptomCardProps) {
                     />
                     <Select
                         value={symptom.duration.unit}
-                        onValueChange={(value) => onUpdate(symptom.symptom_id, {
-                            duration: { ...symptom.duration, unit: value as any }
-                        })}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                            onUpdate(symptom.symptom_id, {
+                                duration: { ...symptom.duration, unit: e.target.value as 'Days' | 'Weeks' | 'Months' | 'Years' }
+                            })
+                        }
                         options={[
                             { value: 'Days', label: 'Days' },
                             { value: 'Weeks', label: 'Weeks' },

@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from typing import Annotated, Dict, Any, Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
-
+import logging
+from app.core.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.security import get_current_user_id, require_any_role
 from app.models.symptom import (
@@ -17,7 +18,7 @@ from app.models.symptom import (
 )
 
 router = APIRouter()
-
+logger = logging.getLogger(__name__)
 
 # Pydantic schemas for request/response
 class InformantSelection(BaseModel):
@@ -523,6 +524,119 @@ async def list_intake_patients(
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
         }
+        pass
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/symptoms/search")
+async def search_symptoms(
+    q: str = Query(..., description="Search query"),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Search for symptoms (global + user's custom symptoms)
+    """
+    try:
+        logger.info(f"🔍 Searching symptoms: query='{q}', limit={limit}, user={current_user.id}")
+        
+        # Mock response for now - replace with actual database query later
+        mock_results = [
+            {"source_id": "1", "name": "Mania", "category": "Mood", "type": "global"},
+            {"source_id": "2", "name": "Manic Episode", "category": "Mood", "type": "global"},
+            {"source_id": "3", "name": "Depression", "category": "Mood", "type": "global"},
+            {"source_id": "4", "name": "Depressive Episode", "category": "Mood", "type": "global"},
+            {"source_id": "5", "name": "Anxiety", "category": "Mood", "type": "global"},
+            {"source_id": "6", "name": "Panic Attack", "category": "Mood", "type": "global"},
+            {"source_id": "7", "name": "Insomnia", "category": "Sleep", "type": "global"},
+            {"source_id": "8", "name": "Hypersomnia", "category": "Sleep", "type": "global"},
+            {"source_id": "9", "name": "Fatigue", "category": "Physical", "type": "global"},
+            {"source_id": "10", "name": "Loss of Energy", "category": "Physical", "type": "global"},
+            {"source_id": "11", "name": "Irritability", "category": "Mood", "type": "global"},
+            {"source_id": "12", "name": "Restlessness", "category": "Physical", "type": "global"},
+            {"source_id": "13", "name": "Loss of Appetite", "category": "Physical", "type": "global"},
+            {"source_id": "14", "name": "Weight Loss", "category": "Physical", "type": "global"},
+            {"source_id": "15", "name": "Weight Gain", "category": "Physical", "type": "global"},
+            {"source_id": "16", "name": "Suicidal Thoughts", "category": "Mood", "type": "global"},
+            {"source_id": "17", "name": "Hallucinations", "category": "Psychotic", "type": "global"},
+            {"source_id": "18", "name": "Delusions", "category": "Psychotic", "type": "global"},
+            {"source_id": "19", "name": "Racing Thoughts", "category": "Cognitive", "type": "global"},
+            {"source_id": "20", "name": "Difficulty Concentrating", "category": "Cognitive", "type": "global"},
+            {"source_id": "21", "name": "Memory Problems", "category": "Cognitive", "type": "global"},
+            {"source_id": "22", "name": "Social Withdrawal", "category": "Behavioral", "type": "global"},
+            {"source_id": "23", "name": "Agitation", "category": "Behavioral", "type": "global"},
+            {"source_id": "24", "name": "Psychomotor Retardation", "category": "Physical", "type": "global"},
+        ]
+        
+        # Filter results based on query (case-insensitive)
+        query_lower = q.lower()
+        filtered_results = [
+            r for r in mock_results 
+            if query_lower in r["name"].lower()
+        ][:limit]
+        
+        logger.info(f"✅ Found {len(filtered_results)} symptoms matching '{q}'")
+        
+        return {
+            "status": "success",
+            "data": {
+                "results": filtered_results,
+                "total": len(filtered_results),
+                "query": q
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Symptom search error: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "data": {"results": [], "total": 0}
+        }
+
+
+@router.post("/user_symptoms")
+async def create_user_symptom(
+    symptom_data: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Create a custom symptom for the current user
+    """
+    try:
+        symptom_name = symptom_data.get("name", "").strip()
+        
+        if not symptom_name:
+            raise HTTPException(status_code=400, detail="Symptom name is required")
+        
+        logger.info(f"📝 Creating custom symptom '{symptom_name}' for user {current_user.id}")
+        
+        # For now, return mock data - implement database storage later
+        symptom_id = f"custom_{current_user.id}_{symptom_name.replace(' ', '_').lower()}"
+        
+        logger.info(f"✅ Custom symptom created: {symptom_id}")
+        
+        return {
+            "status": "success",
+            "data": {
+                "symptom_id": symptom_id,
+                "name": symptom_name,
+                "categories": symptom_data.get("categories", ["Custom"]),
+                "type": "user",
+                "description": symptom_data.get("description", "")
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Create custom symptom error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create custom symptom: {str(e)}")
+
         
     except Exception as e:
         raise HTTPException(

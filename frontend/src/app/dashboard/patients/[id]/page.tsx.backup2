@@ -33,7 +33,7 @@ import ReportView from '@/components/report/ReportView'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
 // SymptomAssessment intentionally not imported here; feature lives in new patient registration only
 import { useAuthStore } from '@/store/authStore'
-import apiService from '@/services/api'
+import { apiService } from '@/services/api'
 import type { MedicationItem } from '@/types/report'
 
 interface Patient {
