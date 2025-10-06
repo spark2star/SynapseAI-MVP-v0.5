@@ -172,7 +172,7 @@ class IntakePatient(BaseModel):
     age = Column(Integer, nullable=False)
     sex = Column(String(20), nullable=False)  # 'Male', 'Female', 'Other'
     address = Column(Text, nullable=True)
-    
+    phone = Column(String(20), nullable=True)
     # Informants (who provided the information)
     informants = Column(JSONB, nullable=False, default=dict)  # {"selection": [...], "other_details": "..."}
     

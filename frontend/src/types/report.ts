@@ -8,6 +8,7 @@ export interface MedicationItem {
     frequency: string
     route?: string
     instructions?: string
+    generated_content?: string
 }
 
 export interface SessionReportRequest {
@@ -15,6 +16,7 @@ export interface SessionReportRequest {
     transcription: string
     medication_plan: MedicationItem[]
     additional_notes?: string
+    generated_content?: string
 }
 
 export interface ReportData {
@@ -26,11 +28,13 @@ export interface ReportData {
     model_used: string
     created_at: string
     transcription_length: number
+    generated_content?: string
 }
 
 export interface ReportResponse {
     status: string
     data: ReportData
+    generated_content?: string
 }
 
 

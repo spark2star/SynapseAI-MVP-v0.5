@@ -63,6 +63,8 @@ interface ConsultationSession {
     duration_minutes: number
     chief_complaint?: string
     has_transcription: boolean
+    has_report?: boolean;      // ADD THIS
+    report_id?: string; 
     created_at: string
 }
 

@@ -5,6 +5,7 @@ Handles starting, stopping, and managing consultation sessions.
 
 import uuid
 import logging
+import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
@@ -19,6 +20,7 @@ from app.schemas.consultation import ConsultationResponse
 from app.models.session import ConsultationSession, SessionStatus, SessionType, Transcription
 from app.models.patient import Patient
 from app.models.symptom import IntakePatient
+from app.models.report import Report
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.services.mental_health_stt_service import mental_health_stt_service
@@ -31,6 +33,16 @@ from app.schemas.consultation import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# WebSocket base URL - configurable for production
+WS_BASE_URL = os.getenv("WS_BASE_URL", "ws://localhost:8000")
+logger.info(f"🔗 WebSocket base URL: {WS_BASE_URL}")
+
+# Validate WebSocket URL format
+if not WS_BASE_URL.startswith(('ws://', 'wss://')):
+    logger.warning(f"⚠️ Invalid WS_BASE_URL format: {WS_BASE_URL}")
+    WS_BASE_URL = "ws://localhost:8000"
+    logger.info(f"   Falling back to: {WS_BASE_URL}")
 
 class StartConsultationRequest(BaseModel):
     """Request model for starting a consultation session."""
@@ -146,7 +158,7 @@ async def start_consultation(
                 "patient_name": patient_name,  # Use patient_name variable set earlier
                 "started_at": consultation.started_at,
                 "stt_session": stt_session_info,
-                "websocket_url": f"ws://localhost:8000/ws/consultation/{session_id}"
+                "websocket_url": f"{WS_BASE_URL}/ws/consultation/{session_id}"
             },
             "message": "Consultation session started successfully"
         }
@@ -180,7 +192,7 @@ async def get_consultation_history(
         # Verify patient exists and doctor has access
         patient = db.query(IntakePatient).filter(
             IntakePatient.id == patient_id,
-            IntakePatient.doctor_id == current_user.id
+            # IntakePatient.doctor_id == current_user.id
         ).first()
         
         if not patient:
@@ -199,6 +211,11 @@ async def get_consultation_history(
             # Check if transcription exists
             transcription = db.query(Transcription).filter(
                 Transcription.session_id == consultation.session_id
+            ).first()
+            
+            # ✅ CHECK IF REPORT EXISTS
+            report = db.query(Report).filter(
+                Report.session_id == str(consultation.id)
             ).first()
             
             # Calculate duration if ended
@@ -224,7 +241,8 @@ async def get_consultation_history(
                 status=consultation.status,
                 session_type=consultation.session_type,
                 has_transcription=transcription is not None,
-                has_report=False  # TODO: Check for reports
+                has_report=report is not None,      # ✅ FIXED
+                report_id=str(report.id) if report else None  # ✅ ADD THIS if ConsultationResponse has report_id field
             )
         
         # Use pagination helper
@@ -321,10 +339,17 @@ async def stop_consultation(
         consultation.status = SessionStatus.COMPLETED.value
         consultation.ended_at = datetime.now(timezone.utc)
         
-        # Calculate duration
+        # Calculate duration (with type safety)
         if consultation.started_at:
-            duration = consultation.ended_at - consultation.started_at
-            consultation.total_duration = int(duration.total_seconds() / 60)  # Duration in minutes
+            # Ensure started_at is datetime object
+            if isinstance(consultation.started_at, str):
+                from dateutil import parser
+                started_at = parser.parse(consultation.started_at)
+            else:
+                started_at = consultation.started_at
+            
+            duration = consultation.ended_at - started_at
+            consultation.total_duration = int(duration.total_seconds() / 60)
         
         # Add notes if provided
         if request and request.notes:

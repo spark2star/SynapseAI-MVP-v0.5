@@ -530,6 +530,88 @@ async def list_intake_patients(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.put("/patients/{patient_id}", response_model=Dict[str, Any])
+async def update_intake_patient(
+    patient_id: str,
+    patient_data: dict,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+    _: Dict[str, Any] = Depends(require_any_role(["admin", "doctor", "receptionist"]))
+):
+    """
+    Update patient details.
+    
+    Allowed fields:
+    - name, age, sex, address, phone, email
+    - illness_duration_value, illness_duration_unit
+    - referred_by, precipitating_factor_narrative
+    - informants
+    """
+    try:
+        import traceback
+        
+        # Find patient belonging to this doctor
+        patient = db.query(IntakePatient).filter(
+            IntakePatient.id == patient_id,
+            IntakePatient.doctor_id == current_user_id
+        ).first()
+        
+        if not patient:
+            raise HTTPException(
+                status_code=404,
+                detail="Patient not found or you don't have permission to edit"
+            )
+        
+        logger.info(f"📝 Updating patient {patient_id}: {list(patient_data.keys())}")
+        
+        # Update allowed fields
+        updatable_fields = [
+            'name', 'age', 'sex', 'address', 'phone', 'email',
+            'illness_duration_value', 'illness_duration_unit',
+            'referred_by', 'precipitating_factor_narrative',
+            'precipitating_factor_tags', 'informants'
+        ]
+        
+        updated_count = 0
+        for key, value in patient_data.items():
+            if key in updatable_fields and hasattr(patient, key):
+                old_value = getattr(patient, key)
+                setattr(patient, key, value)
+                if old_value != value:
+                    updated_count += 1
+                    logger.info(f"  → {key}: changed")
+        
+        patient.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        db.refresh(patient)
+        
+        logger.info(f"✅ Patient {patient_id} updated: {updated_count} fields changed")
+        
+        return {
+            "status": "success",
+            "message": f"Patient updated successfully ({updated_count} fields)",
+            "data": {
+                "patient": patient.to_dict(),
+                "updated_fields": updated_count
+            },
+            "metadata": {
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Update patient error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update patient: {str(e)}"
+        )
+
+
 @router.get("/symptoms/search")
 async def search_symptoms(
     q: str = Query(..., description="Search query"),

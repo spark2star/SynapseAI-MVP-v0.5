@@ -127,6 +127,196 @@ async def generate_report_db_backed(
         raise HTTPException(status_code=500, detail="Failed to create report")
 
 
+@router.post("/generate")
+async def generate_report(
+    report_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_doctor_or_admin)
+):
+    """
+    Generate AI report from transcript and return the generated content.
+    This is a direct generation endpoint (does not persist to DB automatically).
+    
+    Expected payload:
+    {
+      "transcription": "transcript text",
+      "session_id": "uuid",
+      "patient_id": "uuid",
+      "session_type": "follow_up" | "new_patient"
+    }
+    """
+    try:
+        import traceback
+        
+        # Validate required fields
+        if not report_data.get('transcription'):
+            raise HTTPException(status_code=400, detail="Missing required field: transcription")
+        
+        session_type = report_data.get('session_type', 'follow_up')
+        transcription = report_data.get('transcription')
+        
+        logger.info(f"🤖 Generating {session_type} report from transcript ({len(transcription)} chars)")
+        
+        # Generate report using Gemini service
+        if not gemini_service:
+            raise HTTPException(
+                status_code=503,
+                detail="AI service unavailable. Please configure Gemini API key."
+            )
+        
+        report_result = await gemini_service.generate_medical_report(
+            transcription=transcription,
+            session_type=session_type
+        )
+        
+        if report_result.get('status') == 'error':
+            raise HTTPException(
+                status_code=500,
+                detail=f"AI generation failed: {report_result.get('error')}"
+            )
+        
+        logger.info(f"✅ Report generated successfully using {report_result.get('model_used')}")
+        
+        return {
+            "status": "success",
+            "data": {
+                "report": report_result.get('report'),
+                "model_used": report_result.get('model_used'),
+                "session_type": report_result.get('session_type'),
+                "transcription_length": report_result.get('transcription_length'),
+                "generated_at": report_result.get('generated_at')
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Report generation error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate report: {str(e)}"
+        )
+
+
+@router.post("/save")
+async def save_report(
+    report_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_doctor_or_admin)
+):
+    """
+    Save generated report to database.
+    
+    Expected payload:
+    {
+      "session_id": "uuid",
+      "patient_id": "uuid",
+      "generated_content": "report markdown text",
+      "report_type": "follow_up" | "new_patient",
+      "status": "DRAFT" | "COMPLETED",
+      "medication_plan": [...]  # optional
+    }
+    """
+    try:
+        import traceback
+        from datetime import datetime
+        
+        # Validate required fields
+        required_fields = ['session_id', 'patient_id', 'generated_content']
+        for field in required_fields:
+            if not report_data.get(field):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing required field: {field}"
+                )
+        
+        session_id = report_data.get('session_id')
+        patient_id = report_data.get('patient_id')
+        
+        # Verify session exists and belongs to current user
+        session_obj = db.query(ConsultationSession).filter(
+            ConsultationSession.session_id == session_id,
+            ConsultationSession.doctor_id == current_user.id
+        ).first()
+        
+        if not session_obj:
+            raise HTTPException(
+                status_code=404,
+                detail="Session not found or access denied"
+            )
+        
+        # Get or create transcription for this session
+        transcription = db.query(Transcription).filter(
+            Transcription.session_id == session_obj.id
+        ).first()
+        
+        if not transcription:
+            # Create a transcription record if none exists
+            transcription = Transcription(
+                session_id=session_obj.id,
+                transcript_text="",
+                processing_status=TranscriptionStatus.COMPLETED.value,
+                processing_completed_at=datetime.now(timezone.utc).isoformat()
+            )
+            db.add(transcription)
+            db.commit()
+            db.refresh(transcription)
+        
+        # Create report record
+        report = Report(
+            id=str(uuid.uuid4()),
+            session_id=session_obj.id,
+            transcription_id=transcription.id,
+            generated_content=report_data.get('generated_content'),
+            report_type=report_data.get('report_type', 'consultation'),
+            status=report_data.get('status', 'completed'),
+            ai_model="gemini-2.5-flash",
+            structured_data={
+                'medication_plan': report_data.get('medication_plan', []),
+                'additional_notes': report_data.get('additional_notes', ''),
+                'session_type': report_data.get('report_type', 'follow_up')
+            },
+            generation_started_at=datetime.now(timezone.utc).isoformat(),
+            generation_completed_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(report)
+        db.commit()
+        db.refresh(report)
+        
+        logger.info(f"✅ Report saved successfully: {report.id} for patient {patient_id}")
+        
+        return {
+            "status": "success",
+            "message": "Report saved successfully",
+            "data": {
+                "report": {
+                    "id": report.id,
+                    "session_id": session_id,
+                    "patient_id": patient_id,
+                    "report_type": report.report_type,
+                    "status": report.status,
+                    "generated_at": report.generation_completed_at,
+                    "created_at": report.created_at.isoformat() if report.created_at else None
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Report save error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save report: {str(e)}"
+        )
+
+
 @router.get("/health")
 async def health_check():
     """Check health of AI services."""
@@ -511,7 +701,7 @@ async def get_report_detail(
             # Signature
             signed_by=signature_user.email if signature_user else None,
             signed_at=report.signed_at,
-            signature_data=report.signature_data,
+            # signature_data=report.signature_data,  # TODO: Fix - field does not exist
             
             # Transcription
             transcription_id=str(report.transcription_id) if report.transcription_id else None,

@@ -83,8 +83,9 @@ async def list_patients(
                 name=p.name,
                 age=p.age,
                 sex=p.sex,
-                phone=p.phone or "",
-                email=p.email or "",
+                # phone=p.phone or "",
+                phone=getattr(p, 'phone', '') or '',  # Safe access to phone field
+                # email=p.email or "",
                 address=p.address or "",
                 referred_by=p.referred_by or "",
                 illness_duration=f"{p.illness_duration_value} {p.illness_duration_unit}" if p.illness_duration_value else "",

@@ -17,6 +17,7 @@ export interface ConsultationHistoryItem {
 
 export interface ConsultationHistoryResponse {
     patient_id: string;
+    patient_name?: string;
     total_consultations: number;
     consultations: ConsultationHistoryItem[];
 }

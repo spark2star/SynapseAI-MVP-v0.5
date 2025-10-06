@@ -37,6 +37,7 @@ class AuditEventType(str, Enum):
     SESSION_STARTED = "session_started"
     SESSION_ENDED = "session_ended"
     SESSION_PAUSED = "session_paused"
+    CONSULTATION_COMPLETED = "consultation_completed"
     SESSION_RESUMED = "session_resumed"
     SESSION_RECORDING_STARTED = "session_recording_started"
     SESSION_RECORDING_STOPPED = "session_recording_stopped"

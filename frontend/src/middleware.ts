@@ -14,7 +14,12 @@ export function middleware(request: NextRequest) {
     });
 
     // Public paths that don't require authentication
-    const publicPaths = ['/', '/landing', '/auth/login', '/auth/signup', '/register', '/auth/forgot-password', '/auth/change-password', '/about', '/contact'];
+    const publicPaths = ['/', '/landing', '/auth/login', '/auth/signup', '/register', '/auth/forgot-password', '/auth/change-password', '/about', '/contact',
+        '/Logo-MVP-v0.5.png',
+        '/_next',
+        '/favicon.ico',
+        '/api',
+    ];
     const isPublicPath = publicPaths.some(path => pathname === path || pathname.startsWith(path + '/'));
 
     // CRITICAL: If authenticated and on login page, redirect to dashboard
@@ -66,6 +71,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
 }
 
+
 export const config = {
     matcher: [
         /*
@@ -74,9 +80,10 @@ export const config = {
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * - public folder
+         * - any file with an extension (.*\\..*) - covers all static assets like images, fonts, etc.
          */
-        '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+        '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)' ,
     ],
 };
+
 

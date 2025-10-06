@@ -66,8 +66,10 @@ ALLOWED_FILE_TYPES=["pdf", "doc", "docx", "jpg", "jpeg", "png"]
 # Session Configuration
 SESSION_EXPIRE_MINUTES=30
 
-
-
+# WebSocket Configuration
+# For local development
+WS_BASE_URL=ws://localhost:8000
+# For production, update to: WS_BASE_URL=wss://your-production-domain.com
 
 
 # ============================================================================

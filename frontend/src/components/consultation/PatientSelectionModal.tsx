@@ -12,7 +12,7 @@ import { toast } from 'react-hot-toast'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import apiService from '@/services/api'
+import {apiService} from '@/services/api'
 
 interface Patient {
     id: string

@@ -286,3 +286,54 @@ class SecurityValidator:
         import re
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(pattern, email) is not None
+
+
+# ============================================================================
+# PASSWORD HASHING UTILITIES (Argon2id - Modern Standard)
+# ============================================================================
+
+from passlib.context import CryptContext
+
+# Password hashing context using Argon2id (more secure than bcrypt)
+pwd_context = CryptContext(
+    schemes=["argon2"], 
+    deprecated="auto",
+    argon2__time_cost=2,
+    argon2__memory_cost=512,
+    argon2__parallelism=2
+)
+
+
+def get_password_hash(password: str) -> str:
+    """
+    Hash a password using Argon2id.
+    
+    Argon2id is the winner of the Password Hashing Competition (2015)
+    and is recommended over bcrypt for new applications.
+    
+    Args:
+        password: Plain text password
+        
+    Returns:
+        Hashed password string
+    """
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verify a password against its Argon2 hash.
+    
+    Args:
+        plain_password: Plain text password to verify
+        hashed_password: Previously hashed password
+        
+    Returns:
+        True if password matches, False otherwise
+    """
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def hash_password(password: str) -> str:
+    """Alias for get_password_hash for backward compatibility."""
+    return get_password_hash(password)

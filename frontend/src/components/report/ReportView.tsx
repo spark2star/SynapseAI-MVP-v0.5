@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react'
 import { ArrowLeftIcon, PrinterIcon } from '@heroicons/react/24/outline'
-import apiService from '@/services/api'
+import { apiService } from '@/services/api'
 import type { ReportData } from '@/types/report'
 
 interface ReportViewProps {
-    reportId: number
+    reportId: string  // Change to string for UUID
     onBack: () => void
 }
 
@@ -121,7 +121,7 @@ const ReportView: React.FC<ReportViewProps> = ({ reportId, onBack }) => {
                         <div
                             className="whitespace-pre-wrap text-gray-800 dark:text-gray-200"
                             dangerouslySetInnerHTML={{
-                                __html: report.report_content
+                                __html: (report.generated_content || '')
                                     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                                     .replace(/\n/g, '<br>')
                             }}

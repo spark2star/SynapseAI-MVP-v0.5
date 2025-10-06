@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+// import {apiService} from '@/services/api';
 
 class ApiService {
   private api: AxiosInstance;
@@ -6,9 +7,9 @@ class ApiService {
 
   constructor() {
     this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
-    
+
     console.log('🔧 API Service initialized with base URL:', this.baseURL);
-    
+
     this.api = axios.create({
       baseURL: this.baseURL,
       headers: {
@@ -24,7 +25,7 @@ class ApiService {
           config.headers.Authorization = `Bearer ${token}`;
           console.log('🔑 Auth header added for:', config.url);
         }
-        
+
         console.log('🚀 API Request:', config.method?.toUpperCase(), `${this.baseURL}${config.url}`);
         return config;
       },
@@ -43,13 +44,13 @@ class ApiService {
       (error: AxiosError) => {
         console.error('❌ API Error:', error.response?.status, '-', error.config?.url);
         console.error('Response data:', error.response?.data);
-        
+
         // Handle 401 Unauthorized
         if (error.response?.status === 401) {
           localStorage.removeItem('access_token');
           window.location.href = '/login';
         }
-        
+
         return Promise.reject(error);
       }
     );
@@ -223,6 +224,27 @@ class ApiService {
    */
   async getPatientSessions(patientId: string) {
     const response = await this.api.get(`/patients/${patientId}/sessions`);
+    return response.data;
+  }
+
+  /**
+   * Update patient information
+   */
+  async updatePatient(patientId: string, patientData: Partial<{
+    name: string
+    age: number
+    sex: string
+    address: string
+    phone: string
+    email: string
+    illness_duration_value: number
+    illness_duration_unit: string
+    referred_by: string
+    precipitating_factor_narrative: string
+    precipitating_factor_tags: string[]
+    informants: any
+  }>) {
+    const response = await this.api.put(`/intake/patients/${patientId}`, patientData);
     return response.data;
   }
 

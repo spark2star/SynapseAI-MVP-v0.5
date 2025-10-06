@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
     ArrowLeftIcon,
@@ -29,8 +29,11 @@ import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
+import MedicationModal, { Medication } from '@/components/consultation/MedicationModal'
 import { useAuthStore } from '@/store/authStore'
 import { apiService } from '@/services/api'
+import ReportView from '@/components/report/ReportView'
+
 
 interface Patient {
     id: string
@@ -59,12 +62,15 @@ interface ConsultationSession {
     duration_minutes: number
     chief_complaint?: string
     has_transcription: boolean
+    has_report?: boolean;      // ADD THIS
+    report_id?: string;
     created_at: string
 }
 
 export default function PatientDetailPage() {
     const params = useParams()
     const searchParams = useSearchParams()
+    const router = useRouter()
     const patientId = params?.id as string
     const isFollowUpMode = searchParams?.get('followup') === 'true'
     const isNewPatient = searchParams?.get('newPatient') === 'true'
@@ -87,6 +93,13 @@ export default function PatientDetailPage() {
     const [isGeneratingReport, setIsGeneratingReport] = useState(false)
     const [generatedReport, setGeneratedReport] = useState<any>(null)
     const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('')
+    const [showMedicationModal, setShowMedicationModal] = useState(false)
+    const [reportId, setReportId] = useState<string | null>(null)
+    const [showReportModal, setShowReportModal] = useState(false)
+    const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+    const [isEditMode, setIsEditMode] = useState(false)
+    const [editedPatient, setEditedPatient] = useState<any>(null)
+    const [isSavingPatient, setIsSavingPatient] = useState(false)
     const audioRecorderRef = useRef<{ stopRecording: () => void }>(null)
 
     useEffect(() => {
@@ -118,6 +131,33 @@ export default function PatientDetailPage() {
         }
     }, [isNewPatient, patient, isRecording, showNewConsultation, preSelectedSessionType])
 
+
+    // Listen for generate report event from EditableTranscript
+    useEffect(() => {
+        const handleOpenMedicationModal = (e: any) => {
+            console.log('📥 Received generate report event with transcript:', e.detail.transcript?.length || 0, 'chars')
+
+            // Set the final transcription
+            if (e.detail.transcript) {
+                setFinalTranscription(e.detail.transcript)
+            }
+
+            // Open medication modal
+            setShowMedicationModal(true)
+        }
+
+        // Listen for the custom event
+        window.addEventListener('open-session-summary-modal', handleOpenMedicationModal)
+
+        // Cleanup
+        return () => {
+            window.removeEventListener('open-session-summary-modal', handleOpenMedicationModal)
+        }
+    }, [])
+
+
+
+
     useEffect(() => {
         let interval: NodeJS.Timeout
         if (isRecording && !isPaused) {
@@ -131,29 +171,58 @@ export default function PatientDetailPage() {
     const fetchPatientDetails = async () => {
         try {
             setLoading(true)
+            console.log(`📋 Fetching patient details for: ${patientId}`)
 
-            // Mock patient data for demo
-            const mockPatient: Patient = {
-                id: patientId,
-                patient_id: `PAT-${patientId.slice(-4).toUpperCase()}`,
-                full_name: patientId === 'patient-1' ? 'John Doe' : 'Jane Smith',
-                age: patientId === 'patient-1' ? 35 : 28,
-                gender: patientId === 'patient-1' ? 'male' : 'female',
-                phone_primary: patientId === 'patient-1' ? '+1-555-1234' : '+1-555-5678',
-                email: patientId === 'patient-1' ? 'john.doe@email.com' : 'jane.smith@email.com',
-                address: patientId === 'patient-1' ? '123 Main St, City, State 12345' : '456 Oak Ave, City, State 67890',
-                emergency_contact: patientId === 'patient-1' ? 'Mary Doe (+1-555-9999)' : 'Bob Smith (+1-555-8888)',
-                blood_group: patientId === 'patient-1' ? 'O+' : 'A+',
-                allergies: patientId === 'patient-1' ? 'Penicillin, Peanuts' : 'None known',
-                medical_history: patientId === 'patient-1' ? 'Hypertension, Diabetes Type 2' : 'Asthma',
-                created_at: '2024-01-01T00:00:00Z',
-                last_visit: patientId === 'patient-1' ? undefined : '2024-01-15T10:00:00Z'
+            // Fetch patient data from backend
+            const patientResponse = await apiService.get(`/intake/patients/${patientId}`)
+
+            if (patientResponse.status === 'success' && patientResponse.data) {
+                const patientData = patientResponse.data
+                // Add this validation:
+                if (!patientData || !patientData.id) {
+                    console.error('❌ Invalid patient data:', patientData)
+                    throw new Error('Patient data is missing')
+                }
+                console.log('✅ Patient data loaded:', patientData)
+
+                // Map backend data to frontend Patient interface
+                const mappedPatient: Patient = {
+                    id: patientData.id,
+                    patient_id: patientData.id,
+                    full_name: patientData.name,
+                    age: patientData.age,
+                    gender: patientData.sex,
+                    phone_primary: patientData.phone || 'N/A',
+                    email: patientData.email || '',
+                    address: patientData.address || '',
+                    emergency_contact: '',
+                    blood_group: '',
+                    allergies: '',
+                    medical_history: '',
+                    created_at: patientData.created_at || new Date().toISOString(),
+                    last_visit: undefined
+                }
+
+                setPatient(mappedPatient)
+
+                // Also fetch consultation history
+                try {
+                    const historyResponse = await apiService.get(`/consultation/history/${patientId}`)
+                    if (historyResponse.status === 'success' && historyResponse.data) {
+                        console.log('✅ Consultation history loaded:', historyResponse.data.consultations?.length || 0)
+                    }
+                } catch (historyError) {
+                    console.warn('⚠️ Could not load consultation history:', historyError)
+                    // Don't block page load if history fails
+                }
+            } else {
+                throw new Error('Invalid response format')
             }
-
-            setPatient(mockPatient)
         } catch (error) {
-            console.error('Error fetching patient:', error)
+            console.error('❌ Error fetching patient:', error)
             toast.error('Failed to load patient details')
+            // Optionally redirect to patients list
+            // router.push('/dashboard/patients')
         } finally {
             setLoading(false)
         }
@@ -164,21 +233,26 @@ export default function PatientDetailPage() {
             console.log('📋 Fetching consultation history for patient:', patientId)
 
             const consultationService = (await import('@/services/consultationService')).default
-            const history = await consultationService.getHistory(patientId)
+            const response = await consultationService.getHistory(patientId)
 
-            console.log(`✅ Loaded ${history.total_consultations} consultations`)
+            // ✅ FIX: Parse the correct nested structure
+            const consultations = response.consultations
 
-            const mappedSessions: ConsultationSession[] = history.consultations.map(c => ({
+            console.log(`✅ Loaded ${consultations.length} consultations`)
+
+            const mappedSessions: ConsultationSession[] = consultations.map((c: any) => ({
                 id: c.id,
-                session_id: c.session_id,
-                session_type: c.session_type,
+                session_id: c.sessionId || c.session_id,
+                session_type: c.sessionType || c.session_type,
                 status: c.status,
-                started_at: c.started_at,
-                ended_at: c.ended_at || undefined,
-                duration_minutes: c.duration_minutes || 0,
-                chief_complaint: c.chief_complaint || 'Not specified',
-                has_transcription: c.has_transcription,
-                created_at: c.created_at
+                started_at: c.startedAt || c.started_at,
+                ended_at: c.endedAt || c.ended_at || undefined,
+                duration_minutes: c.durationMinutes || c.duration_minutes || 0,
+                chief_complaint: c.chiefComplaint || c.chief_complaint || 'Not specified',
+                has_transcription: c.hasTranscription || c.has_transcription,
+                has_report: c.hasReport || c.has_report,  // ADD THIS
+                report_id: c.reportId || c.report_id,      // ADD THIS
+                created_at: c.createdAt || c.created_at
             }))
 
             setSessions(mappedSessions)
@@ -188,6 +262,7 @@ export default function PatientDetailPage() {
             setSessions([])
         }
     }
+
 
     const startConsultation = async () => {
         if (!chiefComplaint.trim()) {
@@ -338,72 +413,159 @@ export default function PatientDetailPage() {
         toast.success('Transcript updated successfully')
     }
 
-    const handleGenerateReport = async (transcriptText: string) => {
-        if (!transcriptText.trim()) {
-            toast.error('No transcript available to generate report')
-            return
+    const handleStartEdit = () => {
+        if (patient) {
+            setEditedPatient({
+                name: patient.full_name,
+                age: patient.age,
+                gender: patient.gender,
+                phone_primary: patient.phone_primary,
+                email: patient.email,
+                address: patient.address
+            })
+            setIsEditMode(true)
         }
+    }
 
-        setIsGeneratingReport(true)
-        console.log('🤖 Generating Gemini report for transcript length:', transcriptText.length)
+    const handleCancelEdit = () => {
+        setIsEditMode(false)
+        setEditedPatient(null)
+    }
+
+    const handleSavePatient = async () => {
+        if (!editedPatient) return
 
         try {
-            // Call the Gemini API to generate structured report
-            const reportRequest = {
-                transcription: transcriptText,
-                session_id: currentSession || 'unknown',
-                session_type: 'follow_up', // Since this is follow-up session
-                patient_id: patientId
+            setIsSavingPatient(true)
+            console.log('💾 Saving patient changes...')
+
+            // Map frontend fields to backend fields
+            const updatePayload = {
+                name: editedPatient.name,
+                age: parseInt(editedPatient.age),
+                sex: editedPatient.gender,
+                phone: editedPatient.phone_primary,
+                email: editedPatient.email,
+                address: editedPatient.address
             }
 
-            console.log('📤 Sending request to Gemini API:', {
-                session_id: reportRequest.session_id,
-                session_type: reportRequest.session_type,
-                patient_id: reportRequest.patient_id,
-                transcription_length: reportRequest.transcription.length,
-                transcription_preview: reportRequest.transcription.slice(0, 100) + '...'
-            })
-
-            const response = await apiService.post('/reports/generate', reportRequest)
+            const response = await apiService.updatePatient(patientId, updatePayload)
 
             if (response.status === 'success') {
-                // Store the generated report data
-                const reportData = response.data
-                console.log('📄 Generated Gemini Report:', {
-                    model: reportData.model_used,
-                    session_type: reportData.session_type,
-                    transcription_length: reportData.transcription_length,
-                    report_preview: typeof reportData.report === 'string' ? reportData.report.slice(0, 300) + '...' : reportData.report
-                })
+                // Update patient state with new data
+                const updatedPatientData = response.data.patient
+                const mappedPatient: Patient = {
+                    id: updatedPatientData.id,
+                    patient_id: updatedPatientData.id,
+                    full_name: updatedPatientData.name,
+                    age: updatedPatientData.age,
+                    gender: updatedPatientData.sex,
+                    phone_primary: updatedPatientData.phone || 'N/A',
+                    email: updatedPatientData.email || '',
+                    address: updatedPatientData.address || '',
+                    emergency_contact: '',
+                    blood_group: '',
+                    allergies: '',
+                    medical_history: '',
+                    created_at: updatedPatientData.created_at || new Date().toISOString(),
+                    last_visit: undefined
+                }
 
-                // Store report in a separate state variable (we'll create this)
-                setGeneratedReport(reportData)
+                setPatient(mappedPatient)
+                setIsEditMode(false)
+                setEditedPatient(null)
+                toast.success('Patient updated successfully')
+                console.log('✅ Patient updated:', response.data.updated_fields, 'fields changed')
+            }
+        } catch (error: any) {
+            console.error('❌ Update patient error:', error)
+            const errorMessage = error.response?.data?.detail ||
+                error.response?.data?.message ||
+                'Failed to update patient'
+            toast.error(errorMessage)
+        } finally {
+            setIsSavingPatient(false)
+        }
+    }
 
-                toast.success('✅ Medical report generated successfully with Gemini 2.5 Flash!')
-                console.log('🎯 Real Gemini 2.5 Flash report generated successfully!')
+    const handleGenerateReport = async (medications: Medication[] = []) => {
+        try {
+            setIsGeneratingReport(true)
+            setShowMedicationModal(false) // Close modal
+            console.log('🤖 Starting report generation with medications:', medications.length)
 
-                // No auto-scroll - let user control their view
-            } else {
+            // Validate required data
+            if (!finalTranscription || finalTranscription.trim().length === 0) {
+                toast.error('No transcript available to generate report')
+                return
+            }
+
+            if (!currentSession) {
+                toast.error('No active session found')
+                return
+            }
+
+            // STEP 1: Generate report content using AI
+            console.log('📝 Calling AI to generate report...')
+            const generatePayload = {
+                transcription: finalTranscription,
+                session_id: currentSession,
+                patient_id: patientId,
+                session_type: sessionType || 'follow_up',
+                medication_plan: medications // Pass medications to AI
+            }
+
+            const reportResponse = await apiService.post('/reports/generate', generatePayload)
+
+            if (reportResponse.status !== 'success' || !reportResponse.data?.report) {
                 throw new Error('Report generation failed')
             }
 
-        } catch (error: any) {
-            console.error('❌ Error generating Gemini report:', error)
-            console.error('❌ Error details:', {
-                status: error?.response?.status,
-                data: error?.response?.data,
-                message: error?.message
-            })
+            const generatedContent = reportResponse.data.report
+            console.log('✅ Report generated by AI')
 
-            if (error?.response?.status === 400) {
-                toast.error('Invalid transcript content. Please check your input.')
-            } else if (error?.response?.status === 503) {
-                toast.error('⚠️ Please set up your Gemini API key first!')
-            } else if (error?.response?.status === 500) {
-                toast.error('AI service temporarily unavailable. Please try again.')
-            } else {
-                toast.error('Failed to generate report. Please try again.')
+            // STEP 2: Save report to database
+            console.log('💾 Saving report to database...')
+            const savePayload = {
+                session_id: currentSession,
+                patient_id: patientId,
+                generated_content: generatedContent,
+                report_type: sessionType || 'follow_up',
+                status: 'completed',
+                medication_plan: medications
             }
+
+            const saveResponse = await apiService.post('/reports/save', savePayload)
+
+            if (saveResponse.status !== 'success') {
+                throw new Error('Failed to save report')
+            }
+
+            // STEP 3: Update UI with saved report
+            console.log('✅ Report saved successfully:', saveResponse.data.report.id)
+            setGeneratedReport(reportResponse.data)
+            setReportId(saveResponse.data.report.id)
+
+            toast.success('Report generated and saved successfully!')
+
+            // Scroll to report display
+            setTimeout(() => {
+                const reportElement = document.getElementById('generated-report')
+                if (reportElement) {
+                    reportElement.scrollIntoView({ behavior: 'smooth' })
+                }
+            }, 100)
+
+        } catch (error: any) {
+            console.error('❌ Report generation error:', error)
+
+            // User-friendly error messages
+            const errorMessage = error.response?.data?.detail ||
+                error.response?.data?.message ||
+                error.message ||
+                'Failed to generate report'
+
+            toast.error(errorMessage)
         } finally {
             setIsGeneratingReport(false)
         }
@@ -411,10 +573,10 @@ export default function PatientDetailPage() {
 
     if (loading) {
         return (
-            <div className="space-y-6">
-                <div className="animate-pulse">
-                    <div className="h-8 bg-neutral-200 rounded mb-4"></div>
-                    <div className="h-48 bg-neutral-200 rounded"></div>
+            <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-400">Loading patient details...</p>
                 </div>
             </div>
         )
@@ -422,9 +584,18 @@ export default function PatientDetailPage() {
 
     if (!patient) {
         return (
-            <div className="text-center py-12">
-                <UserIcon className="mx-auto h-12 w-12 text-neutral-400" />
-                <h3 className="mt-2 text-sm font-medium text-neutral-900">Patient not found</h3>
+            <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
+                <div className="text-center">
+                    <UserIcon className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                    <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-4">Patient not found</h3>
+                    <p className="text-neutral-600 dark:text-neutral-400 mb-6">The patient you're looking for doesn't exist or you don't have access.</p>
+                    <button
+                        onClick={() => router.push('/dashboard/patients')}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    >
+                        Back to Patients
+                    </button>
+                </div>
             </div>
         )
     }
@@ -540,7 +711,7 @@ export default function PatientDetailPage() {
                             liveTranscription={liveTranscription}
                             isRecording={isRecording}
                             onTranscriptionEdit={handleTranscriptionEdit}
-                            onGenerateReport={handleGenerateReport}
+                            onGenerateReport={() => setShowMedicationModal(true)}
                             sessionId={currentSession}
                         />
                     </div>
@@ -551,9 +722,17 @@ export default function PatientDetailPage() {
                     <MedicalReportDisplay
                         reportData={generatedReport}
                         isGenerating={isGeneratingReport}
-                        onGenerateNew={() => handleGenerateReport(finalTranscription)}
+                        onGenerateNew={() => setShowMedicationModal(true)}
                     />
                 )}
+
+                {/* Medication Modal */}
+                <MedicationModal
+                    isOpen={showMedicationModal}
+                    onClose={() => setShowMedicationModal(false)}
+                    onSubmit={handleGenerateReport}
+                    isLoading={isGeneratingReport}
+                />
 
                 {/* Mental Health Follow-Up Interface - Hide when report is displayed */}
                 {showNewConsultation && !generatedReport && (
@@ -675,38 +854,138 @@ export default function PatientDetailPage() {
                     {/* Basic Info */}
                     <div className="lg:col-span-2 medical-card">
                         <div className="p-6">
-                            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Patient Information</h2>
+                            {/* Header with Edit/Save/Cancel buttons */}
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Patient Information</h2>
+                                {!isEditMode ? (
+                                    <Button
+                                        onClick={handleStartEdit}
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={isRecording}
+                                    >
+                                        Edit Patient
+                                    </Button>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={handleCancelEdit}
+                                            variant="secondary"
+                                            size="sm"
+                                            disabled={isSavingPatient}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleSavePatient}
+                                            variant="primary"
+                                            size="sm"
+                                            disabled={isSavingPatient}
+                                        >
+                                            {isSavingPatient ? 'Saving...' : 'Save Changes'}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Name */}
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Full Name</label>
+                                    {isEditMode && editedPatient ? (
+                                        <input
+                                            type="text"
+                                            value={editedPatient.name || ''}
+                                            onChange={(e) => setEditedPatient({ ...editedPatient, name: e.target.value })}
+                                            className="w-full border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 mt-1 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    ) : (
+                                        <p className="text-neutral-900 dark:text-neutral-100 font-medium mt-1">{patient.full_name}</p>
+                                    )}
+                                </div>
+
+                                {/* Age */}
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Age</label>
-                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.age} years</p>
+                                    {isEditMode && editedPatient ? (
+                                        <input
+                                            type="number"
+                                            value={editedPatient.age || ''}
+                                            onChange={(e) => setEditedPatient({ ...editedPatient, age: e.target.value })}
+                                            className="w-full border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 mt-1 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    ) : (
+                                        <p className="text-neutral-900 dark:text-neutral-100 font-medium mt-1">{patient.age} years</p>
+                                    )}
                                 </div>
 
+                                {/* Gender */}
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Gender</label>
-                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium capitalize">{patient.gender}</p>
+                                    {isEditMode && editedPatient ? (
+                                        <select
+                                            value={editedPatient.gender || ''}
+                                            onChange={(e) => setEditedPatient({ ...editedPatient, gender: e.target.value })}
+                                            className="w-full border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 mt-1 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="male">Male</option>
+                                            <option value="female">Female</option>
+                                            <option value="other">Other</option>
+                                        </select>
+                                    ) : (
+                                        <p className="text-neutral-900 dark:text-neutral-100 font-medium mt-1 capitalize">{patient.gender}</p>
+                                    )}
                                 </div>
 
+                                {/* Phone */}
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Phone</label>
-                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium flex items-center gap-2">
-                                        <PhoneIcon className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
-                                        {patient.phone_primary}
-                                    </p>
+                                    {isEditMode && editedPatient ? (
+                                        <input
+                                            type="tel"
+                                            value={editedPatient.phone_primary || ''}
+                                            onChange={(e) => setEditedPatient({ ...editedPatient, phone_primary: e.target.value })}
+                                            className="w-full border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 mt-1 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    ) : (
+                                        <p className="text-neutral-900 dark:text-neutral-100 font-medium flex items-center gap-2 mt-1">
+                                            <PhoneIcon className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                            {patient.phone_primary}
+                                        </p>
+                                    )}
                                 </div>
 
+                                {/* Email */}
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Email</label>
-                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium flex items-center gap-2">
-                                        <EnvelopeIcon className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
-                                        {patient.email}
-                                    </p>
+                                    {isEditMode && editedPatient ? (
+                                        <input
+                                            type="email"
+                                            value={editedPatient.email || ''}
+                                            onChange={(e) => setEditedPatient({ ...editedPatient, email: e.target.value })}
+                                            className="w-full border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 mt-1 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    ) : (
+                                        <p className="text-neutral-900 dark:text-neutral-100 font-medium flex items-center gap-2 mt-1">
+                                            <EnvelopeIcon className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                            {patient.email || 'N/A'}
+                                        </p>
+                                    )}
                                 </div>
 
+                                {/* Address */}
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Address</label>
-                                    <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.address}</p>
+                                    {isEditMode && editedPatient ? (
+                                        <textarea
+                                            value={editedPatient.address || ''}
+                                            onChange={(e) => setEditedPatient({ ...editedPatient, address: e.target.value })}
+                                            rows={2}
+                                            className="w-full border border-neutral-300 dark:border-neutral-600 rounded-lg px-3 py-2 mt-1 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    ) : (
+                                        <p className="text-neutral-900 dark:text-neutral-100 font-medium mt-1">{patient.address || 'N/A'}</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -817,8 +1096,15 @@ export default function PatientDetailPage() {
                                             </div>
                                         </div>
 
-                                        <Button variant="secondary" size="sm">
-                                            View Details
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={() => {
+                                                setSelectedReportId(session.report_id!)
+                                                setShowReportModal(true)
+                                            }}
+                                        >
+                                            📄 View Report
                                         </Button>
                                     </div>
                                 </div>
@@ -827,6 +1113,20 @@ export default function PatientDetailPage() {
                     )}
                 </div>
             </div>
+            {showReportModal && selectedReportId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="overflow-y-auto w-full max-w-6xl h-[90vh] bg-white dark:bg-neutral-900 rounded-lg overflow-hidden">
+                        <ReportView
+                            reportId={selectedReportId}
+                            onBack={() => {
+                                setShowReportModal(false)
+                                setSelectedReportId(null)
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
         </div>
     )
 }

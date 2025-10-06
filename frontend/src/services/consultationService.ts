@@ -3,7 +3,7 @@
  * Handles all consultation-related API calls
  */
 
-import apiService from './api';
+import { apiService } from './api';
 import type {
     ConsultationHistoryResponse,
     ConsultationDetailResponse,
@@ -16,10 +16,16 @@ export const consultationService = {
      * Fetch consultation history for a patient
      */
     getHistory: async (patientId: string): Promise<ConsultationHistoryResponse> => {
-        const response = await apiService.get<any>(`/consultation/history/${patientId}`);
+        const response = await apiService.get(`/consultation/history/${patientId}`);
 
         if (response.status === 'success' && response.data) {
-            return response.data as ConsultationHistoryResponse;
+            // ✅ FIX: Backend returns data.items, not consultations directly
+            return {
+                patient_id: response.data.patient_id || patientId,
+                patient_name: response.data.patient_name,
+                total_consultations: response.data.pagination?.total || 0,
+                consultations: response.data.items || []  // Parse items array
+            };
         }
 
         // Return empty history if no data
@@ -30,11 +36,13 @@ export const consultationService = {
         };
     },
 
+
+
     /**
      * Get detailed consultation information
      */
     getDetail: async (consultationId: string): Promise<ConsultationDetailResponse> => {
-        const response = await apiService.get<any>(`/consultation/detail/${consultationId}`);
+        const response = await apiService.get(`/consultation/detail/${consultationId}`);
 
         if (response.status === 'success' && response.data) {
             return response.data as ConsultationDetailResponse;
@@ -47,7 +55,7 @@ export const consultationService = {
      * Start a new consultation session
      */
     start: async (data: StartConsultationRequest): Promise<StartConsultationResponse> => {
-        const response = await apiService.post<any>('/consultation/start', data);
+        const response = await apiService.post('/consultation/start', data);
 
         if (response.status === 'success') {
             return response as StartConsultationResponse;
@@ -60,7 +68,7 @@ export const consultationService = {
      * Stop/end a consultation session
      */
     stop: async (sessionId: string, notes?: string): Promise<any> => {
-        const response = await apiService.post<any>(`/consultation/${sessionId}/stop`, {
+        const response = await apiService.post(`/consultation/${sessionId}/stop`, {
             notes: notes || ''
         });
 
