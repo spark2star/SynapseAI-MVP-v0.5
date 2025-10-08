@@ -11,7 +11,7 @@ import {
     EyeIcon,
     CommandLineIcon
 } from '@heroicons/react/24/outline'
-import Button  from '@/components/ui/Button'
+import Button from '@/components/ui/Button'
 
 interface EditableTranscriptProps {
     finalTranscription: string
@@ -53,8 +53,10 @@ export default function EditableTranscript({
     // Always use the latest finalTranscription as base, let editableFinalText be for active editing only
     const displayFinalText = isInlineEditing ? editableFinalText : finalTranscription
 
-    // Combine final text, manual text, and live transcription
-    const combinedText = [displayFinalText, manualText, liveTranscription].filter(Boolean).join('\n')
+
+    // Combine ONLY final text and manual text (not live transcription)
+    const combinedText = [displayFinalText, manualText].filter(Boolean).join(' ')
+
 
     useEffect(() => {
         setEditedText(displayFinalText)

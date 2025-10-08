@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
-// import {apiService} from '@/services/api';
 
 class ApiService {
   private api: AxiosInstance;
@@ -194,7 +193,6 @@ class ApiService {
   /**
    * Get paginated list of patients
    */
-  // ✅ BETTER FIX - Unwrap in API service:
   async getPatients(params: {
     limit?: number;
     offset?: number;
@@ -202,7 +200,6 @@ class ApiService {
   }) {
     const response = await this.api.get('/patients/list/', { params });
     
-    // ✅ ADD DEBUG LOGS:
     console.log('🔍 API RAW RESPONSE:', response);
     console.log('🔍 response.data:', response.data);
     console.log('🔍 response.data.data:', response.data?.data);
@@ -210,8 +207,6 @@ class ApiService {
     
     return response.data.data || response.data;
   }
-  
-
 
   /**
    * Create new patient
@@ -319,7 +314,6 @@ class ApiService {
     return response.data;
   }
 
-
   // Analytics endpoints
   async getPatientStatusStats() {
     const response = await this.api.get('/analytics/patient-status');
@@ -340,6 +334,7 @@ class ApiService {
     });
     return response.data;
   }
+
   /**
    * Submit contact message
    */
@@ -349,12 +344,9 @@ class ApiService {
   }
 }
 
+// ✅ Export singleton instance as default
+const apiClient = new ApiService();
+export default apiClient;
 
-// Export singleton instance
-export const apiService = new ApiService();
-
-
-
-
-// Also export class for testing
-export default ApiService;
+// ✅ Also export as named export for compatibility
+export const apiService = apiClient;

@@ -1,6 +1,7 @@
 """
-WebSocket endpoint for real-time audio transcription using Vertex AI Speech-to-Text.
-Implements secure, streaming transcription with speaker diarization and multi-language support.
+OLD WEBSOCKET IMPLEMENTATION - DEPRECATED
+Use REST API endpoint instead: app/api/api_v1/endpoints/transcribe.py
+Keeping this file for reference only.
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, status
