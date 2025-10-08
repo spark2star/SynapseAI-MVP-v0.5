@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production)$")
     
+    ALGORITHM: str = "HS256"  # JWT algorithm
+
     # Database
     DATABASE_URL: str = Field(..., min_length=1)
     DATABASE_POOL_SIZE: int = 20
@@ -29,12 +31,14 @@ class Settings(BaseSettings):
     REDIS_SESSION_DB: int = 1
     
     # Security
-    SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
-    JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    SECRET_KEY: str = Field(default="dev-secret-key-change-in-production")
+    JWT_SECRET_KEY: str = Field(default="dev-jwt-secret-key-change-in-production")
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 240
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     BCRYPT_ROUNDS: int = 12
+
+
     
     # Encryption (Use Google Cloud KMS in production)
     ENCRYPTION_KEY: str = Field(..., min_length=32)

@@ -24,7 +24,7 @@ import { toast } from 'react-hot-toast'
 
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import AudioRecorder from '@/components/consultation/AudioRecorder'
+import AudioRecorder from '@/components/consultation/VertexAIAudioRecorder'
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
@@ -488,7 +488,7 @@ export default function PatientDetailPage() {
         }
     }
 
-    const handleGenerateReport = async (medications: Medication[] = []) => {
+    const handleGenerateReport = async (medications: Medication[] = [], patientStatus?: string) => {
         try {
             setIsGeneratingReport(true)
             setShowMedicationModal(false) // Close modal
@@ -512,7 +512,8 @@ export default function PatientDetailPage() {
                 session_id: currentSession,
                 patient_id: patientId,
                 session_type: sessionType || 'follow_up',
-                medication_plan: medications // Pass medications to AI
+                medication_plan: medications, // Pass medications to AI
+                patient_status: patientStatus
             }
 
             const reportResponse = await apiService.post('/reports/generate', generatePayload)
@@ -532,7 +533,8 @@ export default function PatientDetailPage() {
                 generated_content: generatedContent,
                 report_type: sessionType || 'follow_up',
                 status: 'completed',
-                medication_plan: medications
+                medication_plan: medications,
+                patient_status: patientStatus
             }
 
             const saveResponse = await apiService.post('/reports/save', savePayload)

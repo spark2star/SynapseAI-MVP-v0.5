@@ -77,7 +77,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
     const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null)
 
     // Constants
-    const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'
+    const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/v1'
     const MAX_RECONNECT_ATTEMPTS = 5
     const RECONNECT_DELAY = 2000
     const AUDIO_CHUNK_INTERVAL = 250
@@ -145,7 +145,8 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
         setConnectionStatus('connecting')
 
-        const wsUrl = `${WS_URL}/ws/transcribe?token=${encodeURIComponent(token)}&session_id=${encodeURIComponent(sessionId)}`
+        // const wsUrl = `${WS_URL}/transcribe?token=${token}&session_id=${sessionId}`
+        const wsUrl = `${WS_URL}/ws/transcribe?token=${token}&session_id=${sessionId}`
         console.log('[VertexAI] Connecting to WebSocket:', wsUrl.replace(token, 'TOKEN'))
         console.log('[VertexAI] Token length:', token.length, 'chars')
 
@@ -373,6 +374,12 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
      * Stop recording and cleanup
      */
     const stopRecording = () => {
+
+        // ✅ ADD GUARD TO PREVENT INFINITE LOOP:
+        if (!audioStreamRef.current && !websocketRef.current) {
+            console.log('[VertexAI] Already stopped, skipping');
+            return;
+        }
         console.log('[VertexAI] 🛑 stopRecording called')
         console.trace('[VertexAI] stopRecording stack trace:')
 
@@ -433,7 +440,7 @@ const VertexAIAudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRec
 
         // Notify parent component that recording has stopped
         console.log('[VertexAI] Calling onStop() to notify parent')
-        onStop()
+        console.log('[VertexAI] Stopped - parent handles state')
     }
 
     /**

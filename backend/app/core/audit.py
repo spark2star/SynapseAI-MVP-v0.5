@@ -115,7 +115,7 @@ class AuditLogger:
         }
         
         # Log to structured logging
-        self.logger.info(json.dumps(audit_entry))
+        self.logger.info(json.dumps(audit_entry, default=str))
         
         # Store in database for long-term retention
         try:

@@ -59,10 +59,15 @@ export default function PatientsPage() {
     const [improvedData, setImprovedData] = useState<TimeSeriesData[]>([])
     const [needsAttentionData, setNeedsAttentionData] = useState<TimeSeriesData[]>([])
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('month')
+    const [analytics, setAnalytics] = useState({
+        totalPatients: 0,
+        improving: 0,
+        needsAttention: 0
+    })
 
     useEffect(() => {
         fetchPatients(0, searchTerm)
-        generateMockTimeSeriesData()
+        fetchAnalyticsData()
     }, [timePeriod])
 
     const fetchPatients = async (newOffset: number, search?: string) => {
@@ -93,7 +98,7 @@ export default function PatientsPage() {
                     age: patient.age || 0,
                     gender: patient.sex || 'unknown',
                     phone_primary: patient.phone || 'N/A',
-                    last_visit: patient.last_visit || null,
+                    last_visit: patient.lastVisit || null,
                     created_at: patient.created_at || new Date().toISOString(),
                     patient_type: index % 3 === 0 ? 'new' : 'follow-up',
                     status: ['improving', 'stable', 'needs-attention', 'declining'][index % 4] as Patient['status']
@@ -127,27 +132,92 @@ export default function PatientsPage() {
         fetchPatients(0, query)
     }
 
-    const generateMockTimeSeriesData = () => {
-        const periods = timePeriod === 'week'
-            ? ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6']
-            : timePeriod === 'month'
-                ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
-                : ['2022', '2023', '2024', '2024 Q2', '2024 Q3', '2024 Q4']
+    const fetchAnalyticsData = async () => {
+        try {
+            console.log('📊 Fetching analytics data...')
+            const response = await apiService.getDashboardOverview()
 
-        setTotalPatientsData(periods.map((period, i) => ({
-            period,
-            value: 15 + (i * 8) + Math.floor(Math.random() * 10)
-        })))
+            if (response.status === 'success' && response.data) {
+                const data = response.data
 
-        setImprovedData(periods.map((period, i) => ({
-            period,
-            value: 8 + (i * 3) + Math.floor(Math.random() * 5)
-        })))
+                // Update analytics summary
+                setAnalytics({
+                    totalPatients: data.total_patients || 0,
+                    improving: data.patient_status?.improving || 0,
+                    needsAttention: data.patient_status?.worse || 0
+                })
 
-        setNeedsAttentionData(periods.map((period, i) => ({
-            period,
-            value: 2 + Math.floor(Math.random() * 4)
-        })))
+                // Generate time series data based on real current values
+                const periods = timePeriod === 'week'
+                    ? ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6']
+                    : timePeriod === 'month'
+                        ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+                        : ['2022', '2023', '2024', '2024 Q2', '2024 Q3', '2024 Q4']
+
+                const currentTotal = data.total_patients || 0
+                const currentImproving = data.patient_status?.improving || 0
+                const currentWorse = data.patient_status?.worse || 0
+
+                // Generate historical trend from current values (simulate growth)
+                setTotalPatientsData(periods.map((period, i) => {
+                    const progress = (i + 1) / periods.length
+                    return {
+                        period,
+                        value: Math.round(currentTotal * (0.6 + (progress * 0.4)))
+                    }
+                }))
+
+                setImprovedData(periods.map((period, i) => {
+                    const progress = (i + 1) / periods.length
+                    return {
+                        period,
+                        value: Math.round(currentImproving * (0.5 + (progress * 0.5)))
+                    }
+                }))
+
+                setNeedsAttentionData(periods.map((period, i) => {
+                    return {
+                        period,
+                        value: Math.max(0, Math.round(currentWorse * (0.8 + Math.random() * 0.4)))
+                    }
+                }))
+
+                console.log('✅ Analytics loaded:', {
+                    total: currentTotal,
+                    improving: currentImproving,
+                    worse: currentWorse
+                })
+            }
+        } catch (error) {
+            console.error('❌ Error fetching analytics:', error)
+            toast.error('Failed to load analytics data')
+
+            // Fallback to minimal data
+            setTotalPatientsData([
+                { period: 'Jan', value: 1 },
+                { period: 'Feb', value: 2 },
+                { period: 'Mar', value: 3 },
+                { period: 'Apr', value: 5 },
+                { period: 'May', value: 7 },
+                { period: 'Jun', value: 10 }
+            ])
+            setImprovedData([
+                { period: 'Jan', value: 0 },
+                { period: 'Feb', value: 0 },
+                { period: 'Mar', value: 1 },
+                { period: 'Apr', value: 1 },
+                { period: 'May', value: 2 },
+                { period: 'Jun', value: 2 }
+            ])
+            setNeedsAttentionData([
+                { period: 'Jan', value: 0 },
+                { period: 'Feb', value: 0 },
+                { period: 'Mar', value: 1 },
+                { period: 'Apr', value: 1 },
+                { period: 'May', value: 1 },
+                { period: 'Jun', value: 1 }
+            ])
+        }
     }
 
     const filteredPatients = patients.filter(patient =>

@@ -553,15 +553,22 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
 
                 // Resume Web Speech API
                 if (speechRecognitionRef.current) {
-                    recognitionActiveRef.current = true
-                    speechRecognitionRef.current.start()
-                    console.log('▶️ Web Speech API resumed')
+                    // Only start if not already active
+                    if (!recognitionActiveRef.current) {
+                        recognitionActiveRef.current = true
+                        speechRecognitionRef.current.start()
+                        console.log('▶️ Web Speech API resumed')
+                    } else {
+                        console.log('⚠️ Web Speech API already active, skipping start')
+                    }
                 } else {
                     // Create new recognition if needed
                     const recognition = setupWebSpeechAPI()
                     if (recognition) {
                         speechRecognitionRef.current = recognition
+                        recognitionActiveRef.current = true
                         recognition.start()
+                        console.log('▶️ Web Speech API created and started')
                     }
                 }
                 // Note: Browser STT doesn't need manual audio processing
@@ -593,9 +600,18 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
             })
         } catch (error) {
             console.error('Error resuming recording:', error)
-            toast.error('Failed to resume recording')
+
+            // If it fails due to already started, just update state
+            if (error instanceof Error && error.message.includes('already started')) {
+                console.log('⚠️ Recognition already started, just updating UI state')
+                setIsPaused(false)
+                onResume()
+            } else {
+                toast.error('Failed to resume recording')
+            }
         }
     }
+
 
     const setupWebSocket = async (): Promise<void> => {
         return new Promise((resolve, reject) => {
@@ -788,7 +804,7 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                     let processedAudio = input
                     if (audioProcessorRef.current && isNoiseReductionEnabled) {
                         try {
-                            processedAudio = audioProcessorRef.current.processAudioBuffer(input)
+                            processedAudio = audioProcessorRef.current.processAudioBuffer(input) as Float32Array<ArrayBuffer>
                             if (frameCount === 0) console.log('🔇 RNNoise processing applied')
                         } catch (error) {
                             console.warn('⚠️ RNNoise processing failed, using original audio:', error)

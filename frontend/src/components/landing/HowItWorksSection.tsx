@@ -1,173 +1,158 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useInView } from 'react-intersection-observer';
-import { Mic, Brain, FileCheck } from 'lucide-react';
-
-const steps = [
-    {
-        number: '01',
-        icon: Mic,
-        title: 'Record with Clarity',
-        description: 'Our integrated hardware and AI work together to accurately and securely capture every detail of the conversation.',
-        visual: 'waveform',
-    },
-    {
-        number: '02',
-        icon: Brain,
-        title: 'Generate in Minutes',
-        description: 'SynapseAI transcribes, structures, and analyzes the conversation, generating a comprehensive report.',
-        visual: 'process',
-    },
-    {
-        number: '03',
-        icon: FileCheck,
-        title: 'Review & Finalize',
-        description: 'Your draft is ready. Quickly review, edit if needed, and finalize your notes in a fraction of the time.',
-        visual: 'document',
-    },
-];
-
-function StepCard({ step, index, inView }: { step: typeof steps[0]; index: number; inView: boolean }) {
-    const Icon = step.icon;
-    const isEven = index % 2 === 0;
-
-    return (
-        <div className={`flex flex-col md:flex-row items-center gap-8 sm:gap-12 ${isEven ? 'md:flex-row' : 'md:flex-row-reverse'}`}>
-            {/* Text Content - Responsive */}
-            <motion.div
-                initial={{ opacity: 0, x: isEven ? -50 : 50 }}
-                animate={inView ? { opacity: 1, x: 0 } : {}}
-                transition={{ duration: 0.8, delay: index * 0.2 }}
-                className="flex-1 text-center md:text-left px-4 sm:px-0"
-            >
-                <div className="flex items-center gap-3 sm:gap-4 mb-4 justify-center md:justify-start">
-                    <span
-                        className="text-4xl sm:text-5xl lg:text-6xl font-bold"
-                        style={{
-                            fontFamily: 'Poppins, sans-serif',
-                            color: 'rgba(80, 185, 232, 0.2)'
-                        }}
-                    >
-                        {step.number}
-                    </span>
-                    <div
-                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: 'rgba(80, 185, 232, 0.1)' }}
-                    >
-                        <Icon
-                            className="w-5 h-5 sm:w-6 sm:h-6"
-                            strokeWidth={2}
-                            style={{ color: '#50B9E8' }}
-                        />
-                    </div>
-                </div>
-
-                <h3
-                    className="text-xl sm:text-2xl lg:text-3xl font-bold mb-3 sm:mb-4"
-                    style={{
-                        fontFamily: 'Poppins, sans-serif',
-                        color: '#1A202C'
-                    }}
-                >
-                    {step.title}
-                </h3>
-
-                <p
-                    className="text-sm sm:text-base lg:text-lg leading-relaxed"
-                    style={{ color: '#4A5568' }}
-                >
-                    {step.description}
-                </p>
-            </motion.div>
-
-            {/* Visual - Responsive */}
-            <motion.div
-                initial={{ opacity: 0, x: isEven ? 50 : -50 }}
-                animate={inView ? { opacity: 1, x: 0 } : {}}
-                transition={{ duration: 0.8, delay: index * 0.2 + 0.2 }}
-                className="flex-1 flex items-center justify-center w-full px-4 sm:px-0"
-            >
-                <div
-                    className="w-full max-w-sm sm:max-w-md h-48 sm:h-56 lg:h-64 rounded-xl sm:rounded-2xl flex items-center justify-center border-2"
-                    style={{
-                        background: 'linear-gradient(135deg, rgba(227, 244, 252, 0.5) 0%, #FFFFFF 100%)',
-                        borderColor: 'rgba(80, 185, 232, 0.2)',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03)'
-                    }}
-                >
-                    {/* Placeholder for step-specific visuals */}
-                    <Icon
-                        className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 opacity-20"
-                        strokeWidth={1}
-                        style={{ color: '#50B9E8' }}
-                    />
-                </div>
-            </motion.div>
-        </div>
-    );
-}
+import { Mic, Brain, FileText } from 'lucide-react';
 
 export default function HowItWorksSection() {
-    const [ref, inView] = useInView({
-        triggerOnce: true,
-        threshold: 0.1,
-    });
+    const steps = [
+        {
+            number: '01',
+            icon: Mic,
+            title: 'Record with Clarity',
+            description: 'Our integrated hardware and AI work together to accurately and securely capture every detail of the conversation.',
+        },
+        {
+            number: '02',
+            icon: Brain,
+            title: 'Generate in Minutes',
+            description: 'SynapseAI transcribes, structures, and analyzes the conversation, generating a comprehensive report.',
+        },
+        {
+            number: '03',
+            icon: FileText,
+            title: 'Review & Export',
+            description: 'Review your AI-generated report, make any necessary edits, and export in your preferred format.',
+        },
+    ];
 
     return (
-        <section id="how-it-works" ref={ref} className="relative py-12 sm:py-16 lg:py-24 px-4 sm:px-6 overflow-hidden">
-            {/* White Background with Subtle Blue Accents */}
-            <div
-                className="absolute inset-0"
-                style={{
-                    background: 'linear-gradient(180deg, #FFFFFF 0%, rgba(247, 250, 252, 0.5) 50%, #FFFFFF 100%)',
-                }}
-            />
+        <section id="how-it-works" className="relative py-16 lg:py-24 overflow-hidden">
+            {/* ============================================================================
+                SUBTLE GRADIENT BACKGROUND
+                ============================================================================ */}
+            <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-[#F8FCFF] via-white to-[#F5FBFE]" />
+                
+                <div 
+                    className="absolute top-0 -right-40 w-[600px] h-[600px] opacity-15"
+                    style={{
+                        background: 'radial-gradient(circle at 40% 40%, rgba(77, 184, 232, 0.15) 0%, transparent 70%)',
+                        filter: 'blur(80px)',
+                    }}
+                />
+                <div 
+                    className="absolute bottom-0 -left-40 w-[700px] h-[700px] opacity-15"
+                    style={{
+                        background: 'radial-gradient(circle at 60% 50%, rgba(77, 184, 232, 0.12) 0%, transparent 70%)',
+                        filter: 'blur(80px)',
+                    }}
+                />
+            </div>
 
-            {/* Connecting Line */}
-            <div
-                className="absolute left-1/2 top-0 bottom-0 w-px hidden md:block"
-                style={{
-                    background: 'linear-gradient(to bottom, transparent, rgba(80, 185, 232, 0.3), transparent)'
-                }}
-            />
-
-            {/* Decorative Orb */}
-            <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl"
-                style={{ backgroundColor: 'rgba(80, 185, 232, 0.05)' }}
-            />
-
-            <div className="max-w-6xl mx-auto relative z-10">
-                {/* Headline - Responsive */}
+            {/* Content */}
+            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                {/* Section Header */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={inView ? { opacity: 1, y: 0 } : {}}
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
                     transition={{ duration: 0.6 }}
-                    className="text-center mb-12 sm:mb-16 lg:mb-20 px-4"
+                    className="text-center mb-16"
                 >
-                    <h2
-                        className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4"
-                        style={{
-                            fontFamily: 'Poppins, sans-serif',
-                            color: '#0A4D8B'
-                        }}
-                    >
-                        Your Intelligent Co-pilot in Every Session.
+                    <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                        Your Intelligent Co-pilot in{' '}
+                        <span className="text-[#4DB8E8]">Every Session</span>
                     </h2>
-                    <p
-                        className="text-sm sm:text-base lg:text-lg max-w-2xl mx-auto leading-relaxed"
-                        style={{ color: '#4A5568' }}
-                    >
+                    <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                         SynapseAI works seamlessly in the background, letting you focus on what matters most: your patient.
                     </p>
                 </motion.div>
 
-                {/* Steps - Responsive Spacing */}
-                <div className="space-y-12 sm:space-y-16 lg:space-y-24">
-                    {steps.map((step, index) => (
-                        <StepCard key={step.number} step={step} index={index} inView={inView} />
-                    ))}
+                {/* Steps - ZIG-ZAG LAYOUT */}
+                <div className="space-y-16 lg:space-y-20">
+                    {steps.map((step, index) => {
+                        const isEven = index % 2 === 0;
+                        
+                        return (
+                            <motion.div
+                                key={step.number}
+                                initial={{ opacity: 0, y: 50 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, margin: "-100px" }}
+                                transition={{ duration: 0.7, delay: 0.2 }}
+                                className={`grid lg:grid-cols-2 gap-8 lg:gap-12 items-center ${
+                                    !isEven ? 'lg:grid-flow-dense' : ''
+                                }`}
+                            >
+                                {/* Text Content */}
+                                <div className={`space-y-4 ${!isEven ? 'lg:col-start-2' : ''}`}>
+                                    {/* Step Number with Icon */}
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative">
+                                            {/* Large step number background - smaller */}
+                                            <span className="text-7xl md:text-8xl font-bold text-[#4DB8E8]/10 leading-none absolute -top-5 -left-2">
+                                                {step.number}
+                                            </span>
+                                            {/* Icon badge - smaller */}
+                                            <div className="relative bg-gradient-to-br from-[#4DB8E8]/20 to-[#3DA8D8]/20 p-3 rounded-xl backdrop-blur-sm border border-[#4DB8E8]/20 shadow-lg">
+                                                <step.icon className="w-6 h-6 text-[#4DB8E8]" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Title - smaller */}
+                                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900">
+                                        {step.title}
+                                    </h3>
+
+                                    {/* Description */}
+                                    <p className="text-base text-gray-600 leading-relaxed">
+                                        {step.description}
+                                    </p>
+                                </div>
+
+                                {/* Illustration/Visual - SMALLER CARDS */}
+                                <motion.div
+                                    whileHover={{ scale: 1.02 }}
+                                    transition={{ duration: 0.3 }}
+                                    className={`${!isEven ? 'lg:col-start-1 lg:row-start-1' : ''}`}
+                                >
+                                    {/* Enhanced Card with Glassmorphism */}
+                                    <div className="relative group">
+                                        {/* Main card - reduced padding and height */}
+                                        <div 
+                                            className="relative rounded-2xl p-8 backdrop-blur-sm border border-white/60 shadow-xl hover:shadow-2xl transition-all duration-300"
+                                            style={{
+                                                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 252, 255, 0.9) 100%)',
+                                            }}
+                                        >
+                                            {/* Gradient accent */}
+                                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#4DB8E8] to-[#3DA8D8] rounded-t-2xl" />
+                                            
+                                            {/* Illustration - smaller size */}
+                                            <div className="flex items-center justify-center h-48 lg:h-56">
+                                                <div className="relative">
+                                                    {/* Icon container - smaller */}
+                                                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-[#4DB8E8]/20 to-[#3DA8D8]/20 flex items-center justify-center backdrop-blur-sm border border-[#4DB8E8]/30">
+                                                        <step.icon className="w-16 h-16 text-[#4DB8E8]" />
+                                                    </div>
+                                                    
+                                                    {/* Glow effect */}
+                                                    <div className="absolute inset-0 bg-gradient-to-br from-[#4DB8E8]/20 to-transparent rounded-full blur-2xl" />
+                                                </div>
+                                            </div>
+
+                                            {/* Hover glow */}
+                                            <div className="absolute inset-0 bg-gradient-to-br from-[#4DB8E8]/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                        </div>
+
+                                        {/* Floating shadow */}
+                                        <div className="absolute -bottom-4 left-8 right-8 h-8 bg-gradient-to-b from-[#4DB8E8]/10 to-transparent rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        );
+                    })}
                 </div>
             </div>
         </section>

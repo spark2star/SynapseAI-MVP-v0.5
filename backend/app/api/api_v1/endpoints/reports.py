@@ -271,6 +271,7 @@ async def save_report(
             generated_content=report_data.get('generated_content'),
             report_type=report_data.get('report_type', 'consultation'),
             status=report_data.get('status', 'completed'),
+            patient_status=report_data.get('patient_status'),
             ai_model="gemini-2.5-flash",
             structured_data={
                 'medication_plan': report_data.get('medication_plan', []),

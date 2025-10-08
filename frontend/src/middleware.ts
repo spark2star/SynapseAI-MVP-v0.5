@@ -14,9 +14,20 @@ export function middleware(request: NextRequest) {
     });
 
     // Public paths that don't require authentication
-    const publicPaths = ['/', '/landing', '/auth/login', '/auth/signup', '/register', '/auth/forgot-password', '/auth/change-password', '/about', '/contact',
+    const publicPaths = [
+        '/', 
+        '/landing', 
+        '/auth/login', 
+        '/auth/signup', 
+        '/register', 
+        '/auth/forgot-password', 
+        '/auth/change-password', 
+        '/about', 
+        '/contact',
         '/Logo-MVP-v0.5.png',
         '/_next',
+        '/demo',
+        '/request-demo',
         '/favicon.ico',
         '/api',
     ];

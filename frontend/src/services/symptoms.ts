@@ -6,13 +6,13 @@ export const symptomAPI = {
    */
   async search(query: string) {
     try {
-      const response = await apiService.get('/intake/symptoms/search', {
+      const response = await apiService.get('/intake/symptoms', {
         q: query,
         limit: 20
       });
 
       if (response.status === 'success' && response.data) {
-        return response.data.results || [];
+        return response.data.symptoms || [];
       }
 
       return [];

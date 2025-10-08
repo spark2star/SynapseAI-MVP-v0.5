@@ -90,7 +90,7 @@ async def transcribe_websocket(
         
         # Verify session belongs to user and is active
         session = db.query(ConsultationSession).filter(
-            ConsultationSession.id == session_id,
+            ConsultationSession.session_id == session_id,
             ConsultationSession.doctor_id == user.id,
             ConsultationSession.status.in_([SessionStatus.IN_PROGRESS, SessionStatus.PAUSED])
         ).first()
@@ -136,24 +136,18 @@ async def transcribe_websocket(
             return
         
         # Configure recognition
+        # Configure recognition
         recognition_config = speech.RecognitionConfig(
-            auto_decoding_config=speech.AutoDetectDecodingConfig(),
-            language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE] + settings.GOOGLE_STT_ALTERNATE_LANGUAGES,
+            explicit_decoding_config=speech.ExplicitDecodingConfig(
+                encoding=speech.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
+                sample_rate_hertz=16000,  # Fixed for browser microphone
+                audio_channel_count=1,
+            ),
             model=settings.GOOGLE_STT_MODEL,
-            features=speech.RecognitionFeatures(
-                enable_automatic_punctuation=settings.GOOGLE_STT_ENABLE_PUNCTUATION,
-                enable_word_time_offsets=settings.GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS,
-                enable_word_confidence=settings.GOOGLE_STT_ENABLE_WORD_CONFIDENCE,
-                enable_spoken_punctuation=False,
-                enable_spoken_emojis=False,
-                profanity_filter=settings.GOOGLE_STT_PROFANITY_FILTER,
-                diarization_config=speech.SpeakerDiarizationConfig(
-                    enable_speaker_diarization=settings.GOOGLE_STT_ENABLE_DIARIZATION,
-                    min_speaker_count=1,
-                    max_speaker_count=settings.GOOGLE_STT_DIARIZATION_SPEAKER_COUNT
-                ) if settings.GOOGLE_STT_ENABLE_DIARIZATION else None
-            )
+            language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE],
+            # REMOVED features - not supported for Marathi with latest_long
         )
+
         
         streaming_config = speech.StreamingRecognitionConfig(
             config=recognition_config,
@@ -164,66 +158,120 @@ async def transcribe_websocket(
         
         logger.info(f"Recognition configured: model={settings.GOOGLE_STT_MODEL}, language={settings.GOOGLE_STT_PRIMARY_LANGUAGE}")
         
-        # Create audio stream generator
-        async def audio_stream_generator() -> AsyncIterator[speech.StreamingRecognizeRequest]:
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.error("No running event loop found")
+            await websocket.send_json({
+                "error": "Internal server error",
+                "code": "NO_EVENT_LOOP"
+            })
+            return
+
+
+        def audio_stream_generator():
             """
-            Generator that yields audio chunks from WebSocket.
-            First request contains config, subsequent requests contain audio data.
+            Synchronous generator for gRPC - bridges async WebSocket to sync gRPC.
             """
+            import queue
+            import threading
             
-            # First request: Send recognition config
+            audio_queue = queue.Queue(maxsize=100)
+            stop_event = threading.Event()
+            exception_holder = [None]
+            
+            # Get the main event loop (where websocket lives)
+            main_loop = running_loop
+            
+            async def receive_audio_chunk():
+                """Single audio chunk receiver (runs in main loop)"""
+                try:
+                    return await asyncio.wait_for(websocket.receive_bytes(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    return None
+                except Exception as e:
+                    logger.error(f"Error receiving audio: {e}")
+                    return None
+            
+            def receiver_worker():
+                """Background thread that schedules async receives"""
+                chunk_count = 0
+                try:
+                    while not stop_event.is_set():
+                        # Schedule the async receive in the main loop
+                        future = asyncio.run_coroutine_threadsafe(receive_audio_chunk(), main_loop)
+                        try:
+                            audio_chunk = future.result(timeout=15.0)
+                        except Exception as e:
+                            logger.error(f"Future error: {e}")
+                            break
+                        
+                        if audio_chunk is None or len(audio_chunk) == 0:
+                            logger.warning("No audio received, stopping")
+                            break
+                        
+                        audio_queue.put(audio_chunk)
+                        chunk_count += 1
+                        
+                        if chunk_count % 100 == 0:
+                            logger.info(f"Received {chunk_count} audio chunks")
+                            
+                except Exception as e:
+                    logger.error(f"Receiver error: {e}")
+                    exception_holder[0] = e
+                finally:
+                    audio_queue.put(None)
+                    logger.info(f"Receiver ended: {chunk_count} chunks")
+            
+            # Start receiver thread
+            receiver_thread = threading.Thread(target=receiver_worker, daemon=True)
+            receiver_thread.start()
+            
+            # First yield: config
             yield speech.StreamingRecognizeRequest(
                 recognizer=f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/{settings.VERTEX_AI_LOCATION}/recognizers/_",
                 streaming_config=streaming_config
             )
-            
             logger.info("Sent initial config to Vertex AI")
             
-            # Subsequent requests: Stream audio chunks
+            # Subsequent yields: audio chunks
             chunk_count = 0
-            try:
-                while True:
-                    try:
-                        # Receive audio chunk from client with timeout
-                        # Increased to 300 seconds (5 minutes) for long consultations
-                        audio_chunk = await asyncio.wait_for(
-                            websocket.receive_bytes(),
-                            timeout=300.0  # 5 minute timeout for inactive streams
-                        )
-                        
-                        if not audio_chunk or len(audio_chunk) == 0:
-                            logger.warning("Received empty audio chunk, stopping stream")
-                            break
-                        
-                        chunk_count += 1
-                        if chunk_count % 100 == 0:
-                            logger.debug(f"Processed {chunk_count} audio chunks")
-                        
-                        # Yield audio request to Vertex AI
-                        yield speech.StreamingRecognizeRequest(
-                            audio=audio_chunk
-                        )
-                        
-                    except asyncio.TimeoutError:
-                        logger.warning(f"Audio stream timeout after {chunk_count} chunks")
+            while True:
+                try:
+                    audio_chunk = audio_queue.get(timeout=20.0)
+                    if audio_chunk is None:
                         break
-                        
-                    except WebSocketDisconnect:
-                        logger.info(f"Client disconnected after {chunk_count} chunks")
-                        break
-                        
-            except Exception as e:
-                logger.error(f"Error in audio stream generator: {str(e)}")
-            finally:
-                logger.info(f"Audio stream ended. Total chunks processed: {chunk_count}")
+                    
+                    chunk_count += 1
+                    if chunk_count % 50 == 0:
+                        logger.info(f"Streamed {chunk_count} chunks to Vertex AI")
+                    
+                    yield speech.StreamingRecognizeRequest(audio=audio_chunk)
+                    
+                except queue.Empty:
+                    logger.warning("Audio queue timeout")
+                    break
+            
+            stop_event.set()
+            receiver_thread.join(timeout=2.0)
+            logger.info(f"Audio stream completed: {chunk_count} chunks sent to Vertex AI")
+            
+            if exception_holder[0]:
+                raise exception_holder[0]
+
+
+
+        
+
         
         # Start streaming recognition
         logger.info("Starting Vertex AI streaming recognition...")
         
         try:
             responses = client.streaming_recognize(
-                requests=audio_stream_generator()
+            requests=audio_stream_generator()  # This is now async!
             )
+
             
             # Process transcription responses
             response_count = 0

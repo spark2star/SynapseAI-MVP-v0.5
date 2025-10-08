@@ -12,18 +12,30 @@ import { toast } from 'react-hot-toast'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import {apiService} from '@/services/api'
+import { apiService } from '@/services/api'
 
-interface Patient {
-    id: string
-    patient_id: string
-    full_name: string
-    age: number
-    gender: string
-    phone_primary: string
-    last_visit: string | null
-    created_at: string
+interface BackendPatient {
+    id: string;
+    name: string;
+    age: number;
+    sex: string;
+    phone?: string;
+    lastVisit?: string | null;
+    createdAt?: string;
 }
+
+type Patient = {
+    id: string;
+    full_name: string;
+    patient_id: string;
+    phone_primary: string;
+    age: number;
+    gender: string;
+    last_visit: string | null;
+    created_at: string;
+}
+
+
 
 interface PatientSelectionModalProps {
     isOpen: boolean
@@ -51,27 +63,40 @@ const PatientSelectionModal: React.FC<PatientSelectionModalProps> = ({
         try {
             setLoading(true)
             const response = await apiService.get('/patients/list/')
-
             if (response.status === 'success') {
-                setPatients(response.data.patients || [])
+                const rawPatients = response.data.items || [];
+                const patients: Patient[] = rawPatients.map((p: BackendPatient) => ({
+                    id: p.id || "",
+                    full_name: p.name || "",
+                    patient_id: p.id || "",
+                    phone_primary: p.phone || "",
+                    age: p.age,
+                    gender: p.sex,
+                    last_visit: p.lastVisit || null,
+                    created_at: p.createdAt || "",
+                }));
+                setPatients(patients);
             } else {
-                toast.error('Failed to load patients')
-                setPatients([])
+                toast.error('Failed to load patients');
+                setPatients([]);
             }
         } catch (error) {
-            console.error('Error fetching patients:', error)
-            toast.error('Failed to load patients')
-            setPatients([])
+            console.error('Error fetching patients:', error);
+            toast.error('Failed to load patients');
+            setPatients([]);
         } finally {
-            setLoading(false)
+            setLoading(false);
         }
     }
 
+
+
     const filteredPatients = patients.filter(patient =>
-        patient.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (patient.full_name && patient.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (patient.patient_id && patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (patient.phone_primary && patient.phone_primary.includes(searchTerm))
     )
+
 
     const getInitials = (fullName: string) => {
         return fullName.split(' ').map(name => name[0]).join('').toUpperCase()
@@ -163,8 +188,8 @@ const PatientSelectionModal: React.FC<PatientSelectionModalProps> = ({
                                     key={patient.id}
                                     onClick={() => handlePatientSelect(patient)}
                                     className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${selectedPatient?.id === patient.id
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                            : 'border-neutral-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-neutral-50 dark:hover:bg-neutral-700/50'
+                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                        : 'border-neutral-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-neutral-50 dark:hover:bg-neutral-700/50'
                                         }`}
                                 >
                                     <div className="flex items-center gap-4">

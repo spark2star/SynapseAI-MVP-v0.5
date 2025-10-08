@@ -37,11 +37,12 @@ class TranscriptionService:
         """
         # Verify session exists and is active
         session = db.query(ConsultationSession).filter(
-            ConsultationSession.id == session_id
+            ConsultationSession.session_id == session_id
         ).first()
         
         if not session:
-            raise NotFoundException(f"Consultation session {session_id} not found")
+            raise ValueError(f"Consultation session {session_id} not found")
+
         
         if session.status not in [SessionStatus.IN_PROGRESS, SessionStatus.PAUSED]:
             raise ValidationException(
@@ -50,10 +51,10 @@ class TranscriptionService:
         
         # Check for existing in-progress transcription
         transcription = db.query(Transcription).filter(
-            Transcription.session_id == session_id,
+            Transcription.session_id == str(session.id),
             Transcription.processing_status.in_([
                 TranscriptionStatus.PENDING,
-                TranscriptionStatus.IN_PROGRESS
+                TranscriptionStatus.PROCESSING
             ])
         ).first()
         
@@ -63,11 +64,11 @@ class TranscriptionService:
         
         # Create new transcription
         transcription = Transcription(
-            session_id=session_id,
+            session_id=str(session.id),
             transcript_text="",
             original_transcript="",
             transcript_segments=[],
-            processing_status=TranscriptionStatus.IN_PROGRESS,
+            processing_status=TranscriptionStatus.PROCESSING,
             stt_service="vertex-ai",
             stt_model="latest_long",
             stt_language="hi-IN",

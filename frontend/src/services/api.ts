@@ -194,14 +194,24 @@ class ApiService {
   /**
    * Get paginated list of patients
    */
+  // ✅ BETTER FIX - Unwrap in API service:
   async getPatients(params: {
     limit?: number;
     offset?: number;
     search?: string;
   }) {
     const response = await this.api.get('/patients/list/', { params });
-    return response.data;
+    
+    // ✅ ADD DEBUG LOGS:
+    console.log('🔍 API RAW RESPONSE:', response);
+    console.log('🔍 response.data:', response.data);
+    console.log('🔍 response.data.data:', response.data?.data);
+    console.log('🔍 Type of response.data:', typeof response.data);
+    
+    return response.data.data || response.data;
   }
+  
+
 
   /**
    * Create new patient
@@ -309,6 +319,27 @@ class ApiService {
     return response.data;
   }
 
+
+  // Analytics endpoints
+  async getPatientStatusStats() {
+    const response = await this.api.get('/analytics/patient-status');
+    return response.data;
+  }
+
+  async getDashboardOverview() {
+    const response = await this.api.get('/analytics/overview');
+    return response.data;
+  }
+
+  /**
+   * Get monthly trends data for dashboard graphs
+   */
+  async getMonthlyTrends(months: number = 6) {
+    const response = await this.api.get('/analytics/monthly-trends', {
+      params: { months }
+    });
+    return response.data;
+  }
   /**
    * Submit contact message
    */
@@ -318,8 +349,12 @@ class ApiService {
   }
 }
 
+
 // Export singleton instance
 export const apiService = new ApiService();
+
+
+
 
 // Also export class for testing
 export default ApiService;

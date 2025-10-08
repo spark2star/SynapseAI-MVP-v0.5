@@ -15,7 +15,7 @@ export interface Medication {
 interface MedicationModalProps {
     isOpen: boolean
     onClose: () => void
-    onSubmit: (medications: Medication[]) => void
+    onSubmit: (medications: Medication[], patientStatus?: string) => void
     isLoading?: boolean
 }
 
@@ -28,6 +28,7 @@ export default function MedicationModal({
     const [medications, setMedications] = useState<Medication[]>([
         { name: '', dosage: '', frequency: '', duration: '', instructions: '' }
     ])
+    const [patientStatus, setPatientStatus] = useState<'improving' | 'stable' | 'worse' | null>(null)
 
     const addMedication = () => {
         setMedications([
@@ -52,6 +53,13 @@ export default function MedicationModal({
     }
 
     const handleSubmit = () => {
+
+        // Check patient status
+        if (!patientStatus) {
+            alert('Please select patient status (Improving, Stable, or Worse)')
+            return
+        }
+
         // Filter out empty medications
         const validMeds = medications.filter(m =>
             m.name.trim().length > 0 && m.dosage.trim().length > 0
@@ -62,11 +70,11 @@ export default function MedicationModal({
             return
         }
 
-        onSubmit(validMeds)
+        onSubmit(validMeds, patientStatus || undefined)  // PASS STATUS
     }
 
     const handleSkip = () => {
-        onSubmit([]) // Empty array = no medications
+        onSubmit([], patientStatus || undefined)  // PASS STATUS EVEN WHEN SKIPPING
     }
 
     if (!isOpen) return null
@@ -87,6 +95,45 @@ export default function MedicationModal({
                     >
                         <XMarkIcon className="w-6 h-6" />
                     </button>
+                </div>
+
+                {/* ADD THIS ENTIRE SECTION - Patient Status - BEFORE the Scrollable Content div */}
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/30">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
+                        Patient Status <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setPatientStatus('improving')}
+                            className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${patientStatus === 'improving'
+                                    ? 'bg-green-500 text-white shadow-lg'
+                                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-2 border-gray-300 dark:border-slate-600 hover:border-green-500'
+                                }`}
+                        >
+                            ✅ Improving
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPatientStatus('stable')}
+                            className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${patientStatus === 'stable'
+                                    ? 'bg-blue-500 text-white shadow-lg'
+                                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-2 border-gray-300 dark:border-slate-600 hover:border-blue-500'
+                                }`}
+                        >
+                            ➖ Stable
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPatientStatus('worse')}
+                            className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${patientStatus === 'worse'
+                                    ? 'bg-red-500 text-white shadow-lg'
+                                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-2 border-gray-300 dark:border-slate-600 hover:border-red-500'
+                                }`}
+                        >
+                            ⚠️ Worse
+                        </button>
+                    </div>
                 </div>
 
                 {/* Scrollable Content */}

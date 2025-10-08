@@ -5,6 +5,7 @@ Implements the two-stage intake process with symptoms management.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, cast, String
 from typing import Annotated, Dict, Any, Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
@@ -16,6 +17,7 @@ from app.models.symptom import (
     IntakePatient, MasterSymptom, UserSymptom, PatientSymptom,
     SymptomSeverity, SymptomFrequency, DurationUnit
 )
+
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -232,12 +234,17 @@ async def search_symptoms(
     try:
         search_term = f"%{q.lower()}%"
         
-        # Search master symptoms
+        # Enhanced (searches name, description, categories, AND aliases)
         master_symptoms = db.query(MasterSymptom).filter(
-            MasterSymptom.name.ilike(search_term),
+            or_(
+                MasterSymptom.name.ilike(search_term),
+                MasterSymptom.description.ilike(search_term),
+                cast(MasterSymptom.categories, String).ilike(search_term),
+                cast(MasterSymptom.aliases, String).ilike(search_term)
+            ),
             MasterSymptom.is_active == 1
         ).limit(limit // 2).all()
-        
+                
         # Search user symptoms for current doctor
         user_symptoms = db.query(UserSymptom).filter(
             UserSymptom.name.ilike(search_term),
@@ -502,20 +509,38 @@ async def list_intake_patients(
 ):
     """
     List intake patients for the current doctor with pagination.
+    Includes last consultation session date.
     """
     try:
-        # Get patients for current doctor
-        query = db.query(IntakePatient).filter(
-            IntakePatient.doctor_id == current_user_id
-        ).order_by(IntakePatient.created_at.desc())
+        from sqlalchemy import func
+        from app.models.session import ConsultationSession
+        
+        # Subquery to get last visit date for each patient
+        last_visits = db.query(
+            ConsultationSession.patient_id,
+            func.max(ConsultationSession.created_at).label('last_visit')
+        ).group_by(ConsultationSession.patient_id).subquery()
+        
+        # Get patients with their last visit date
+        query = db.query(IntakePatient, last_visits.c.last_visit)\
+            .outerjoin(last_visits, IntakePatient.id == last_visits.c.patient_id)\
+            .filter(IntakePatient.doctor_id == current_user_id)\
+            .order_by(IntakePatient.created_at.desc())
         
         total_count = query.count()
-        patients = query.offset(offset).limit(limit).all()
+        results = query.offset(offset).limit(limit).all()
+        
+        # Format results with last_visit
+        patients_list = []
+        for patient, last_visit in results:
+            patient_dict = patient.to_dict()
+            patient_dict['last_visit'] = last_visit.isoformat() if last_visit else None
+            patients_list.append(patient_dict)
         
         return {
             "status": "success",
             "data": {
-                "patients": [patient.to_dict() for patient in patients],
+                "patients": patients_list,
                 "total_count": total_count,
                 "limit": limit,
                 "offset": offset
@@ -524,10 +549,10 @@ async def list_intake_patients(
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
         }
-        pass
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
+        logger.error(f"Error listing patients: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.put("/patients/{patient_id}", response_model=Dict[str, Any])

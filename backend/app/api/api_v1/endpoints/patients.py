@@ -36,39 +36,44 @@ async def list_patients(
 ):
     """
     List all intake patients for the current doctor with pagination.
-    
-    Migration Note: Uses IntakePatient model to avoid encryption/decryption issues
-    that were causing 500 errors in the original Patient model.
-    
-    Returns:
-        - List of patient objects with demographics
-        - Pagination metadata (total, limit, offset, has_more)
-    
-    Raises:
-        - 401: Unauthorized (missing or invalid JWT token)
-        - 500: Database query failed
+    Includes last consultation session date.
     """
     request_id = str(uuid.uuid4())[:8]
     
     try:
+        from sqlalchemy import func
+        from app.models.session import ConsultationSession
+        
         logger.info(
             f"[{request_id}] Patient list request - Doctor: {current_user_id}, "
             f"Limit: {limit}, Offset: {offset}, Search: {search}"
         )
         
-        # Base query - filter by doctor
-        query = db.query(IntakePatient).filter(
-            IntakePatient.doctor_id == current_user_id
-        )
+        # Subquery to get last visit date for each patient
+        last_visits = db.query(
+            ConsultationSession.patient_id,
+            func.max(ConsultationSession.created_at).label('last_visit')
+        ).group_by(ConsultationSession.patient_id).subquery()
         
-        # Add search filter if provided
-        if search:
-            search_pattern = f"%{search}%"
+        # Base query with JOIN to get last_visit
+        query = db.query(IntakePatient, last_visits.c.last_visit)\
+            .outerjoin(last_visits, IntakePatient.id == last_visits.c.patient_id)\
+            .filter(IntakePatient.doctor_id == current_user_id)
+        
+        # Add search filter if provided (with NULL safety)
+        if search and len(search.strip()) > 0:
+            search_pattern = f"%{search.strip()}%"
             query = query.filter(
                 or_(
                     IntakePatient.name.ilike(search_pattern),
-                    IntakePatient.phone.ilike(search_pattern),
-                    IntakePatient.email.ilike(search_pattern)
+                    and_(
+                        IntakePatient.phone.isnot(None),
+                        IntakePatient.phone.ilike(search_pattern)
+                    ),
+                    # and_(
+                    #     # IntakePatient.email.isnot(None),
+                    #     IntakePatient.email.ilike(search_pattern)
+                    # )
                 )
             )
             logger.info(f"[{request_id}] Applied search filter: {search}")
@@ -76,50 +81,51 @@ async def list_patients(
         # Apply ordering
         query = query.order_by(IntakePatient.created_at.desc())
         
-        # Transform function for patient data - returns PatientResponse with auto camelCase
-        def transform_patient(p):
+        # Get total count
+        total_count = query.count()
+        
+        # Apply pagination
+        results = query.offset(offset).limit(limit).all()
+        
+        # Transform function for patient data
+        def transform_patient(row):
+            p, last_visit = row
             return PatientResponse(
                 id=str(p.id),
                 name=p.name,
                 age=p.age,
                 sex=p.sex,
-                # phone=p.phone or "",
-                phone=getattr(p, 'phone', '') or '',  # Safe access to phone field
-                # email=p.email or "",
+                phone=getattr(p, 'phone', '') or '',
                 address=p.address or "",
                 referred_by=p.referred_by or "",
                 illness_duration=f"{p.illness_duration_value} {p.illness_duration_unit}" if p.illness_duration_value else "",
                 created_at=p.created_at if p.created_at else datetime.utcnow(),
-                updated_at=p.updated_at if p.updated_at else datetime.utcnow()
+                updated_at=p.updated_at if p.updated_at else datetime.utcnow(),
+                last_visit=last_visit  # ADD THIS LINE
             )
         
-        # Use pagination helper
-        result = paginate_query(query, limit, offset, transform_patient)
+        # Transform results
+        items = [transform_patient(row) for row in results]
         
         logger.info(
-            f"[{request_id}] SUCCESS - Returned {len(result['items'])} patients "
-            f"(Total: {result['pagination']['total']}, Page: {result['pagination']['current_page']}/{result['pagination']['total_pages']})"
+            f"[{request_id}] SUCCESS - Returned {len(items)} patients "
+            f"(Total: {total_count})"
         )
         
         return {
             "status": "success",
-            "data": result,
-            "request_id": request_id
-        }
-    
-    except Exception as e:
-        logger.error(
-            f"[{request_id}] ERROR listing patients for doctor {current_user_id}: {str(e)}",
-            exc_info=True
-        )
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "message": "Failed to retrieve patient list",
-                "request_id": request_id,
-                "error_type": type(e).__name__
+            "data": {
+                "items": items,
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": (offset + limit) < total_count
             }
-        )
+        }
+        
+    except Exception as e:
+        logger.error(f"[{request_id}] FAILED - {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # GET SINGLE PATIENT

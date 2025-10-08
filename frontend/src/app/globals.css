@@ -410,3 +410,78 @@
   --toast-color: #ffffff;
   --toast-border: #4A5568;
 }
+
+
+
+/* Add at the bottom of your globals.css file */
+
+@keyframes blob {
+  0%, 100% {
+      transform: translate(0, 0) scale(1);
+  }
+  25% {
+      transform: translate(20px, -50px) scale(1.1);
+  }
+  50% {
+      transform: translate(-20px, 20px) scale(0.9);
+  }
+  75% {
+      transform: translate(50px, 50px) scale(1.05);
+  }
+}
+
+@keyframes twinkle {
+  0%, 100% {
+      opacity: 0.3;
+      transform: scale(1);
+  }
+  50% {
+      opacity: 1;
+      transform: scale(1.2);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+.animation-delay-1000 {
+  animation-delay: 1s;
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+
+/* Twinkle animation for sparkle dots */
+@keyframes twinkle {
+  0%, 100% {
+      opacity: 0.3;
+      transform: scale(1);
+  }
+  50% {
+      opacity: 1;
+      transform: scale(1.2);
+  }
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+.animation-delay-1000 {
+  animation-delay: 1s;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/services/api';
 import Button from '@/components/ui/Button';
@@ -8,14 +8,22 @@ import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import { Plus, Search, Users, Calendar, Phone, Mail } from 'lucide-react';
 
+
+
+// ✅ MATCH BACKEND RESPONSE:
 interface Patient {
-    patient_id: string;
-    full_name: string;
-    date_of_birth: string;
-    gender: string;
-    contact_number: string;
+    id: string;
+    name: string;
+    age: number;
+    sex: string;
+    phone: string;
     email?: string;
+    address?: string;
+    referred_by?: string;
+    illness_duration?: string;
+    last_visit?: string;
     created_at: string;
+    updated_at: string;
 }
 
 export default function PatientsPage() {
@@ -29,10 +37,22 @@ export default function PatientsPage() {
     const limit = 20;
 
     useEffect(() => {
+        // Only fetch on initial mount
         fetchPatients();
-    }, [offset, searchTerm]);
+    }, [offset]); // Only depends on offset, not searchTerm
 
-    const fetchPatients = async () => {
+    useEffect(() => {
+        // Debounce search
+        const timer = setTimeout(() => {
+            fetchPatients();
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]); // Separate effect for search
+
+
+
+    const fetchPatients = useCallback(async () => {
         try {
             setLoading(true);
             setError('');
@@ -45,55 +65,47 @@ export default function PatientsPage() {
                 search: searchTerm || undefined
             });
 
-            console.log('✅ Patients API response:', response);
+            console.log('🔍 COMPLETE RESPONSE:', JSON.stringify(response, null, 2));
 
-            // Safe data extraction with fallbacks
-            if (response && response.status === 'success') {
-                const patientsData = response.data?.patients || response.data || [];
-                const totalCount = response.data?.total || response.total || patientsData.length;
+            // Backend structure: { status: "success", data: { items: [], total: 10 } }
+            // apiService.getPatients() returns that exact structure
+            if (response?.status === 'success' && response?.data) {
+                const items = response.data.items || [];
+                const total = response.data.total || 0;
 
-                setPatients(Array.isArray(patientsData) ? patientsData : []);
-                setTotalPatients(totalCount);
+                setPatients(items);
+                setTotalPatients(total);
 
-                console.log(`✅ Loaded ${patientsData.length} patients (total: ${totalCount})`);
+                console.log(`✅ SUCCESS: Loaded ${items.length} patients (Total: ${total})`);
             } else {
-                console.warn('⚠️ Unexpected response format:', response);
+                console.warn('⚠️ Unexpected response:', response);
                 setPatients([]);
                 setTotalPatients(0);
             }
         } catch (err: any) {
-            console.error('❌ Error fetching patients:', err);
-
-            if (err.response?.status === 500) {
-                setError('Server error. Please contact support.');
-            } else {
-                setError(err.message || 'Failed to load patients');
-            }
-
+            console.error('❌ Error:', err);
+            setError(err.message || 'Failed to load patients');
             setPatients([]);
             setTotalPatients(0);
         } finally {
             setLoading(false);
         }
-    };
+    }, [limit, offset, searchTerm]);
+
+    useEffect(() => {
+        const timer = setTimeout(fetchPatients, searchTerm ? 300 : 0);
+        return () => clearTimeout(timer);
+    }, [fetchPatients]);
+
+
 
     const handleSearch = (value: string) => {
         setSearchTerm(value);
-        setOffset(0); // Reset to first page when searching
-    };
-
-    const calculateAge = (dob: string): number => {
-        const birthDate = new Date(dob);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
+        if (offset !== 0) {
+            setOffset(0); // Reset pagination when searching
         }
-
-        return age;
     };
+
 
     if (loading && patients.length === 0) {
         return (
@@ -183,24 +195,24 @@ export default function PatientsPage() {
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {patients.map((patient) => (
                             <Card
-                                key={patient.patient_id}
+                                key={patient.id}
                                 className="hover:shadow-xl transition-shadow cursor-pointer"
-                                onClick={() => router.push(`/patients/${patient.patient_id}`)}
+                                onClick={() => router.push(`/patients/${patient.id}`)}
                             >
                                 {/* Patient Header */}
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-12 h-12 bg-synapseSkyBlue/10 rounded-full flex items-center justify-center">
                                             <span className="text-xl font-semibold text-synapseSkyBlue">
-                                                {patient.full_name.charAt(0).toUpperCase()}
+                                                {patient.name.charAt(0).toUpperCase()}
                                             </span>
                                         </div>
                                         <div>
                                             <h3 className="font-heading font-semibold text-neutralBlack">
-                                                {patient.full_name}
+                                                {patient.name}
                                             </h3>
                                             <p className="text-sm text-neutralGray-700">
-                                                {patient.gender} • {calculateAge(patient.date_of_birth)} years
+                                                {patient.sex} • {patient.age} years
                                             </p>
                                         </div>
                                     </div>
@@ -210,7 +222,7 @@ export default function PatientsPage() {
                                 <div className="space-y-2 text-sm">
                                     <div className="flex items-center gap-2 text-neutralGray-700">
                                         <Phone className="w-4 h-4" />
-                                        <span>{patient.contact_number}</span>
+                                        <span>{patient.phone || 'N/A'}</span>
                                     </div>
                                     {patient.email && (
                                         <div className="flex items-center gap-2 text-neutralGray-700">
@@ -233,7 +245,7 @@ export default function PatientsPage() {
                                         size="sm"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            router.push(`/patients/${patient.patient_id}`);
+                                            router.push(`/patients/${patient.id}`);
                                         }}
                                         className="w-full"
                                     >

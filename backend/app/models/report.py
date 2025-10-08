@@ -49,6 +49,13 @@ class Report(BaseModel):
     status = Column(String(20), nullable=False, default=ReportStatus.PENDING.value)
     version = Column(Integer, nullable=False, default=1)
     
+    version = Column(Integer, nullable=False, default=1)
+    # Patient progress tracking
+    patient_status = Column(String(20), nullable=True)  # 'improving', 'stable', 'worse'
+    # Generated content (encrypted)
+    generated_content = Column(EncryptedType(20000), nullable=True)
+
+
     # Generated content (encrypted)
     generated_content = Column(EncryptedType(20000), nullable=True)  # Main report content
     structured_data = Column(JSONB, nullable=True)  # Structured medical data

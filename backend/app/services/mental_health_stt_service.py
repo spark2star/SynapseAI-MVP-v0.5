@@ -9,6 +9,7 @@ import base64
 from typing import Dict, Any, AsyncGenerator, Optional
 from datetime import datetime, timezone
 import logging
+from pathlib import Path
 
 from google.cloud import speech
 from google.cloud.speech import RecognitionConfig, StreamingRecognitionConfig
@@ -21,20 +22,67 @@ class MentalHealthSTTService:
     """Enhanced STT service for mental health practitioners with multi-language support."""
     
     def __init__(self):
-        # Initialize Google Cloud Speech client with service account
-        credentials = service_account.Credentials.from_service_account_file(
-            settings.GCP_CREDENTIALS_PATH,
-            scopes=['https://www.googleapis.com/auth/cloud-platform']
-        )
-        self.client = speech.SpeechClient(credentials=credentials)
-        self.active_sessions: Dict[str, Dict[str, Any]] = {}
-        self.project_id = settings.GCP_PROJECT_ID
+        """Initialize Google Cloud Speech client with service account."""
+        from pathlib import Path
+        import os
         
-        # Mental Health Terminology Database
-        self.mental_health_terminology = self._build_mental_health_database()
-        
-        logger.info(f"Mental Health STT Service initialized with project: {self.project_id}")
-        logger.info(f"Supporting languages: {settings.GOOGLE_STT_PRIMARY_LANGUAGE}, {settings.GOOGLE_STT_ALTERNATE_LANGUAGES}")
+        try:
+            # Get credentials path
+            cred_path = getattr(settings, 'GCP_CREDENTIALS_PATH', None)
+            if not cred_path:
+                raise ValueError("GCP_CREDENTIALS_PATH not set in environment")
+            
+            # Handle relative paths
+            if not os.path.isabs(cred_path):
+                # Try relative to backend directory
+                backend_dir = Path(__file__).parent.parent.parent
+                cred_path = backend_dir / cred_path
+            else:
+                cred_path = Path(cred_path)
+            
+            # Validate file exists
+            if not cred_path.exists():
+                raise FileNotFoundError(
+                    f"GCP credentials file not found at: {cred_path}\n"
+                    f"Current working directory: {os.getcwd()}\n"
+                    f"Please ensure gcp-credentials.json is in the backend directory."
+                )
+            
+            # Validate file is readable JSON
+            try:
+                with open(cred_path, 'r') as f:
+                    import json
+                    cred_data = json.load(f)
+                    if 'project_id' not in cred_data:
+                        raise ValueError("Credentials file missing 'project_id' field")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in credentials file: {e}")
+            
+            # Initialize credentials
+            logger.info(f"Loading GCP credentials from: {cred_path}")
+            credentials = service_account.Credentials.from_service_account_file(
+                str(cred_path),
+                scopes=['https://www.googleapis.com/auth/cloud-platform']
+            )
+            
+            # Initialize client
+            self.client = speech.SpeechClient(credentials=credentials)
+            self.active_sessions: Dict[str, Dict[str, Any]] = {}
+            self.project_id = settings.GCP_PROJECT_ID
+            
+            # Mental Health Terminology Database
+            self.mental_health_terminology = self._build_mental_health_database()
+            
+            logger.info(f"✅ Mental Health STT Service initialized")
+            logger.info(f"✅ Project: {self.project_id}")
+            logger.info(f"✅ Languages: {settings.GOOGLE_STT_PRIMARY_LANGUAGE}, {settings.GOOGLE_STT_ALTERNATE_LANGUAGES}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Mental Health STT service: {e}")
+            logger.error(f"❌ Make sure gcp-credentials.json exists in backend directory")
+            raise ValueError(f"STT Service initialization failed: {e}") from e
+
+
         
     def _build_mental_health_database(self) -> Dict[str, list]:
         """Build comprehensive mental health terminology database for all supported languages."""

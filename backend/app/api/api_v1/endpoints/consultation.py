@@ -3,16 +3,19 @@ Consultation session management endpoints.
 Handles starting, stopping, and managing consultation sessions.
 """
 
+
 import uuid
 import logging
 import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
+
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from pydantic import BaseModel, Field
+
 
 from app.core.database import get_db
 from app.core.pagination import paginate_query
@@ -31,18 +34,22 @@ from app.schemas.consultation import (
     ConsultationDetailResponse
 )
 
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
 
 # WebSocket base URL - configurable for production
 WS_BASE_URL = os.getenv("WS_BASE_URL", "ws://localhost:8000")
 logger.info(f"🔗 WebSocket base URL: {WS_BASE_URL}")
+
 
 # Validate WebSocket URL format
 if not WS_BASE_URL.startswith(('ws://', 'wss://')):
     logger.warning(f"⚠️ Invalid WS_BASE_URL format: {WS_BASE_URL}")
     WS_BASE_URL = "ws://localhost:8000"
     logger.info(f"   Falling back to: {WS_BASE_URL}")
+
 
 class StartConsultationRequest(BaseModel):
     """Request model for starting a consultation session."""
@@ -51,9 +58,11 @@ class StartConsultationRequest(BaseModel):
     chief_complaint: str = Field(..., description="Primary reason for consultation")
     session_type: str = Field(default="consultation", description="Type of session")
 
+
 class StopConsultationRequest(BaseModel):
     """Request model for stopping a consultation session."""
     notes: Optional[str] = Field(None, description="Session notes")
+
 
 @router.post("/start")
 async def start_consultation(
@@ -119,11 +128,14 @@ async def start_consultation(
             created_at=datetime.now(timezone.utc)
         )
         
+        # ✅ CRITICAL FIX: Add and commit IMMEDIATELY before any other operations
         db.add(consultation)
         db.commit()
         db.refresh(consultation)
         
-        # Initialize STT session if available
+        logger.info(f"✅ [{ request_id}] Consultation {session_id} committed to database successfully")
+        
+        # Initialize STT session if available (AFTER commit - can fail without affecting DB)
         stt_session_info = None
         if mental_health_stt_service:
             try:
@@ -134,6 +146,7 @@ async def start_consultation(
                 logger.info(f"STT session started for {session_id}")
             except Exception as e:
                 logger.warning(f"Failed to start STT session: {str(e)}")
+                # Don't fail the request if STT fails - session is already committed
         
         # Log audit event
         background_tasks.add_task(
@@ -154,8 +167,8 @@ async def start_consultation(
             "status": "success",
             "data": {
                 "session_id": session_id,
-                "consultation_id": consultation.id,
-                "patient_name": patient_name,  # Use patient_name variable set earlier
+                "consultation_id": str(consultation.id),
+                "patient_name": patient_name,
                 "started_at": consultation.started_at,
                 "stt_session": stt_session_info,
                 "websocket_url": f"{WS_BASE_URL}/ws/consultation/{session_id}"
@@ -164,10 +177,13 @@ async def start_consultation(
         }
         
     except HTTPException:
+        # db.rollback()
         raise
     except Exception as e:
+        # db.rollback()
         logger.error(f"Error starting consultation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to start consultation: {str(e)}")
+
 
 
 @router.get("/history/{patient_id}")
@@ -270,6 +286,7 @@ async def get_consultation_history(
         raise HTTPException(status_code=500, detail=f"Failed to fetch consultation history: {str(e)}")
 
 
+
 @router.get("/detail/{consultation_id}", response_model=ConsultationDetailResponse)
 async def get_consultation_detail(
     consultation_id: str,
@@ -306,10 +323,11 @@ async def get_consultation_detail(
         )
         
     except HTTPException:
-        raise
+            raise
     except Exception as e:
         logger.error(f"Error fetching consultation detail: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch consultation detail: {str(e)}")
+
 
 
 @router.post("/{session_id}/stop")
@@ -398,6 +416,7 @@ async def stop_consultation(
         logger.error(f"Error stopping consultation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to stop consultation: {str(e)}")
 
+
 @router.get("/{session_id}/status")
 async def get_consultation_status(
     session_id: str,
@@ -439,6 +458,7 @@ async def get_consultation_status(
         logger.error(f"Error getting consultation status: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get consultation status: {str(e)}")
 
+
 @router.get("/test")
 async def test_stt_service():
     """
@@ -471,7 +491,3 @@ async def test_stt_service():
             "status": "error",
             "message": f"STT service test failed: {str(e)}"
         }
-
-
-
-
