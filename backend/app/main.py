@@ -100,6 +100,10 @@ if settings.ENVIRONMENT == "production":
     )
 
 
+app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+app.include_router(transcribe_router, prefix="/api/v1", tags=["websocket", "transcription"])
+
+
 # Request timing middleware
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):

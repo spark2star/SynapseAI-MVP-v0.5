@@ -75,7 +75,9 @@ export default function PatientDetailPage() {
     const isNewPatient = searchParams?.get('newPatient') === 'true'
     const preSelectedSessionType = searchParams?.get('sessionType')
 
+    // ✅ FIX: Use only one auth source
     const user = useAuthStore((state) => state.user)
+
 
     const [patient, setPatient] = useState<Patient | null>(null)
     const [sessions, setSessions] = useState<ConsultationSession[]>([])
@@ -151,6 +153,17 @@ export default function PatientDetailPage() {
         return () => clearInterval(interval)
     }, [isRecording, isPaused])
 
+    // useEffect(() => {
+    //     // Auto-start recording when isRecording becomes true
+    //     if (isRecording && currentSession) {
+    //         console.log('🎙️ Auto-starting recording for session:', currentSession)
+    //         startConsultation()
+    //     }
+    // }, [isRecording, currentSession])
+
+
+
+
     const fetchPatientDetails = async () => {
         try {
             setLoading(true)
@@ -188,6 +201,7 @@ export default function PatientDetailPage() {
                 setPatient(mappedPatient)
                 console.log('🏁 Patient state set successfully')
 
+                // ✅ Load consultation history (non-blocking)
                 try {
                     const historyResponse = await apiClient.get(`/consultation/history/${patientId}`)
                     if (historyResponse.status === 'success' && historyResponse.data) {
@@ -203,10 +217,12 @@ export default function PatientDetailPage() {
             console.error('❌ Error fetching patient:', error)
             toast.error('Failed to load patient details')
         } finally {
+            // ✅ ONLY ONE setLoading(false) in finally!
             setLoading(false)
             console.log('🏁 Loading complete')
         }
     }
+
 
     const fetchConsultationSessions = async () => {
         try {
@@ -246,11 +262,13 @@ export default function PatientDetailPage() {
         try {
             console.log('🎬 Starting new consultation for patient:', patientId)
 
+            // Check if user exists
             if (!user?.id) {
                 toast.error('Error: User not authenticated')
                 return
             }
 
+            // Build request with all required fields
             const requestBody = {
                 patient_id: patientId,
                 doctor_id: user.id,
@@ -264,6 +282,7 @@ export default function PatientDetailPage() {
 
             console.log('📥 Response:', response)
 
+            // Access session_id from response.data
             const sessionId = response?.data?.session_id || response?.session_id
 
             if (sessionId) {
@@ -281,47 +300,20 @@ export default function PatientDetailPage() {
             console.error('❌ Consultation start error:', error)
             console.error('❌ Error response:', error.response?.data)
 
-            const errorMessage = error.response?.data?.error?.message || error.message
+            // Check for active session error
+            const errorMessage = error.response?.data?.error?.message ||
+                error.response?.data?.message ||
+                error.message
 
-            if (errorMessage?.toLowerCase().includes('already has an active')) {
-                console.log('⚠️ Active session detected, attempting to end it first...')
+            console.log('🔍 Error message:', errorMessage)
 
-                if (!user?.id) {
-                    toast.error('User session expired. Please refresh and try again.')
-                    return
-                }
+            if (errorMessage?.toLowerCase().includes('already has an active') ||
+                errorMessage?.toLowerCase().includes('active consultation')) {
+                console.log('⚠️ Active session detected, prompting user...')
 
-                try {
-                    await apiClient.post(`/consultation/end-by-patient/${patientId}`)
-
-                    toast.success('Ended previous session, retrying...')
-
-                    await new Promise(resolve => setTimeout(resolve, 500))
-
-                    const retryResponse = await apiClient.post('/consultation/start', {
-                        patient_id: patientId,
-                        doctor_id: user.id,
-                        session_type: sessionType || 'first_session',
-                        chief_complaint: chiefComplaint || 'Not specified'
-                    })
-
-                    console.log('📥 Retry response:', retryResponse)
-
-                    const retrySessionId = retryResponse?.data?.session_id || retryResponse?.session_id
-
-                    if (retrySessionId) {
-                        console.log('✅ Retry successful! Session ID:', retrySessionId)
-                        setCurrentSession(retrySessionId)
-                        setIsRecording(true)
-                        setShowNewConsultation(false)
-                        toast.success('Recording started successfully!')
-                        return
-                    }
-                } catch (retryError) {
-                    console.error('❌ Retry failed:', retryError)
-                    toast.error('Failed to end previous session. Please refresh the page.')
-                    return
-                }
+                // Show confirmation dialog - DON'T force start yet!
+                handleActiveSessionPrompt()
+                return // Stop here and wait for user confirmation
             }
 
             if (error.response?.data?.error?.fields) {
@@ -331,6 +323,107 @@ export default function PatientDetailPage() {
             toast.error(`Failed to start consultation: ${errorMessage}`)
         }
     }
+
+
+    const handleActiveSessionPrompt = () => {
+        console.log('🎯 Showing confirmation dialog...')
+
+        const confirmed = window.confirm(
+            '⚠️ ACTIVE SESSION DETECTED\n\n' +
+            'This patient already has an active consultation session.\n\n' +
+            'Do you want to END the previous session and START a new one?\n\n' +
+            '⚠️ This action will terminate the existing session.'
+        )
+
+        if (confirmed) {
+            console.log('✅ User confirmed force start')
+            handleForceStartSession()
+        } else {
+            console.log('❌ User cancelled force start')
+            toast('Action cancelled. Previous session remains active.', {
+                icon: 'ℹ️',
+                duration: 4000
+            })
+        }
+    }
+
+
+    const handleForceStartSession = async () => {
+        console.log('🚀 FORCE START: Starting new session with force=true')
+
+        const loadingToast = toast.loading('Force starting new session...')
+
+        try {
+            // Verify user exists
+            if (!user?.id) {
+                toast.error('User session expired. Please refresh.', { id: loadingToast })
+                return
+            }
+
+            console.log('📤 Sending force start request...')
+
+            const requestBody = {
+                patient_id: patientId,
+                doctor_id: user.id,
+                session_type: sessionType || 'first_session',
+                chief_complaint: chiefComplaint || 'Not specified'
+            }
+
+            // ✅ USE FORCE=TRUE QUERY PARAMETER
+            const response = await apiClient.post(
+                '/consultation/start?force=true',
+                requestBody
+            )
+
+            console.log('📥 Force start response:', response)
+
+            // ✅ FIXED: Extract session_id from response.data.data
+            const sessionId = response?.data?.data?.session_id ||
+                response?.data?.session_id ||
+                response?.session_id
+
+            if (sessionId) {
+                console.log('✅ Force start successful! Session ID:', sessionId)
+                setCurrentSession(sessionId)
+                setIsRecording(true)
+                setShowNewConsultation(false)
+
+                toast.success('🎉 New session started! Previous session ended.', {
+                    id: loadingToast,
+                    duration: 4000,
+                })
+
+                // Refresh patient data
+                try {
+                    if (typeof fetchPatientDetails === 'function') {
+                        await fetchPatientDetails()
+                    }
+                } catch (refreshError) {
+                    console.warn('Failed to refresh patient details:', refreshError)
+                }
+
+            } else {
+                console.error('❌ No session_id in response:', response)
+                throw new Error('No session_id in response after force start')
+            }
+
+        } catch (error: any) {
+            console.error('❌ Force start failed:', error)
+            console.error('❌ Error details:', error.response?.data)
+
+            const errorMsg = error.response?.data?.error?.message ||
+                error.response?.data?.message ||
+                error.message
+
+            toast.error(
+                `Force start failed: ${errorMsg}`,
+                { id: loadingToast, duration: 8000 }
+            )
+        }
+    }
+
+
+
 
     const stopConsultation = async () => {
         try {
@@ -371,6 +464,18 @@ export default function PatientDetailPage() {
         }
     }
 
+    const handlePauseRecording = () => {
+        console.log('⏸️ Pausing recording...')
+        setIsPaused(true)
+        // MediaRecorder pause will be handled by SimpleRecorder component
+    }
+
+    const handleResumeRecording = () => {
+        console.log('▶️ Resuming recording...')
+        setIsPaused(false)
+        // MediaRecorder resume will be handled by SimpleRecorder component
+    }
+
     const formatDuration = (seconds: number) => {
         const mins = Math.floor(seconds / 60)
         const secs = seconds % 60
@@ -395,11 +500,13 @@ export default function PatientDetailPage() {
                 const trimmedTranscript = transcript.trim()
                 const trimmedPrev = prev.trim()
 
+                // Skip empty transcript
                 if (!trimmedTranscript) {
                     console.log('⚠️ [page.tsx] Skipping empty transcript')
                     return prev
                 }
 
+                // Skip if chunk is already at the end (prevents duplicate finalization)
                 if (
                     trimmedPrev.endsWith(trimmedTranscript) ||
                     trimmedPrev.split(/\s+/).slice(-trimmedTranscript.split(/\s+/).length).join(' ') === trimmedTranscript
@@ -408,6 +515,7 @@ export default function PatientDetailPage() {
                     return prev
                 }
 
+                // Always append new non-duplicate finalized text
                 const updated = trimmedPrev.length > 0
                     ? trimmedPrev + ' ' + trimmedTranscript
                     : trimmedTranscript
@@ -420,6 +528,8 @@ export default function PatientDetailPage() {
             console.log(`🔵 [page.tsx] Live transcript updated: ${transcript.length} chars`);
         }
     }, [])
+
+
 
     const handleTranscriptionEdit = (newText: string) => {
         setFinalTranscription(newText)
@@ -586,6 +696,17 @@ export default function PatientDetailPage() {
         patientId: patient?.id
     })
 
+    // if (loading) {
+    //     return (
+    //         <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
+    //             <div className="text-center">
+    //                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+    //                 <p className="text-gray-600 dark:text-gray-400">Loading patient details...</p>
+    //             </div>
+    //         </div>
+    //     )
+    // }
+
     if (!patient) {
         return (
             <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
@@ -643,6 +764,7 @@ export default function PatientDetailPage() {
                     )}
                 </div>
 
+
                 {/* Recording Interface */}
                 {isRecording && currentSession && (
                     <div className="space-y-4">
@@ -651,22 +773,44 @@ export default function PatientDetailPage() {
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse"></div>
-                                        <span className="text-lg font-semibold text-red-800 dark:text-red-200">RECORDING IN PROGRESS</span>
+                                        <div className={`h-3 w-3 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'}`}></div>
+                                        <span className="text-lg font-semibold text-red-800 dark:text-red-200">
+                                            {isPaused ? 'RECORDING PAUSED' : 'RECORDING IN PROGRESS'}
+                                        </span>
                                     </div>
                                     <div className="text-sm text-red-600 dark:text-red-300">
                                         {formatDuration(recordingDuration)} • Multi-language STT Active
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">मराठी</span>
-                                    <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">English</span>
-                                    <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">हिंदी</span>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">मराठी</span>
+                                        <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">English</span>
+                                        <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">हिंदी</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {!isPaused && (
+                                            <Button onClick={handlePauseRecording} variant="secondary" size="sm">
+                                                <PauseIcon className="w-4 h-4 mr-1" /> Pause
+                                            </Button>
+                                        )}
+                                        {isPaused && (
+                                            <Button onClick={handleResumeRecording} variant="primary" size="sm">
+                                                <PlayIcon className="w-4 h-4 mr-1" /> Resume
+                                            </Button>
+                                        )}
+                                        <Button onClick={stopConsultation} variant="secondary" size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+                                            <StopIcon className="w-4 h-4 mr-1" /> Stop Recording
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Audio Recorder */}
+
+
+
+                        {/* Audio Recorder - Simple REST API version */}
                         <SimpleRecorder
                             sessionId={currentSession || ''}
                             onTranscriptUpdate={handleTranscriptionUpdate}
@@ -681,6 +825,7 @@ export default function PatientDetailPage() {
                             onStop={() => {
                                 console.log('[Patient Page] Recording stopped')
 
+                                // 🔥 Move live transcript to final
                                 if (liveTranscription.trim()) {
                                     setFinalTranscription(prev => {
                                         const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription;
@@ -692,11 +837,13 @@ export default function PatientDetailPage() {
 
                                 setIsRecording(false)
                             }}
+
                         />
                     </div>
                 )}
 
-                {/* Patient Information Card */}
+
+                {/* ✅ ADD THIS: Patient Information Card */}
                 <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">
                     <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Patient Information</h3>
 
@@ -730,61 +877,6 @@ export default function PatientDetailPage() {
                     </div>
                 </div>
 
-                {/* Consultation History */}
-                <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">
-                    <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
-                        Consultation History ({sessions.length})
-                    </h3>
-
-                    {sessions.length === 0 ? (
-                        <p className="text-neutral-600 dark:text-neutral-400 text-center py-8">
-                            No previous consultations found
-                        </p>
-                    ) : (
-                        <div className="space-y-3">
-                            {sessions.map((session) => (
-                                <div
-                                    key={session.id}
-                                    className="border border-neutral-200 dark:border-neutral-600 rounded-lg p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
-                                    onClick={() => {
-                                        if (session.report_id) {
-                                            setSelectedReportId(session.report_id)
-                                            setShowReportModal(true)
-                                        }
-                                    }}
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="font-medium text-neutral-900 dark:text-neutral-100">
-                                                {session.session_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                            </p>
-                                            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                                                {session.chief_complaint}
-                                            </p>
-                                            <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
-                                                {formatDate(session.started_at)} • {session.duration_minutes} min
-                                            </p>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-2">
-                                            <span className={`text-xs px-2 py-1 rounded ${session.status === 'completed'
-                                                    ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                                                    : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'
-                                                }`}>
-                                                {session.status}
-                                            </span>
-                                            {session.has_report && (
-                                                <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
-                                                    Has Report
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
                 {/* Editable Live Transcription */}
                 {currentSession && (
                     <div className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-lg p-4">
@@ -796,6 +888,85 @@ export default function PatientDetailPage() {
                             onGenerateReport={() => setShowMedicationModal(true)}
                             sessionId={currentSession}
                         />
+                    </div>
+                )}
+
+                {/* ✅ Consultation History Section */}
+                {!isRecording && sessions.length > 0 && (
+                    <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+                                Consultation History
+                            </h3>
+                            <span className="text-sm text-neutral-500 dark:text-neutral-400">
+                                {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+
+                        <div className="space-y-4">
+                            {sessions.map((session) => (
+                                <div
+                                    key={session.id}
+                                    className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${session.status === 'completed'
+                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                                    }`}>
+                                                    {session.status}
+                                                </span>
+                                                <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                                                    {formatDate(session.started_at)}
+                                                </span>
+                                                <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                                                    {session.duration_minutes} min
+                                                </span>
+                                            </div>
+
+                                            <h4 className="font-medium text-neutral-900 dark:text-neutral-100 mb-1">
+                                                {session.session_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                            </h4>
+                                            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                                                {session.chief_complaint || 'No chief complaint recorded'}
+                                            </p>
+
+                                            {session.has_transcription && (
+                                                <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+                                                    <DocumentTextIcon className="h-4 w-4" />
+                                                    <span>Transcription available</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-col gap-2">
+                                            {session.has_report && session.report_id && (
+                                                <Button
+                                                    variant="primary"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedReportId(session.report_id!)
+                                                        setShowReportModal(true)
+                                                    }}
+                                                    className="flex items-center gap-2"
+                                                >
+                                                    <DocumentTextIcon className="h-4 w-4" />
+                                                    View Report
+                                                </Button>
+                                            )}
+
+                                            {!session.has_report && session.has_transcription && (
+                                                <span className="text-xs text-neutral-500 dark:text-neutral-400 italic">
+                                                    Report not generated
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 

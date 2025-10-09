@@ -64,15 +64,21 @@ class StopConsultationRequest(BaseModel):
     notes: Optional[str] = Field(None, description="Session notes")
 
 
+# backend/app/api/api_v1/endpoints/consultation.py
+
 @router.post("/start")
 async def start_consultation(
     request: StartConsultationRequest,
     background_tasks: BackgroundTasks,
+    force: bool = False,  # ✅ ADD THIS LINE
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Start a new consultation session with live transcription.
+    
+    Args:
+        force: If True, will end any active session and start a new one
     
     Migration Note: Now uses IntakePatient instead of Patient model.
     """
@@ -110,8 +116,27 @@ async def start_consultation(
             ConsultationSession.status == SessionStatus.IN_PROGRESS.value
         ).first()
         
+        # ✅ HANDLE FORCE FLAG
         if active_session:
-            raise HTTPException(status_code=400, detail="Patient already has an active consultation session")
+            if force:
+                # Force end the active session
+                logger.info(f"[{request_id}] Force flag detected - ending session {active_session.session_id}")
+                
+                active_session.status = SessionStatus.COMPLETED.value
+                active_session.ended_at = datetime.now(timezone.utc)
+                
+                
+                # ✅ SIMPLE FIX: Just set to 0 when forcing
+                active_session.total_duration = 0.0
+                
+                db.commit()
+                logger.info(f"[{request_id}] Previous session ended successfully")
+            else:
+                # No force flag - return error
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Patient already has an active consultation session"
+                )
         
         # Generate unique session ID
         session_id = f"CS-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
@@ -128,14 +153,14 @@ async def start_consultation(
             created_at=datetime.now(timezone.utc)
         )
         
-        # ✅ CRITICAL FIX: Add and commit IMMEDIATELY before any other operations
+        # Add and commit IMMEDIATELY
         db.add(consultation)
         db.commit()
         db.refresh(consultation)
         
-        logger.info(f"✅ [{ request_id}] Consultation {session_id} committed to database successfully")
+        logger.info(f"✅ [{request_id}] Consultation {session_id} committed to database")
         
-        # Initialize STT session if available (AFTER commit - can fail without affecting DB)
+        # Initialize STT session if available
         stt_session_info = None
         if mental_health_stt_service:
             try:
@@ -146,7 +171,6 @@ async def start_consultation(
                 logger.info(f"STT session started for {session_id}")
             except Exception as e:
                 logger.warning(f"Failed to start STT session: {str(e)}")
-                # Don't fail the request if STT fails - session is already committed
         
         # Log audit event
         background_tasks.add_task(
@@ -159,7 +183,8 @@ async def start_consultation(
                 "session_id": session_id,
                 "patient_id": request.patient_id,
                 "session_type": request.session_type,
-                "stt_enabled": stt_session_info is not None
+                "stt_enabled": stt_session_info is not None,
+                "forced": force  # ✅ Log if forced
             }
         )
         
@@ -171,18 +196,35 @@ async def start_consultation(
                 "patient_name": patient_name,
                 "started_at": consultation.started_at,
                 "stt_session": stt_session_info,
-                "websocket_url": f"{WS_BASE_URL}/ws/consultation/{session_id}"
+                "websocket_url": f"{WS_BASE_URL}/ws/consultation/{session_id}",
+                "forced": force  # ✅ Return force flag
             },
-            "message": "Consultation session started successfully"
+            "message": f"Consultation session started successfully{' (previous session ended)' if force else ''}"
         }
         
     except HTTPException:
-        # db.rollback()
         raise
     except Exception as e:
-        # db.rollback()
-        logger.error(f"Error starting consultation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to start consultation: {str(e)}")
+        logger.error(f"[{request_id}] Error starting consultation: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to start consultation: {str(e)}"
+        )
+
+
+
+@router.options("/end-by-patient/{patient_id}")
+async def options_end_consultation_by_patient(patient_id: str):
+    """Handle CORS preflight for end consultation endpoint."""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",  # Or specific origin
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        }
+    )
+
 
 
 @router.post("/end-by-patient/{patient_id}")

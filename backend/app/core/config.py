@@ -74,10 +74,12 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     
     # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
-    ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    ALLOWED_HEADERS: List[str] = ["*"]
-    
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000", "https://synapseai.health"]
+    # ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    # ALLOWED_HEADERS: List[str] = ["*"]
+    ALLOWED_METHODS: list[str] = ["*"]  # Or ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    ALLOWED_HEADERS: list[str] = ["*"]  # Or ["Content-Type", "Authorization", "Accept"]
+
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
     RATE_LIMIT_PER_HOUR: int = 1000

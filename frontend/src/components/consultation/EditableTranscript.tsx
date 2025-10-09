@@ -429,7 +429,7 @@ export default function EditableTranscript({
                                         ) : (
                                             <div
                                                 onClick={handleInlineEdit}
-                                                className="text-base text-black dark:text-white whitespace-pre-wrap leading-relaxed font-medium cursor-text hover:bg-green-50 dark:hover:bg-green-900/10 p-2 rounded border-2 border-dashed border-green-200 dark:border-green-800 transition-colors"
+                                                className="text-base text-foreground whitespace-pre-wrap leading-relaxed font-medium cursor-text hover:bg-green-50 dark:hover:bg-green-900/10 p-2 rounded border-2 border-dashed border-green-200 dark:border-green-800 transition-colors"
                                                 title="Click to edit this transcription"
                                             >
                                                 {displayFinalText}
@@ -492,7 +492,7 @@ export default function EditableTranscript({
                             /* Static View Mode */
                             <div className="space-y-3">
                                 <div
-                                    className="text-base text-black dark:text-white whitespace-pre-wrap leading-relaxed font-medium cursor-text"
+                                    className="text-base text-foreground whitespace-pre-wrap leading-relaxed font-medium cursor-text"
                                     onClick={handleStartEdit}
                                     title="Click to edit transcript"
                                 >
