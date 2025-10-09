@@ -190,7 +190,7 @@ export default function LoginPage() {
                             <img
                                 src="/Logo-MVP-v0.5.png"
                                 alt="SynapseAI"
-                                className="w-20 h-20 mx-auto brightness-0 invert hover:scale-105 transition-transform"
+                                className="w-40 h-40 mx-auto brightness-0 invert hover:scale-105 transition-transform"
                             />
                         </div>
 
@@ -267,7 +267,7 @@ export default function LoginPage() {
                     </div>
 
                     {/* Admin Credentials Notice */}
-                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    {/* <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-sm text-gray-900 font-medium mb-2">
                             <span className="font-bold">🔑 Admin Access:</span>
                         </p>
@@ -275,7 +275,7 @@ export default function LoginPage() {
                             Email: admin@synapseai.com<br />
                             Password: SynapseAdmin2025!
                         </p>
-                    </div>
+                    </div> */}
 
                     {/* Error Display */}
                     {error && (

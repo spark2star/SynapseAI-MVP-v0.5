@@ -51,7 +51,7 @@ export default function DashboardLayout({
     // Redirect to login if not authenticated (only after mounted)
     useEffect(() => {
         console.log('🔄 Redirect Effect Triggered:', { mounted, isLoading, isAuthenticated })
-        
+
         if (mounted && !isLoading && !isAuthenticated) {
             console.log('🔒 NOT AUTHENTICATED - Redirecting to login...')
             router.push('/auth/login')
@@ -70,10 +70,10 @@ export default function DashboardLayout({
     if (isLoading) {
         console.log('⏳ Loading state - showing spinner')
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="mt-4 text-gray-600">Loading dashboard...</p>
+                    <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading dashboard...</p>
                 </div>
             </div>
         )
@@ -88,25 +88,23 @@ export default function DashboardLayout({
     console.log('✅ Rendering full dashboard layout')
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="flex">
-                {/* Sidebar */}
-                <div className="hidden lg:block lg:fixed lg:inset-y-0 lg:z-40 lg:w-64">
-                    <DashboardSidebar />
-                </div>
+        <div className="flex h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-900">
+            {/* Sidebar - Fixed width, full height, no gap */}
+            <aside className="w-64 flex-shrink-0 h-full hidden lg:block">
+                <DashboardSidebar />
+            </aside>
 
-                {/* Main content */}
-                <div className="flex-1 lg:ml-64">
-                    {/* Header */}
-                    <DashboardHeader />
+            {/* Main content area - fills remaining space */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Header - Fixed at top */}
+                <DashboardHeader />
 
-                    {/* Page content */}
-                    <main className="py-6">
-                        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                            {children}
-                        </div>
-                    </main>
-                </div>
+                {/* Page content - Scrollable, no padding on container */}
+                <main className="flex-1 overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
+                    <div className="h-full">
+                        {children}
+                    </div>
+                </main>
             </div>
         </div>
     )

@@ -13,7 +13,42 @@ interface TranscriptionResponse {
     transcript: string;
     confidence: number;
     language_code: string;
-    success: boolean;
+    status: string;
+}
+
+// Helper function to create WAV blob
+function createWavBlob(samples: Int16Array, sampleRate: number): Blob {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // Write WAV header
+    const writeString = (offset: number, string: string) => {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);  // Subchunk1Size
+    view.setUint16(20, 1, true);   // AudioFormat (1 = PCM)
+    view.setUint16(22, 1, true);   // NumChannels (mono)
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);  // ByteRate
+    view.setUint16(32, 2, true);   // BlockAlign
+    view.setUint16(34, 16, true);  // BitsPerSample
+    writeString(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    // Write audio data
+    const offset = 44;
+    for (let i = 0; i < samples.length; i++) {
+        view.setInt16(offset + i * 2, samples[i], true);
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
 }
 
 const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
@@ -33,7 +68,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
     const audioBufferRef = useRef<Float32Array[]>([]);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // 🔥 NEW: Constants for chunking
+    // Constants for chunking
     const CHUNK_INTERVAL_MS = 30000; // 30 seconds (safe under 60s limit)
     const MIN_CHUNK_SIZE = 16000 * 2; // 2 seconds minimum
 
@@ -73,7 +108,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
             setIsRecording(true);
             onStart?.();
 
-            // 🔥 FIXED: Auto-send chunks every 30 seconds
+            // Auto-send chunks every 30 seconds
             intervalRef.current = setInterval(() => {
                 console.log('[STT] 30-second interval triggered, processing chunk...');
                 processAudioBuffer();
@@ -125,14 +160,14 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
     };
 
     const processAudioBuffer = async () => {
-        // 🔥 ADDED: Skip if buffer is too small
+        // Skip if buffer is too small
         if (audioBufferRef.current.length === 0) {
             console.log('[STT] No audio buffer to process');
             return;
         }
 
         const totalLength = audioBufferRef.current.reduce((acc, arr) => acc + arr.length, 0);
-        
+
         // Skip if less than 2 seconds of audio
         if (totalLength < MIN_CHUNK_SIZE) {
             console.log('[STT] Audio chunk too small, skipping');
@@ -151,7 +186,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
                 offset += chunk.length;
             }
 
-            // 🔥 IMPORTANT: Clear buffer immediately to avoid duplicates
+            // Clear buffer immediately to avoid duplicates
             audioBufferRef.current = [];
 
             // Convert Float32 to Int16 (LINEAR16 format)
@@ -176,13 +211,8 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
             const durationInSeconds = int16Audio.length / 16000;
             console.log(`[STT] Processing ${durationInSeconds.toFixed(1)}s of audio (max amplitude: ${maxAmplitude})`);
 
-            // Convert to base64
-            const bytes = new Uint8Array(int16Audio.buffer);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            const base64Audio = btoa(binary);
+            // Create WAV blob
+            const wavBlob = createWavBlob(int16Audio, 16000);
 
             // Get authentication token
             const token = localStorage.getItem('access_token');
@@ -191,12 +221,11 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
                 throw new Error('No authentication token found');
             }
 
-            // Send to backend with auth header
+            // Create FormData with WAV blob
             const formData = new FormData();
-            formData.append('session_id', sessionId);
-            formData.append('audio_data', base64Audio);
+            formData.append('audio', wavBlob, 'audio.wav');
 
-            const response = await fetch('http://localhost:8080/api/v1/transcribe/chunk', {
+            const response = await fetch(`http://localhost:8080/api/v1/stt/chunk?session_id=${sessionId}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -209,8 +238,9 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = ({
             }
 
             const result: TranscriptionResponse = await response.json();
+            console.log('[STT] 📦 Full response:', JSON.stringify(result));
 
-            if (result.success && result.transcript.trim()) {
+            if (result.status === "success" && result.transcript && result.transcript.trim()) {
                 console.log(`[STT] ✅ Got transcript: "${result.transcript}"`);
                 onTranscriptUpdate(result.transcript, false);
             } else {

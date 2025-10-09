@@ -10,20 +10,19 @@ import {
     DocumentTextIcon,
     CurrencyDollarIcon,
     CogIcon,
-    HeartIcon,
     ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline'
 
 import { useAuthStore } from '@/store/authStore'
 import type { NavItem } from '@/types'
-// import Logo from '@/components/ui/Logo'
-// import ThemeToggle from '@/components/ui/ThemeToggle'
+import Logo from '@/components/ui/Logo'
+import ThemeToggle from '@/components/ui/ThemeToggle'
 import Button from '@/components/ui/Button'
 import { toast } from 'react-hot-toast'
 
 export default function DashboardSidebar() {
     const pathname = usePathname()
-    const { user, hasAnyRole } = useAuthStore()
+    const { user, logout } = useAuthStore()
 
     const navigation: NavItem[] = [
         {
@@ -56,17 +55,13 @@ export default function DashboardSidebar() {
             icon: CurrencyDollarIcon,
             current: pathname.startsWith('/dashboard/billing'),
         },
+        {
+            name: 'Settings',
+            href: '/dashboard/settings',
+            icon: CogIcon,
+            current: pathname.startsWith('/dashboard/settings'),
+        },
     ]
-
-    // Add settings for all users
-    navigation.push({
-        name: 'Settings',
-        href: '/dashboard/settings',
-        icon: CogIcon,
-        current: pathname.startsWith('/dashboard/settings'),
-    })
-
-    const { logout } = useAuthStore()
 
     const handleLogout = () => {
         logout()
@@ -78,9 +73,9 @@ export default function DashboardSidebar() {
             duration: 3000,
             style: {
                 borderRadius: '12px',
-                background: '#f3f4f6',
-                color: '#374151',
-                border: '1px solid #d1d5db'
+                background: 'var(--toast-bg)',
+                color: 'var(--toast-color)',
+                border: '1px solid var(--toast-border)'
             }
         })
     }
@@ -88,20 +83,14 @@ export default function DashboardSidebar() {
     const comingSoonPages = ['/dashboard/appointments', '/dashboard/reports', '/dashboard/billing']
 
     return (
-        <div className="flex h-full flex-col bg-white dark:bg-neutral-900 transition-all duration-300 ease-in-out">
+        <div className="flex h-full flex-col bg-gray-50 dark:bg-slate-900 transition-colors duration-500 ease-in-out border-r border-gray-200 dark:border-slate-800">
             {/* Logo */}
-            <div className="flex h-16 items-center px-6 border-b border-neutral-100 dark:border-neutral-800/50">
-                {/* <Logo size="md" showText={true} /> */}
-                <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                        <span className="text-white font-bold text-xl">S</span>
-                    </div>
-                    <span className="text-xl font-bold">SynapseAI</span>
-                </div>
+            <div className="flex h-16 items-center justify-start px-6 border-b border-gray-200 dark:border-slate-800 transition-colors duration-500">
+                <Logo size="md" showText={true} />
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-4 py-6 space-y-1">
+            <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
                 {navigation.map((item) => {
                     const isComingSoon = comingSoonPages.includes(item.href)
 
@@ -111,13 +100,13 @@ export default function DashboardSidebar() {
                                 key={item.name}
                                 onClick={() => handleComingSoon(item.name)}
                                 className={clsx(
-                                    'w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 text-left',
-                                    'text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                                    'w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-300 text-left',
+                                    'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/50'
                                 )}
                             >
                                 <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                                 {item.name}
-                                <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400">
+                                <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-500/30 transition-colors duration-500">
                                     Soon
                                 </span>
                             </button>
@@ -129,17 +118,16 @@ export default function DashboardSidebar() {
                             key={item.name}
                             href={item.href}
                             className={clsx(
-                                'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+                                'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-300',
                                 item.current
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                                    : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                                    ? 'bg-blue-100 dark:bg-blue-600/20 text-blue-700 dark:text-blue-400 border-l-2 border-blue-600 dark:border-blue-500'
+                                    : 'text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/50'
                             )}
-                            style={item.current ? { boxShadow: 'inset 3px 0 0 rgb(59 130 246)' } : {}}
                         >
                             <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                             {item.name}
                             {item.badge && (
-                                <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-400">
+                                <span className="ml-auto inline-block py-0.5 px-2 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 transition-colors duration-500">
                                     {item.badge}
                                 </span>
                             )}
@@ -149,25 +137,24 @@ export default function DashboardSidebar() {
             </nav>
 
             {/* Footer with theme toggle and user info */}
-            <div className="border-t border-neutral-100 dark:border-neutral-800/50 p-4 space-y-4">
-                {/* Theme Toggle */}
+            <div className="border-t border-gray-200 dark:border-slate-800 p-4 space-y-4 transition-colors duration-500">
+                {/* Theme Toggle - Centered */}
                 <div className="flex justify-center">
-                    {/* <ThemeToggle /> */}
-                    <div className="text-sm text-gray-500">Light Mode</div>
+                    <ThemeToggle />
                 </div>
 
                 {/* User info */}
-                <div className="flex items-center space-x-3">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-                        <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                            {user?.email?.charAt(0).toUpperCase()}
+                <div className="flex items-center space-x-3 transition-colors duration-500">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0">
+                        <span className="text-sm font-medium text-white">
+                            {user?.email?.charAt(0).toUpperCase() || 'D'}
                         </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
-                            {user?.email}
+                        <p className="text-sm font-medium text-gray-900 dark:text-slate-200 truncate transition-colors duration-500">
+                            {user?.email || 'Doctor'}
                         </p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 capitalize transition-colors duration-500">
                             Mental Health Practitioner
                         </p>
                     </div>
@@ -178,7 +165,7 @@ export default function DashboardSidebar() {
                     onClick={handleLogout}
                     variant="secondary"
                     size="sm"
-                    className="w-full flex items-center gap-2"
+                    className="w-full flex items-center gap-2 transition-colors duration-300"
                 >
                     <ArrowRightOnRectangleIcon className="h-4 w-4" />
                     Logout

@@ -26,7 +26,7 @@ import { toast } from 'react-hot-toast'
 import apiClient from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import StreamingAudioRecorder from '@/components/consultation/recording/StreamingAudioRecorder'
+import SimpleRecorder from '@/components/consultation/recording/SimpleRecorder'
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
@@ -75,9 +75,7 @@ export default function PatientDetailPage() {
     const isNewPatient = searchParams?.get('newPatient') === 'true'
     const preSelectedSessionType = searchParams?.get('sessionType')
 
-    // ✅ FIX: Use only one auth source
     const user = useAuthStore((state) => state.user)
-
 
     const [patient, setPatient] = useState<Patient | null>(null)
     const [sessions, setSessions] = useState<ConsultationSession[]>([])
@@ -162,10 +160,12 @@ export default function PatientDetailPage() {
 
             if (patientResponse.status === 'success' && patientResponse.data) {
                 const patientData = patientResponse.data
+
                 if (!patientData || !patientData.id) {
                     console.error('❌ Invalid patient data:', patientData)
                     throw new Error('Patient data is missing')
                 }
+
                 console.log('✅ Patient data loaded:', patientData)
 
                 const mappedPatient: Patient = {
@@ -186,6 +186,7 @@ export default function PatientDetailPage() {
                 }
 
                 setPatient(mappedPatient)
+                console.log('🏁 Patient state set successfully')
 
                 try {
                     const historyResponse = await apiClient.get(`/consultation/history/${patientId}`)
@@ -203,6 +204,7 @@ export default function PatientDetailPage() {
             toast.error('Failed to load patient details')
         } finally {
             setLoading(false)
+            console.log('🏁 Loading complete')
         }
     }
 
@@ -244,13 +246,11 @@ export default function PatientDetailPage() {
         try {
             console.log('🎬 Starting new consultation for patient:', patientId)
 
-            // ✅ Check if user exists
             if (!user?.id) {
                 toast.error('Error: User not authenticated')
                 return
             }
 
-            // ✅ Build request with all required fields
             const requestBody = {
                 patient_id: patientId,
                 doctor_id: user.id,
@@ -264,7 +264,6 @@ export default function PatientDetailPage() {
 
             console.log('📥 Response:', response)
 
-            // ✅ FIX: Access session_id from response.data
             const sessionId = response?.data?.session_id || response?.session_id
 
             if (sessionId) {
@@ -282,28 +281,23 @@ export default function PatientDetailPage() {
             console.error('❌ Consultation start error:', error)
             console.error('❌ Error response:', error.response?.data)
 
-            // ✅ Check for active session error properly
             const errorMessage = error.response?.data?.error?.message || error.message
 
             if (errorMessage?.toLowerCase().includes('already has an active')) {
                 console.log('⚠️ Active session detected, attempting to end it first...')
 
-                // ✅ Recheck user exists (TypeScript safety)
                 if (!user?.id) {
                     toast.error('User session expired. Please refresh and try again.')
                     return
                 }
 
                 try {
-                    // End the existing session
                     await apiClient.post(`/consultation/end-by-patient/${patientId}`)
 
                     toast.success('Ended previous session, retrying...')
 
-                    // Wait a moment for the backend to process
                     await new Promise(resolve => setTimeout(resolve, 500))
 
-                    // Retry starting the consultation
                     const retryResponse = await apiClient.post('/consultation/start', {
                         patient_id: patientId,
                         doctor_id: user.id,
@@ -336,9 +330,7 @@ export default function PatientDetailPage() {
 
             toast.error(`Failed to start consultation: ${errorMessage}`)
         }
-    }  // ✅ Make sure this closing brace is here
-
-
+    }
 
     const stopConsultation = async () => {
         try {
@@ -396,7 +388,7 @@ export default function PatientDetailPage() {
     }
 
     const handleTranscriptionUpdate = useCallback((transcript: string, isFinal: boolean) => {
-        console.log(`📝 Transcription update: ${transcript}... (final: ${isFinal})`)
+        console.log(`📝 [page.tsx] Transcription update: "${transcript.substring(0, 50)}..." (final: ${isFinal}, length: ${transcript.length})`);
 
         if (isFinal) {
             setFinalTranscription(prev => {
@@ -404,42 +396,28 @@ export default function PatientDetailPage() {
                 const trimmedPrev = prev.trim()
 
                 if (!trimmedTranscript) {
-                    console.log('⚠️ Skipping empty transcript')
+                    console.log('⚠️ [page.tsx] Skipping empty transcript')
                     return prev
                 }
 
-                if (trimmedPrev.endsWith(trimmedTranscript)) {
-                    console.log('🔄 Skipping exact duplicate transcript')
+                if (
+                    trimmedPrev.endsWith(trimmedTranscript) ||
+                    trimmedPrev.split(/\s+/).slice(-trimmedTranscript.split(/\s+/).length).join(' ') === trimmedTranscript
+                ) {
+                    console.log('🔄 [page.tsx] Skipping exact duplicate transcript')
                     return prev
                 }
 
-                const words = trimmedTranscript.split(/\s+/)
-                const prevWords = trimmedPrev ? trimmedPrev.split(/\s+/) : []
+                const updated = trimmedPrev.length > 0
+                    ? trimmedPrev + ' ' + trimmedTranscript
+                    : trimmedTranscript
 
-                if (prevWords.length > 0) {
-                    const overlapLength = Math.min(words.length, prevWords.length)
-                    let matchCount = 0
-
-                    for (let i = 0; i < overlapLength; i++) {
-                        if (words[i] === prevWords[prevWords.length - overlapLength + i]) {
-                            matchCount++
-                        } else {
-                            break
-                        }
-                    }
-
-                    if (matchCount === words.length) {
-                        console.log(`🔄 Skipping duplicate (${matchCount} words matched)`)
-                        return prev
-                    }
-                }
-
-                const updated = prev + (prev ? ' ' : '') + trimmedTranscript
-                console.log(`✅ Added transcript. Total length: ${updated.length} chars`)
+                console.log(`✅ [page.tsx] Final transcript updated. Total length: ${updated.length}`);
                 return updated
             })
         } else {
-            setLiveTranscription(transcript)
+            setLiveTranscription(transcript);
+            console.log(`🔵 [page.tsx] Live transcript updated: ${transcript.length} chars`);
         }
     }, [])
 
@@ -601,16 +579,12 @@ export default function PatientDetailPage() {
         }
     }
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
-                    <p className="text-gray-600 dark:text-gray-400">Loading patient details...</p>
-                </div>
-            </div>
-        )
-    }
+    console.log('🎨 RENDER CHECK:', {
+        loading,
+        hasPatient: !!patient,
+        patientName: patient?.full_name,
+        patientId: patient?.id
+    })
 
     if (!patient) {
         return (
@@ -693,7 +667,7 @@ export default function PatientDetailPage() {
                         </div>
 
                         {/* Audio Recorder */}
-                        <StreamingAudioRecorder
+                        <SimpleRecorder
                             sessionId={currentSession || ''}
                             onTranscriptUpdate={handleTranscriptionUpdate}
                             onError={(error) => {
@@ -702,13 +676,114 @@ export default function PatientDetailPage() {
                             }}
                             onStart={() => {
                                 console.log('[Patient Page] Recording started')
+                                setIsRecording(true)
                             }}
                             onStop={() => {
                                 console.log('[Patient Page] Recording stopped')
+
+                                if (liveTranscription.trim()) {
+                                    setFinalTranscription(prev => {
+                                        const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription;
+                                        console.log(`📝 Moved ${liveTranscription.length} chars to final`);
+                                        return combined;
+                                    });
+                                    setLiveTranscription('');
+                                }
+
+                                setIsRecording(false)
                             }}
                         />
                     </div>
                 )}
+
+                {/* Patient Information Card */}
+                <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">
+                    <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Patient Information</h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Full Name</p>
+                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.full_name}</p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Age</p>
+                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.age} years</p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Gender</p>
+                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.gender}</p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Phone</p>
+                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.phone_primary}</p>
+                        </div>
+
+                        {patient.email && (
+                            <div className="col-span-2">
+                                <p className="text-sm text-neutral-500 dark:text-neutral-400">Email</p>
+                                <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.email}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Consultation History */}
+                <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">
+                    <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
+                        Consultation History ({sessions.length})
+                    </h3>
+
+                    {sessions.length === 0 ? (
+                        <p className="text-neutral-600 dark:text-neutral-400 text-center py-8">
+                            No previous consultations found
+                        </p>
+                    ) : (
+                        <div className="space-y-3">
+                            {sessions.map((session) => (
+                                <div
+                                    key={session.id}
+                                    className="border border-neutral-200 dark:border-neutral-600 rounded-lg p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
+                                    onClick={() => {
+                                        if (session.report_id) {
+                                            setSelectedReportId(session.report_id)
+                                            setShowReportModal(true)
+                                        }
+                                    }}
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                                                {session.session_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                            </p>
+                                            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                                                {session.chief_complaint}
+                                            </p>
+                                            <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
+                                                {formatDate(session.started_at)} • {session.duration_minutes} min
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <span className={`text-xs px-2 py-1 rounded ${session.status === 'completed'
+                                                    ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                                                    : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'
+                                                }`}>
+                                                {session.status}
+                                            </span>
+                                            {session.has_report && (
+                                                <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                                                    Has Report
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
 
                 {/* Editable Live Transcription */}
                 {currentSession && (

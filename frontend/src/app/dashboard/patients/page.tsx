@@ -45,6 +45,7 @@ interface TimeSeriesData {
 
 type TimePeriod = 'week' | 'month' | 'year'
 
+
 export default function PatientsPage() {
     const { user } = useAuthStore()
     const [patients, setPatients] = useState<Patient[]>([])
@@ -72,7 +73,11 @@ export default function PatientsPage() {
         fetchPatients(0, searchTerm)
         fetchAnalyticsData()
     }, [timePeriod])
-
+        // return (
+        //         <div className="p-6">  {/* Add padding here */}
+        //         {/* Your patients content */}
+        //         </div>
+        //     )
     const fetchPatients = async (newOffset: number, search?: string) => {
         try {
             setLoading(true)

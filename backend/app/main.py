@@ -168,11 +168,26 @@ async def health_check():
     }
 
 
+# WebSocket transcription health check (for testing)
+@app.get("/api/v1/transcribe/health")
+async def transcribe_health_check():
+    """Health check for WebSocket transcription endpoint."""
+    return {
+        "status": "ok",
+        "websocket_path": "/api/v1/transcribe",
+        "message": "WebSocket transcription endpoint is available"
+    }
+
+
 # Include API routes
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
-# Include WebSocket routes
-app.include_router(transcribe_router, prefix="/ws", tags=["WebSocket Transcription"])
+# Include WebSocket routes - FIXED: Use /api/v1 prefix to match frontend
+app.include_router(
+    transcribe_router,
+    prefix="/api/v1",  # Changed from "/ws" to match frontend URL
+    tags=["websocket", "transcription"]
+)
 
 # Mount static files directory for logo uploads
 static_dir = Path("./static")

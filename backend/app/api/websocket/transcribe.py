@@ -107,13 +107,6 @@ async def transcribe_websocket(
         
         logger.info(f"WebSocket authenticated for user {user.id}, session {session_id}")
         
-        # Send connection success message
-        await websocket.send_json({
-            "status": "connected",
-            "message": "Transcription service ready",
-            "session_id": session_id
-        })
-        
         # Create or get transcription record
         transcription = TranscriptionService.get_or_create_transcription(
             db=db,
@@ -124,40 +117,59 @@ async def transcribe_websocket(
         
         # Initialize Vertex AI Speech client
         try:
+            from google.cloud import speech_v2 as speech
+            from google.api_core.exceptions import GoogleAPIError
+            
             client = speech.SpeechClient()
-            logger.info("Vertex AI Speech client initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize Vertex AI client: {str(e)}")
+            logger.info("✅ Vertex AI Speech client initialized successfully")
+            
+            # Send connection success message AFTER client is initialized
             await websocket.send_json({
+                "status": "connected",
+                "message": "Transcription service ready",
+                "session_id": session_id
+            })
+        except Exception as e:
+            error_msg = f"Failed to initialize Vertex AI client: {str(e)}"
+            logger.error(f"❌ {error_msg}", exc_info=True)
+            await websocket.send_json({
+                "type": "error",
                 "error": "Transcription service unavailable",
                 "code": "SERVICE_INIT_FAILED",
-                "detail": str(e)
+                "message": error_msg
             })
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
             return
         
-        # Configure recognition
-        # Configure recognition
-        recognition_config = speech.RecognitionConfig(
-            explicit_decoding_config=speech.ExplicitDecodingConfig(
-                encoding=speech.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
-                sample_rate_hertz=16000,  # Fixed for browser microphone
-                audio_channel_count=1,
-            ),
-            model=settings.GOOGLE_STT_MODEL,
-            language_codes=[settings.GOOGLE_STT_PRIMARY_LANGUAGE],
-            # REMOVED features - not supported for Marathi with latest_long
-        )
-
-        
-        streaming_config = speech.StreamingRecognitionConfig(
-            config=recognition_config,
-            streaming_features=speech.StreamingRecognitionFeatures(
-                interim_results=settings.GOOGLE_STT_INTERIM_RESULTS
+        # Configure recognition with proper error handling
+        try:
+            recognition_config = speech.RecognitionConfig(
+                explicit_decoding_config=speech.ExplicitDecodingConfig(
+                    encoding=speech.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
+                    sample_rate_hertz=16000,  # Fixed for browser microphone
+                    audio_channel_count=1,
+                ),
+                model="long",  # Use "long" instead of "latest_long" for stability
+                language_codes=["mr-IN", "hi-IN", "en-IN"],  # Marathi, Hindi, English
             )
-        )
-        
-        logger.info(f"Recognition configured: model={settings.GOOGLE_STT_MODEL}, language={settings.GOOGLE_STT_PRIMARY_LANGUAGE}")
+
+            
+            streaming_config = speech.StreamingRecognitionConfig(
+                config=recognition_config,
+                streaming_features=speech.StreamingRecognitionFeatures(
+                    interim_results=True
+                )
+            )
+            
+            logger.info(f"✅ Recognition config created: model=long, languages=mr-IN,hi-IN,en-IN")
+        except Exception as config_error:
+            logger.error(f"❌ Recognition config error: {str(config_error)}", exc_info=True)
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Configuration error: {str(config_error)}"
+            })
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+            return
         
         try:
             running_loop = asyncio.get_running_loop()
@@ -229,11 +241,18 @@ async def transcribe_websocket(
             receiver_thread.start()
             
             # First yield: config
-            yield speech.StreamingRecognizeRequest(
-                recognizer=f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/{settings.VERTEX_AI_LOCATION}/recognizers/_",
-                streaming_config=streaming_config
-            )
-            logger.info("Sent initial config to Vertex AI")
+            try:
+                recognizer_path = f"projects/{settings.GOOGLE_CLOUD_PROJECT}/locations/{settings.VERTEX_AI_LOCATION}/recognizers/_"
+                logger.info(f"🎯 Using recognizer: {recognizer_path}")
+                
+                yield speech.StreamingRecognizeRequest(
+                    recognizer=recognizer_path,
+                    streaming_config=streaming_config
+                )
+                logger.info("✅ Sent initial config to Vertex AI")
+            except Exception as config_send_error:
+                logger.error(f"❌ Failed to send config: {config_send_error}", exc_info=True)
+                raise
             
             # Subsequent yields: audio chunks
             chunk_count = 0
@@ -266,13 +285,16 @@ async def transcribe_websocket(
 
         
         # Start streaming recognition
-        logger.info("Starting Vertex AI streaming recognition...")
+        logger.info("🎤 Starting Vertex AI streaming recognition...")
+        logger.info(f"📋 Config: model={recognition_config.model}, languages={recognition_config.language_codes}")
+        logger.info(f"🔧 Audio: LINEAR16, 16kHz, mono")
         
         try:
+            logger.info("🚀 Calling client.streaming_recognize()...")
             responses = client.streaming_recognize(
-            requests=audio_stream_generator()  # This is now async!
+                requests=audio_stream_generator()
             )
-
+            logger.info("✅ Got response iterator from Vertex AI")
             
             # Process transcription responses
             response_count = 0
@@ -374,11 +396,12 @@ async def transcribe_websocket(
             })
         
         except GoogleAPIError as e:
-            logger.error(f"Vertex AI API error: {str(e)}")
+            logger.error(f"❌ Vertex AI API error: {str(e)}", exc_info=True)
             await websocket.send_json({
+                "type": "error",
                 "error": "Transcription service error",
                 "code": "VERTEX_AI_ERROR",
-                "detail": str(e)
+                "message": f"Google API Error: {str(e)}"
             })
             
             if transcription:
@@ -387,6 +410,21 @@ async def transcribe_websocket(
                     transcription_id=transcription.id,
                     status="FAILED",
                     error_message=f"Vertex AI error: {str(e)}"
+                )
+        
+        except Exception as stream_error:
+            logger.error(f"❌ Streaming error: {stream_error}", exc_info=True)
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Streaming setup failed: {str(stream_error)}"
+            })
+            
+            if transcription:
+                TranscriptionService.update_transcription(
+                    db=db,
+                    transcription_id=transcription.id,
+                    status="FAILED",
+                    error_message=f"Streaming error: {str(stream_error)}"
                 )
     
     except WebSocketDisconnect:

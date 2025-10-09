@@ -64,9 +64,10 @@ export default function EditableTranscript({
 
     // Sync editable text with STT final transcription when not actively editing
     useEffect(() => {
-        if (!isInlineEditing) {
-            setEditableFinalText(finalTranscription)
-            console.log('🔄 Syncing editable text with STT final:', finalTranscription)
+        console.log('🔄 Syncing editable text with STT final:', finalTranscription?.length || 0, 'chars');
+        if (!isInlineEditing && finalTranscription && finalTranscription.trim().length > 0) {
+            setEditableFinalText(finalTranscription);
+            console.log('✅ Transcription synced to editable text');
         }
     }, [finalTranscription, isInlineEditing])
 

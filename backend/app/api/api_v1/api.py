@@ -9,7 +9,7 @@ from app.api.api_v1.endpoints import (
     consultation as consultation_endpoints, 
     newsletter, contact, intake, profile, admin, doctor, forms,
     sessions, templates, analytics,
-    transcribe, transcribe_stream
+    transcribe, transcribe_stream, transcribe_simple
 )
 from app.api.websocket import consultation
 
@@ -33,6 +33,7 @@ api_router.include_router(intake.router, prefix="/intake", tags=["patient-intake
 api_router.include_router(forms.router, prefix="/forms", tags=["forms"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(transcribe.router, prefix="/transcribe", tags=["transcribe"])
+api_router.include_router(transcribe_simple.router, prefix="/stt", tags=["simple-transcription"])
 
 # ===== WEBSOCKET ENDPOINTS =====
 api_router.include_router(consultation.router, tags=["websocket"])
@@ -41,6 +42,6 @@ api_router.include_router(consultation.router, tags=["websocket"])
 # ✅ ADD WebSocket route
 api_router.include_router(
     transcribe_stream.router,
-    prefix="/transcribe",
+    # prefix="/transcribe",
     tags=["transcribe"]
 )

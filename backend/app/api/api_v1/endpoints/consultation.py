@@ -185,6 +185,44 @@ async def start_consultation(
         raise HTTPException(status_code=500, detail=f"Failed to start consultation: {str(e)}")
 
 
+@router.post("/end-by-patient/{patient_id}")
+async def end_consultation_by_patient(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    End any active consultation for a patient (used when starting new session).
+    """
+    logger.info(f"[end-by-patient] Ending active sessions for patient: {patient_id}")
+    
+    # Find active consultation
+    active_consultation = db.query(Consultation).filter(
+        Consultation.main_patient_id == patient_id,
+        Consultation.status == "active"
+    ).first()
+    
+    if not active_consultation:
+        raise HTTPException(
+            status_code=404,
+            detail="No active consultation found for this patient"
+        )
+    
+    # End it
+    active_consultation.status = "completed"
+    active_consultation.end_time = datetime.utcnow()
+    
+    db.commit()
+    
+    logger.info(f"[end-by-patient] Closed consultation: {active_consultation.session_id}")
+    
+    return {
+        "success": True,
+        "message": "Active consultation ended",
+        "session_id": active_consultation.session_id
+    }
+
+
 
 @router.get("/history/{patient_id}")
 async def get_consultation_history(
