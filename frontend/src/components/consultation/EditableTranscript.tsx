@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import {
     PencilIcon,
     DocumentTextIcon,
@@ -22,21 +22,17 @@ interface EditableTranscriptProps {
     sessionId?: string
 }
 
-export default function EditableTranscript({
+const EditableTranscript = memo(({
     finalTranscription,
     liveTranscription,
     isRecording,
     onTranscriptionEdit,
     onGenerateReport,
     sessionId
-}: EditableTranscriptProps) {
-    console.log('🧩 EditableTranscript MOUNTED/UPDATED with props:', {
-        isRecording,
-        finalTranscriptionLength: finalTranscription.length,
-        liveTranscriptionLength: liveTranscription.length,
-        sessionId,
-        timestamp: new Date().toISOString()
-    })
+}: EditableTranscriptProps) => {
+    // ✅ REMOVED: Excessive console.log that caused re-renders to be visible
+    // Only log on significant state changes
+    
     const [isEditing, setIsEditing] = useState(false)
     const [editedText, setEditedText] = useState('')
     const [manualText, setManualText] = useState('')
@@ -46,144 +42,61 @@ export default function EditableTranscript({
     const [isInlineEditing, setIsInlineEditing] = useState(false)
     const [baseTextWhenEditingStarted, setBaseTextWhenEditingStarted] = useState('')
     const [isProcessingAfterRecording, setIsProcessingAfterRecording] = useState(false)
+    
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const liveTextareaRef = useRef<HTMLTextAreaElement>(null)
     const inlineTextareaRef = useRef<HTMLTextAreaElement>(null)
 
-    // Always use the latest finalTranscription as base, let editableFinalText be for active editing only
     const displayFinalText = isInlineEditing ? editableFinalText : finalTranscription
-
-
-    // Combine ONLY final text and manual text (not live transcription)
     const combinedText = [displayFinalText, manualText].filter(Boolean).join(' ')
 
-
+    // ✅ Sync editable text
     useEffect(() => {
         setEditedText(displayFinalText)
     }, [displayFinalText])
 
-    // Sync editable text with STT final transcription when not actively editing
+    // ✅ Sync with STT final transcription (only when NOT editing)
     useEffect(() => {
-        console.log('🔄 Syncing editable text with STT final:', finalTranscription?.length || 0, 'chars');
         if (!isInlineEditing && finalTranscription && finalTranscription.trim().length > 0) {
-            setEditableFinalText(finalTranscription);
-            console.log('✅ Transcription synced to editable text');
+            setEditableFinalText(finalTranscription)
         }
     }, [finalTranscription, isInlineEditing])
 
-    // Debug logging to track state changes
-    useEffect(() => {
-        if (isInlineEditing) {
-            const newSttSinceEdit = finalTranscription.slice(baseTextWhenEditingStarted.length)
-            console.log('📊 During Edit State:', {
-                baseWhenStarted: baseTextWhenEditingStarted.slice(-30) + '...',
-                currentFinalTranscription: finalTranscription.slice(-50) + '...',
-                newSttDuringEdit: newSttSinceEdit || 'none',
-                editableFinalText: editableFinalText.slice(-30) + '...'
-            })
-        }
-    }, [finalTranscription, editableFinalText, isInlineEditing, baseTextWhenEditingStarted])
-
-    // Manual text is stored locally and only combined when needed
-    // No automatic real-time updates to prevent infinite loops
-
-    // Show post-recording options after processing is complete
+    // ✅ Show post-recording options (optimized logic)
     useEffect(() => {
         const hasContent = finalTranscription.trim() || manualText.trim()
 
-        console.log('📋 Post-recording options check:', {
-            isRecording,
-            isProcessingAfterRecording,
-            hasContent,
-            finalTranscription: finalTranscription.slice(-30),
-            manualText: manualText.slice(-20),
-            showPostRecordingOptions
-        })
-
         if (!isRecording && !isProcessingAfterRecording && hasContent) {
             setShowPostRecordingOptions(true)
-            console.log('✅ POST-RECORDING OPTIONS SHOULD BE VISIBLE NOW!')
         } else if (isRecording || isProcessingAfterRecording) {
             setShowPostRecordingOptions(false)
-            console.log('📋 Hiding post-recording options - Recording:', isRecording, 'Processing:', isProcessingAfterRecording)
-        } else if (!hasContent) {
-            console.log('⚠️ No content available for post-recording options')
         }
     }, [isRecording, isProcessingAfterRecording, finalTranscription, manualText])
 
-    // Fallback to ensure options show (safety net)
+    // ✅ Handle recording state changes
     useEffect(() => {
-        if (!isRecording && !isProcessingAfterRecording) {
-            const timer = setTimeout(() => {
-                const hasContent = finalTranscription.trim() || manualText.trim()
-                if (hasContent && !showPostRecordingOptions) {
-                    setShowPostRecordingOptions(true)
-                    console.log('⏰ Fallback: Showing post-recording options')
-                }
-            }, 500) // Quick fallback check
-
-            return () => clearTimeout(timer)
-        }
-    }, [isRecording, isProcessingAfterRecording, finalTranscription, manualText, showPostRecordingOptions])
-
-    // Handle recording state changes with loading indicator
-    useEffect(() => {
-        console.log('🎛️ Recording state changed:', {
-            isRecording,
-            isProcessingAfterRecording,
-            finalTranscription: finalTranscription.slice(-30),
-            manualText: manualText.slice(-20)
-        })
-
         if (!isRecording) {
             setIsManualTypingMode(false)
-            setShowPostRecordingOptions(false) // Hide options first
-            setIsProcessingAfterRecording(true) // Show loading state
-            console.log('🔄 RECORDING STOPPED - SHOWING LOADING UI NOW!')
-            console.log('📊 Current state for loading:', {
-                hasTranscription: !!finalTranscription.trim(),
-                hasManualText: !!manualText.trim(),
-                combinedLength: (finalTranscription + manualText).length
-            })
+            setShowPostRecordingOptions(false)
+            setIsProcessingAfterRecording(true)
 
-            // Processing timeout (simulates backend processing time)
             const processingTimer = setTimeout(() => {
                 setIsProcessingAfterRecording(false)
-                console.log('✅ LOADING COMPLETE - BUTTONS SHOULD APPEAR NOW!')
-                console.log('📊 Final state for buttons:', {
-                    isRecording: false,
-                    isProcessingAfterRecording: false,
-                    hasContent: !!(finalTranscription.trim() || manualText.trim())
-                })
-            }, 2000) // 2 second processing simulation
+            }, 2000)
 
             return () => clearTimeout(processingTimer)
         } else {
             setIsProcessingAfterRecording(false)
             setShowPostRecordingOptions(false)
-            console.log('🎙️ Recording started, hiding all post-recording UI')
         }
     }, [isRecording])
 
-    // Save manual text when user explicitly stops recording (separate effect)
-    const handleRecordingStop = () => {
-        console.log('💾 handleRecordingStop called, manual text:', manualText.slice(-50))
-        if (manualText.trim()) {
-            const combinedTranscription = finalTranscription + '\n' + manualText
-            onTranscriptionEdit(combinedTranscription)
-            setManualText('') // Clear manual text after saving
-            console.log('✅ Manual text saved and cleared')
-        }
-    }
-
-    // Auto-save manual text when recording stops  
+    // ✅ Auto-save manual text when recording stops
     useEffect(() => {
         if (!isRecording && manualText.trim()) {
-            console.log('🔄 Auto-saving manual text on recording stop:', manualText.slice(-50))
             const combinedTranscription = finalTranscription + '\n' + manualText
             onTranscriptionEdit(combinedTranscription)
-            setManualText('') // Clear manual text after saving
-            console.log('✅ Manual text auto-saved and state updated')
+            setManualText('')
         }
     }, [isRecording])
 
@@ -193,7 +106,10 @@ export default function EditableTranscript({
         setTimeout(() => {
             if (textareaRef.current) {
                 textareaRef.current.focus()
-                textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length)
+                textareaRef.current.setSelectionRange(
+                    textareaRef.current.value.length,
+                    textareaRef.current.value.length
+                )
             }
         }, 100)
     }
@@ -211,7 +127,6 @@ export default function EditableTranscript({
 
     const handleSaveEdit = () => {
         try {
-            // Persist edits back to parent (final transcription)
             const textToSave = editedText?.trim() ? editedText : combinedText
             onTranscriptionEdit(textToSave)
             setIsEditing(false)
@@ -233,28 +148,18 @@ export default function EditableTranscript({
                 return
             }
 
-            console.log('🚀 Starting report generation with transcript:', textToProcess.slice(0, 100) + '...')
-
-            // Hide post-recording options and show report generation in progress
             setShowPostRecordingOptions(false)
-
-            // Call the parent's report generation handler
             await onGenerateReport(textToProcess)
-
         } catch (error) {
             console.error('Error generating report:', error)
-            // Re-show options if there was an error
             setShowPostRecordingOptions(true)
         }
     }
 
-    // Handle real-time inline editing during recording
     const handleInlineEdit = () => {
-        // Remember what the text was when editing started
         setBaseTextWhenEditingStarted(finalTranscription)
         setEditableFinalText(finalTranscription)
         setIsInlineEditing(true)
-        console.log('✏️ Starting inline edit with base text:', finalTranscription)
         setTimeout(() => {
             if (inlineTextareaRef.current) {
                 inlineTextareaRef.current.focus()
@@ -268,31 +173,30 @@ export default function EditableTranscript({
 
     const handleInlineSave = () => {
         setIsInlineEditing(false)
-
-        // Check if new STT content came in during editing
         const newSttContentDuringEditing = finalTranscription.slice(baseTextWhenEditingStarted.length)
-
-        // Combine user's edited text + any new STT that came during editing + manual text
         let finalCombinedText = editableFinalText
+        
         if (newSttContentDuringEditing.trim()) {
             finalCombinedText += ' ' + newSttContentDuringEditing.trim()
-            console.log('🎙️ Found new STT during editing:', newSttContentDuringEditing)
         }
         if (manualText) {
             finalCombinedText += '\n' + manualText
         }
 
         onTranscriptionEdit(finalCombinedText)
-        console.log('💾 User edit saved with preserved STT:', finalCombinedText)
-        console.log('🔄 Base was:', baseTextWhenEditingStarted)
-        console.log('🎙️ New STT during edit:', newSttContentDuringEditing)
     }
 
     const handleInlineCancel = () => {
-        // Cancel editing and revert to original transcription
         setEditableFinalText(finalTranscription)
         setIsInlineEditing(false)
-        console.log('❌ Edit cancelled, reverted to:', finalTranscription)
+    }
+
+    const handleRecordingStop = () => {
+        if (manualText.trim()) {
+            const combinedTranscription = finalTranscription + '\n' + manualText
+            onTranscriptionEdit(combinedTranscription)
+            setManualText('')
+        }
     }
 
     const wordCount = combinedText.split(' ').filter(word => word.trim()).length
@@ -358,7 +262,7 @@ export default function EditableTranscript({
                             ref={textareaRef}
                             value={editedText}
                             onChange={(e) => setEditedText(e.target.value)}
-                            className="w-full min-h-[300px] p-4 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg text-base leading-relaxed resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full min-h-[300px] p-4 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg text-base leading-relaxed resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-foreground"
                             placeholder="Edit your transcription here..."
                         />
                         <div className="flex items-center justify-between mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-600">
@@ -392,9 +296,8 @@ export default function EditableTranscript({
                     /* View/Live Mode */
                     <div className="p-4 min-h-[200px] max-h-[600px] overflow-y-auto">
                         {isRecording ? (
-                            /* Live Recording Mode with Real-time Editing */
+                            /* Live Recording Mode */
                             <div className="space-y-4">
-                                {/* Real-time Editable Final Transcription */}
                                 {displayFinalText && (
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
@@ -423,7 +326,7 @@ export default function EditableTranscript({
                                                 ref={inlineTextareaRef}
                                                 value={editableFinalText}
                                                 onChange={(e) => setEditableFinalText(e.target.value)}
-                                                className="w-full min-h-[100px] p-3 bg-green-50 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 rounded-lg text-base leading-relaxed resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                                className="w-full min-h-[100px] p-3 bg-green-50 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 rounded-lg text-base leading-relaxed resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-foreground"
                                                 placeholder="Edit final transcription..."
                                             />
                                         ) : (
@@ -438,7 +341,6 @@ export default function EditableTranscript({
                                     </div>
                                 )}
 
-                                {/* Live STT Stream */}
                                 {liveTranscription && (
                                     <div className="relative">
                                         <div className="text-base text-blue-600 dark:text-blue-400 italic whitespace-pre-wrap leading-relaxed bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border-l-4 border-blue-500">
@@ -450,7 +352,6 @@ export default function EditableTranscript({
                                     </div>
                                 )}
 
-                                {/* Manual Typing Area */}
                                 {isManualTypingMode && (
                                     <div className="border-t border-neutral-200 dark:border-neutral-600 pt-4">
                                         <div className="flex items-center gap-2 mb-2">
@@ -461,7 +362,7 @@ export default function EditableTranscript({
                                             ref={liveTextareaRef}
                                             value={manualText}
                                             onChange={(e) => setManualText(e.target.value)}
-                                            className="w-full min-h-[120px] p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-base leading-relaxed resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                            className="w-full min-h-[120px] p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-base leading-relaxed resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-foreground"
                                             placeholder="Type additional notes manually while recording..."
                                         />
                                         <div className="text-xs text-green-600 dark:text-green-400 mt-1">
@@ -533,9 +434,6 @@ export default function EditableTranscript({
                                 <p className="text-sm text-amber-700 dark:text-amber-300">
                                     Optimizing your consultation transcript for analysis...
                                 </p>
-                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                    This should be visible for 2 seconds
-                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -562,17 +460,11 @@ export default function EditableTranscript({
                                 <p className="text-sm text-blue-700 dark:text-blue-300">
                                     Your consultation has been processed. What would you like to do next?
                                 </p>
-                                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                    These buttons should be visible now!
-                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
                             <Button
-                                onClick={() => {
-                                    console.log('📝 Review button clicked, combinedText:', combinedText)
-                                    handleStartEdit()
-                                }}
+                                onClick={handleStartEdit}
                                 variant="secondary"
                                 size="sm"
                                 className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-100"
@@ -582,8 +474,6 @@ export default function EditableTranscript({
                             </Button>
                             <Button
                                 onClick={() => {
-                                    console.log('🚀 Generate report button clicked, combinedText:', combinedText)
-                                    // When clinician clicks generate, open the medication/progress modal
                                     const event = new CustomEvent('open-session-summary-modal', {
                                         detail: { transcript: combinedText }
                                     })
@@ -602,4 +492,16 @@ export default function EditableTranscript({
             )}
         </div>
     )
-}
+}, (prevProps, nextProps) => {
+    // ✅ Only re-render if these props actually changed
+    return (
+        prevProps.finalTranscription === nextProps.finalTranscription &&
+        prevProps.liveTranscription === nextProps.liveTranscription &&
+        prevProps.isRecording === nextProps.isRecording &&
+        prevProps.sessionId === nextProps.sessionId
+    )
+})
+
+EditableTranscript.displayName = 'EditableTranscript'
+
+export default EditableTranscript

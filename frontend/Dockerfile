@@ -1,75 +1,39 @@
-## Multi-stage Dockerfile for Next.js 14 (standalone)
-
-# ------------------------------
-# Development image (no type-check/build)
-# ------------------------------
-FROM node:18-alpine AS dev
-
-ENV NODE_ENV=development \
-    NEXT_TELEMETRY_DISABLED=1
-
+# Stage 1: Dependencies
+FROM node:18-alpine AS deps
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
 
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY . .
-
-# Create non-root user for dev runtime
-RUN addgroup -S nextjs && adduser -S nextjs -G nextjs \
-    && chown -R nextjs:nextjs /app
-USER nextjs
-
-EXPOSE 3000
-
-CMD ["npm", "run", "dev"]
-
-# ------------------------------
-# Base builder image
-# ------------------------------
+# Stage 2: Build
 FROM node:18-alpine AS builder
-
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1
-
 WORKDIR /app
 
-# Install dependencies (cached layer)
-COPY package.json package-lock.json ./
+# Accept build args
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+COPY package*.json ./
 RUN npm ci
-
-# Copy source
 COPY . .
-
-# Build standalone output
 RUN npm run build
 
-# ------------------------------
-# Production runner image
-# ------------------------------
+# Stage 3: Production
 FROM node:18-alpine AS runner
-
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000
-
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
+ENV NODE_ENV production
 
-# Copy only the necessary artifacts for standalone
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
 COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+ENV PORT 3000
 
 CMD ["node", "server.js"]
-
-

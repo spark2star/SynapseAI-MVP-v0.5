@@ -801,10 +801,10 @@ const AudioRecorder = forwardRef<{ stopRecording: () => void }, AudioRecorderPro
                     }
 
                     // Apply RNNoise processing if available (48kHz optimized)
-                    let processedAudio = input
+                    let processedAudio: Float32Array = input;
                     if (audioProcessorRef.current && isNoiseReductionEnabled) {
                         try {
-                            processedAudio = audioProcessorRef.current.processAudioBuffer(input) as Float32Array<ArrayBuffer>
+                            processedAudio = audioProcessorRef.current.processAudioBuffer(input)
                             if (frameCount === 0) console.log('🔇 RNNoise processing applied')
                         } catch (error) {
                             console.warn('⚠️ RNNoise processing failed, using original audio:', error)

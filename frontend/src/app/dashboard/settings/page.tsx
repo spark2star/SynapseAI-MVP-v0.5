@@ -156,7 +156,7 @@ export default function SettingsPage() {
                                 </div>
 
                                 <Button
-                                    variant="danger"
+                                    variant="secondary"
                                     onClick={handleDisableMFA}
                                     disabled={isLoading}
                                     className="flex items-center gap-2"

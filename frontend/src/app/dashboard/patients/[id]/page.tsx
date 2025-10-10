@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Mic, Wifi, WifiOff } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore'
-
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -27,6 +27,7 @@ import apiClient from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import SimpleRecorder from '@/components/consultation/recording/SimpleRecorder'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
@@ -75,9 +76,7 @@ export default function PatientDetailPage() {
     const isNewPatient = searchParams?.get('newPatient') === 'true'
     const preSelectedSessionType = searchParams?.get('sessionType')
 
-    // ✅ FIX: Use only one auth source
     const user = useAuthStore((state) => state.user)
-
 
     const [patient, setPatient] = useState<Patient | null>(null)
     const [sessions, setSessions] = useState<ConsultationSession[]>([])
@@ -95,6 +94,7 @@ export default function PatientDetailPage() {
     const [isGeneratingReport, setIsGeneratingReport] = useState(false)
     const [generatedReport, setGeneratedReport] = useState<any>(null)
     const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('')
+    const [sessionState, setSessionState] = useState<'idle' | 'recording' | 'paused'>('idle')
     const [showMedicationModal, setShowMedicationModal] = useState(false)
     const [reportId, setReportId] = useState<string | null>(null)
     const [showReportModal, setShowReportModal] = useState(false)
@@ -102,6 +102,25 @@ export default function PatientDetailPage() {
     const [isEditMode, setIsEditMode] = useState(false)
     const [editedPatient, setEditedPatient] = useState<any>(null)
     const [isSavingPatient, setIsSavingPatient] = useState(false)
+    const [micVolume, setMicVolume] = useState(0);
+    const [networkError, setNetworkError] = useState<string | null>(null);
+    const { isOnline, connectionType } = useNetworkStatus();
+
+
+    // ✅ FIX: Recording duration timer (only updates when recording)
+    useEffect(() => {
+        if (!isRecording || isPaused) {
+            return
+        }
+
+        const startTime = Date.now()
+        const interval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000)
+            setRecordingDuration(prev => prev + 1)
+        }, 1000)
+
+        return () => clearInterval(interval)
+    }, [isRecording, isPaused])
 
     useEffect(() => {
         if (patientId) {
@@ -120,17 +139,16 @@ export default function PatientDetailPage() {
 
     useEffect(() => {
         if (isNewPatient && patient && !isRecording && !showNewConsultation) {
-            console.log('🆕 New patient detected, opening session modal with type:', preSelectedSessionType)
+            console.log('🆕 New patient detected')
             setShowNewConsultation(true)
             setSessionType(preSelectedSessionType || 'first_session')
             setChiefComplaint('First session - Initial assessment')
-            toast.success('✅ Patient registered! You can now start the first session.')
+            toast.success('✅ Patient registered!')
         }
     }, [isNewPatient, patient, isRecording, showNewConsultation, preSelectedSessionType])
 
     useEffect(() => {
         const handleOpenMedicationModal = (e: any) => {
-            console.log('📥 Received generate report event with transcript:', e.detail.transcript?.length || 0, 'chars')
             if (e.detail.transcript) {
                 setFinalTranscription(e.detail.transcript)
             }
@@ -143,43 +161,17 @@ export default function PatientDetailPage() {
         }
     }, [])
 
-    useEffect(() => {
-        let interval: NodeJS.Timeout
-        if (isRecording && !isPaused) {
-            interval = setInterval(() => {
-                setRecordingDuration(prev => prev + 1)
-            }, 1000)
-        }
-        return () => clearInterval(interval)
-    }, [isRecording, isPaused])
-
-    // useEffect(() => {
-    //     // Auto-start recording when isRecording becomes true
-    //     if (isRecording && currentSession) {
-    //         console.log('🎙️ Auto-starting recording for session:', currentSession)
-    //         startConsultation()
-    //     }
-    // }, [isRecording, currentSession])
-
-
-
-
     const fetchPatientDetails = async () => {
         try {
             setLoading(true)
-            console.log(`📋 Fetching patient details for: ${patientId}`)
-
             const patientResponse = await apiClient.get(`/intake/patients/${patientId}`)
 
             if (patientResponse.status === 'success' && patientResponse.data) {
                 const patientData = patientResponse.data
 
                 if (!patientData || !patientData.id) {
-                    console.error('❌ Invalid patient data:', patientData)
                     throw new Error('Patient data is missing')
                 }
-
-                console.log('✅ Patient data loaded:', patientData)
 
                 const mappedPatient: Patient = {
                     id: patientData.id,
@@ -199,41 +191,31 @@ export default function PatientDetailPage() {
                 }
 
                 setPatient(mappedPatient)
-                console.log('🏁 Patient state set successfully')
 
-                // ✅ Load consultation history (non-blocking)
                 try {
                     const historyResponse = await apiClient.get(`/consultation/history/${patientId}`)
-                    if (historyResponse.status === 'success' && historyResponse.data) {
-                        console.log('✅ Consultation history loaded:', historyResponse.data.consultations?.length || 0)
+                    if (historyResponse.status === 'success') {
+                        console.log('✅ History loaded')
                     }
                 } catch (historyError) {
-                    console.warn('⚠️ Could not load consultation history:', historyError)
+                    console.warn('⚠️ History unavailable')
                 }
             } else {
-                throw new Error('Invalid response format')
+                throw new Error('Invalid response')
             }
         } catch (error) {
             console.error('❌ Error fetching patient:', error)
-            toast.error('Failed to load patient details')
+            toast.error('Failed to load patient')
         } finally {
-            // ✅ ONLY ONE setLoading(false) in finally!
             setLoading(false)
-            console.log('🏁 Loading complete')
         }
     }
 
-
     const fetchConsultationSessions = async () => {
         try {
-            console.log('📋 Fetching consultation history for patient:', patientId)
-
             const consultationService = (await import('@/services/consultationService')).default
             const response = await consultationService.getHistory(patientId)
-
             const consultations = response.consultations
-
-            console.log(`✅ Loaded ${consultations.length} consultations`)
 
             const mappedSessions: ConsultationSession[] = consultations.map((c: any) => ({
                 id: c.id,
@@ -252,7 +234,7 @@ export default function PatientDetailPage() {
 
             setSessions(mappedSessions)
         } catch (error) {
-            console.error('❌ Error fetching consultation sessions:', error)
+            console.error('❌ Error fetching sessions:', error)
             toast.error('Failed to load consultation history')
             setSessions([])
         }
@@ -260,15 +242,17 @@ export default function PatientDetailPage() {
 
     const startConsultation = async () => {
         try {
-            console.log('🎬 Starting new consultation for patient:', patientId)
-
-            // Check if user exists
             if (!user?.id) {
                 toast.error('Error: User not authenticated')
                 return
             }
 
-            // Build request with all required fields
+            // ✅ CHECK AUDIO DEVICE SELECTION
+            if (!selectedAudioDevice) {
+                toast.error('Please select an audio input device first')
+                return
+            }
+
             const requestBody = {
                 patient_id: patientId,
                 doctor_id: user.id,
@@ -276,91 +260,59 @@ export default function PatientDetailPage() {
                 chief_complaint: chiefComplaint || 'Not specified'
             }
 
-            console.log('📤 Request body:', requestBody)
-
             let response = await apiClient.post('/consultation/start', requestBody)
-
-            console.log('📥 Response:', response)
-
-            // Access session_id from response.data
             const sessionId = response?.data?.session_id || response?.session_id
 
             if (sessionId) {
-                console.log('✅ Session ID:', sessionId)
                 setCurrentSession(sessionId)
+                // ✅ SET STATE TO RECORDING
+                setSessionState('recording')
                 setIsRecording(true)
+                setIsPaused(false)
                 setShowNewConsultation(false)
-                toast.success('Recording started successfully!')
+                setRecordingDuration(0)
+                toast.success('Recording started!')
             } else {
-                console.error('❌ Response structure:', JSON.stringify(response, null, 2))
                 throw new Error('No session_id in response')
             }
-
         } catch (error: any) {
-            console.error('❌ Consultation start error:', error)
-            console.error('❌ Error response:', error.response?.data)
-
-            // Check for active session error
             const errorMessage = error.response?.data?.error?.message ||
                 error.response?.data?.message ||
                 error.message
 
-            console.log('🔍 Error message:', errorMessage)
-
             if (errorMessage?.toLowerCase().includes('already has an active') ||
                 errorMessage?.toLowerCase().includes('active consultation')) {
-                console.log('⚠️ Active session detected, prompting user...')
-
-                // Show confirmation dialog - DON'T force start yet!
                 handleActiveSessionPrompt()
-                return // Stop here and wait for user confirmation
+                return
             }
 
-            if (error.response?.data?.error?.fields) {
-                console.error('❌ Validation errors:', error.response.data.error.fields)
-            }
-
-            toast.error(`Failed to start consultation: ${errorMessage}`)
+            toast.error(`Failed to start: ${errorMessage}`)
         }
     }
 
 
     const handleActiveSessionPrompt = () => {
-        console.log('🎯 Showing confirmation dialog...')
-
         const confirmed = window.confirm(
             '⚠️ ACTIVE SESSION DETECTED\n\n' +
-            'This patient already has an active consultation session.\n\n' +
-            'Do you want to END the previous session and START a new one?\n\n' +
-            '⚠️ This action will terminate the existing session.'
+            'This patient already has an active session.\n\n' +
+            'Do you want to END it and START a new one?'
         )
 
         if (confirmed) {
-            console.log('✅ User confirmed force start')
             handleForceStartSession()
         } else {
-            console.log('❌ User cancelled force start')
-            toast('Action cancelled. Previous session remains active.', {
-                icon: 'ℹ️',
-                duration: 4000
-            })
+            toast('Action cancelled', { icon: 'ℹ️', duration: 4000 })
         }
     }
 
-
     const handleForceStartSession = async () => {
-        console.log('🚀 FORCE START: Starting new session with force=true')
-
         const loadingToast = toast.loading('Force starting new session...')
 
         try {
-            // Verify user exists
             if (!user?.id) {
-                toast.error('User session expired. Please refresh.', { id: loadingToast })
+                toast.error('User session expired', { id: loadingToast })
                 return
             }
-
-            console.log('📤 Sending force start request...')
 
             const requestBody = {
                 patient_id: patientId,
@@ -369,68 +321,46 @@ export default function PatientDetailPage() {
                 chief_complaint: chiefComplaint || 'Not specified'
             }
 
-            // ✅ USE FORCE=TRUE QUERY PARAMETER
             const response = await apiClient.post(
                 '/consultation/start?force=true',
                 requestBody
             )
 
-            console.log('📥 Force start response:', response)
-
-            // ✅ FIXED: Extract session_id from response.data.data
             const sessionId = response?.data?.data?.session_id ||
                 response?.data?.session_id ||
                 response?.session_id
 
             if (sessionId) {
-                console.log('✅ Force start successful! Session ID:', sessionId)
                 setCurrentSession(sessionId)
                 setIsRecording(true)
                 setShowNewConsultation(false)
+                setRecordingDuration(0)
 
-                toast.success('🎉 New session started! Previous session ended.', {
+                toast.success('🎉 New session started!', {
                     id: loadingToast,
                     duration: 4000,
                 })
 
-                // Refresh patient data
-                try {
-                    if (typeof fetchPatientDetails === 'function') {
-                        await fetchPatientDetails()
-                    }
-                } catch (refreshError) {
-                    console.warn('Failed to refresh patient details:', refreshError)
-                }
-
+                await fetchPatientDetails()
             } else {
-                console.error('❌ No session_id in response:', response)
-                throw new Error('No session_id in response after force start')
+                throw new Error('No session_id after force start')
             }
-
         } catch (error: any) {
-            console.error('❌ Force start failed:', error)
-            console.error('❌ Error details:', error.response?.data)
-
             const errorMsg = error.response?.data?.error?.message ||
                 error.response?.data?.message ||
                 error.message
 
-            toast.error(
-                `Force start failed: ${errorMsg}`,
-                { id: loadingToast, duration: 8000 }
-            )
+            toast.error(`Force start failed: ${errorMsg}`, { id: loadingToast })
         }
     }
-
-
-
 
     const stopConsultation = async () => {
         try {
             if (currentSession) {
-                console.log('🏁 Stopping consultation...')
-
+                // ✅ RESET STATE FIRST
+                setSessionState('idle')
                 setIsRecording(false)
+                setIsPaused(false)
 
                 await new Promise(resolve => setTimeout(resolve, 200))
 
@@ -453,28 +383,32 @@ export default function PatientDetailPage() {
                     setSessions(prev => [newSession, ...prev])
                     setChiefComplaint('')
                     setRecordingDuration(0)
+                    setCurrentSession(null)
 
-                    toast.success('Consultation session completed')
-                    console.log('✅ Session saved')
+                    toast.success('Session completed')
                 }
             }
         } catch (error) {
-            console.error('Error stopping consultation:', error)
+            console.error('Error stopping:', error)
             toast.error('Failed to stop consultation')
         }
     }
 
-    const handlePauseRecording = () => {
-        console.log('⏸️ Pausing recording...')
-        setIsPaused(true)
-        // MediaRecorder pause will be handled by SimpleRecorder component
+
+    const handlePauseResume = () => {
+        if (sessionState === 'recording') {
+            console.log('⏸️ Pausing recording...')
+            setSessionState('paused')
+            setIsPaused(true)
+            toast.success('Recording paused')
+        } else if (sessionState === 'paused') {
+            console.log('▶️ Resuming recording...')
+            setSessionState('recording')
+            setIsPaused(false)
+            toast.success('Recording resumed')
+        }
     }
 
-    const handleResumeRecording = () => {
-        console.log('▶️ Resuming recording...')
-        setIsPaused(false)
-        // MediaRecorder resume will be handled by SimpleRecorder component
-    }
 
     const formatDuration = (seconds: number) => {
         const mins = Math.floor(seconds / 60)
@@ -492,141 +426,73 @@ export default function PatientDetailPage() {
         })
     }
 
-    const handleTranscriptionUpdate = useCallback((transcript: string, isFinal: boolean) => {
-        console.log(`📝 [page.tsx] Transcription update: "${transcript.substring(0, 50)}..." (final: ${isFinal}, length: ${transcript.length})`);
+    const handleTranscriptionUpdate = useCallback((data: {
+        transcript: string
+        isFinal: boolean
+        currentFinal?: string
+        currentLive?: string
+    }) => {
+        console.log('📝 [page.tsx] Transcription received:', {
+            transcript: data.transcript.slice(0, 100) + '...',
+            isFinal: data.isFinal,
+            rawData: JSON.stringify(data)  // ✅ See exact data structure
+        });
 
-        if (isFinal) {
+        // ✅ Save ALL transcripts immediately
+        if (data.transcript && data.transcript.trim()) {
+            const trimmedTranscript = data.transcript.trim();
+
             setFinalTranscription(prev => {
-                const trimmedTranscript = transcript.trim()
-                const trimmedPrev = prev.trim()
+                const trimmedPrev = prev.trim();
 
-                // Skip empty transcript
                 if (!trimmedTranscript) {
-                    console.log('⚠️ [page.tsx] Skipping empty transcript')
-                    return prev
+                    return prev;
                 }
 
-                // Skip if chunk is already at the end (prevents duplicate finalization)
-                if (
-                    trimmedPrev.endsWith(trimmedTranscript) ||
-                    trimmedPrev.split(/\s+/).slice(-trimmedTranscript.split(/\s+/).length).join(' ') === trimmedTranscript
-                ) {
-                    console.log('🔄 [page.tsx] Skipping exact duplicate transcript')
-                    return prev
+                // Check for exact duplicate at the end
+                if (trimmedPrev.endsWith(trimmedTranscript)) {
+                    console.log('🔄 Skipping duplicate');
+                    return prev;
                 }
 
-                // Always append new non-duplicate finalized text
+                // Append new transcript
                 const updated = trimmedPrev.length > 0
-                    ? trimmedPrev + ' ' + trimmedTranscript
-                    : trimmedTranscript
+                    ? `${trimmedPrev} ${trimmedTranscript}`
+                    : trimmedTranscript;
 
-                console.log(`✅ [page.tsx] Final transcript updated. Total length: ${updated.length}`);
-                return updated
-            })
-        } else {
-            setLiveTranscription(transcript);
-            console.log(`🔵 [page.tsx] Live transcript updated: ${transcript.length} chars`);
+                console.log(`✅ Added: "${trimmedTranscript.slice(0, 50)}..."`);
+                console.log(`📊 Total length: ${updated.length} chars`);
+
+                return updated;
+            });
+
+            // Update live transcription
+            setLiveTranscription(trimmedTranscript);
         }
-    }, [])
+    }, []);  // ✅ Empty dependencies
 
 
 
     const handleTranscriptionEdit = (newText: string) => {
         setFinalTranscription(newText)
-        console.log('✏️ User edited transcription:', newText)
-        toast.success('Transcript updated successfully')
-    }
-
-    const handleStartEdit = () => {
-        if (patient) {
-            setEditedPatient({
-                name: patient.full_name,
-                age: patient.age,
-                gender: patient.gender,
-                phone_primary: patient.phone_primary,
-                email: patient.email,
-                address: patient.address
-            })
-            setIsEditMode(true)
-        }
-    }
-
-    const handleCancelEdit = () => {
-        setIsEditMode(false)
-        setEditedPatient(null)
-    }
-
-    const handleSavePatient = async () => {
-        if (!editedPatient) return
-
-        try {
-            setIsSavingPatient(true)
-            console.log('💾 Saving patient changes...')
-
-            const updatePayload = {
-                name: editedPatient.name,
-                age: parseInt(editedPatient.age),
-                sex: editedPatient.gender,
-                phone: editedPatient.phone_primary,
-                email: editedPatient.email,
-                address: editedPatient.address
-            }
-
-            const response = await apiClient.updatePatient(patientId, updatePayload)
-
-            if (response.status === 'success') {
-                const updatedPatientData = response.data.patient
-                const mappedPatient: Patient = {
-                    id: updatedPatientData.id,
-                    patient_id: updatedPatientData.id,
-                    full_name: updatedPatientData.name,
-                    age: updatedPatientData.age,
-                    gender: updatedPatientData.sex,
-                    phone_primary: updatedPatientData.phone || 'N/A',
-                    email: updatedPatientData.email || '',
-                    address: updatedPatientData.address || '',
-                    emergency_contact: '',
-                    blood_group: '',
-                    allergies: '',
-                    medical_history: '',
-                    created_at: updatedPatientData.created_at || new Date().toISOString(),
-                    last_visit: undefined
-                }
-
-                setPatient(mappedPatient)
-                setIsEditMode(false)
-                setEditedPatient(null)
-                toast.success('Patient updated successfully')
-                console.log('✅ Patient updated:', response.data.updated_fields, 'fields changed')
-            }
-        } catch (error: any) {
-            console.error('❌ Update patient error:', error)
-            const errorMessage = error.response?.data?.detail ||
-                error.response?.data?.message ||
-                'Failed to update patient'
-            toast.error(errorMessage)
-        } finally {
-            setIsSavingPatient(false)
-        }
+        toast.success('Transcript updated')
     }
 
     const handleGenerateReport = async (medications: Medication[] = [], patientStatus?: string) => {
         try {
             setIsGeneratingReport(true)
             setShowMedicationModal(false)
-            console.log('🤖 Starting report generation with medications:', medications.length)
 
             if (!finalTranscription || finalTranscription.trim().length === 0) {
-                toast.error('No transcript available to generate report')
+                toast.error('No transcript available')
                 return
             }
 
             if (!currentSession) {
-                toast.error('No active session found')
+                toast.error('No active session')
                 return
             }
 
-            console.log('📝 Calling AI to generate report...')
             const generatePayload = {
                 transcription: finalTranscription,
                 session_id: currentSession,
@@ -643,9 +509,7 @@ export default function PatientDetailPage() {
             }
 
             const generatedContent = reportResponse.data.report
-            console.log('✅ Report generated by AI')
 
-            console.log('💾 Saving report to database...')
             const savePayload = {
                 session_id: currentSession,
                 patient_id: patientId,
@@ -662,11 +526,10 @@ export default function PatientDetailPage() {
                 throw new Error('Failed to save report')
             }
 
-            console.log('✅ Report saved successfully:', saveResponse.data.report.id)
             setGeneratedReport(reportResponse.data)
             setReportId(saveResponse.data.report.id)
 
-            toast.success('Report generated and saved successfully!')
+            toast.success('Report generated!')
 
             setTimeout(() => {
                 const reportElement = document.getElementById('generated-report')
@@ -676,8 +539,6 @@ export default function PatientDetailPage() {
             }, 100)
 
         } catch (error: any) {
-            console.error('❌ Report generation error:', error)
-
             const errorMessage = error.response?.data?.detail ||
                 error.response?.data?.message ||
                 error.message ||
@@ -689,34 +550,20 @@ export default function PatientDetailPage() {
         }
     }
 
-    console.log('🎨 RENDER CHECK:', {
-        loading,
-        hasPatient: !!patient,
-        patientName: patient?.full_name,
-        patientId: patient?.id
-    })
-
-    // if (loading) {
-    //     return (
-    //         <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
-    //             <div className="text-center">
-    //                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
-    //                 <p className="text-gray-600 dark:text-gray-400">Loading patient details...</p>
-    //             </div>
-    //         </div>
-    //     )
-    // }
+    // ✅ FIX: Only log on mount (removed from render)
+    useEffect(() => {
+        console.log('🎨 Component mounted with patient:', patient?.full_name)
+    }, [patient])
 
     if (!patient) {
         return (
             <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
                 <div className="text-center">
-                    <UserIcon className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                    <UserIcon className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
                     <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-4">Patient not found</h3>
-                    <p className="text-neutral-600 dark:text-neutral-400 mb-6">The patient you're looking for doesn't exist or you don't have access.</p>
                     <button
                         onClick={() => router.push('/dashboard/patients')}
-                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
                     >
                         Back to Patients
                     </button>
@@ -726,27 +573,64 @@ export default function PatientDetailPage() {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-all duration-300">
+        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
             <div className="p-6 space-y-6">
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <Link
                         href={isFollowUpMode ? "/dashboard" : "/dashboard/patients"}
-                        className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                        className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 rounded-lg"
                     >
                         <ArrowLeftIcon className="h-5 w-5" />
                     </Link>
                     <div className="flex-1">
                         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                             {patient.full_name}
-                            {isFollowUpMode && (
-                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200">
-                                    Follow-up Session
-                                </span>
-                            )}
                         </h1>
-                        <p className="text-neutral-600 dark:text-neutral-400">Patient ID: {patient.patient_id}</p>
+                        <p className="text-neutral-600 dark:text-neutral-400">ID: {patient.patient_id}</p>
                     </div>
+
+                    {/* ✅ NEW: Status Indicators */}
+                    <div className="flex items-center gap-4 ml-auto">
+                        {/* Microphone Volume Indicator */}
+                        <div className="flex items-center gap-2">
+                            <Mic className={`w-5 h-5 ${micVolume > 10 ? 'text-green-500' : 'text-gray-400'}`} />
+                            <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full transition-all duration-100 ${micVolume > 50 ? 'bg-green-500' :
+                                            micVolume > 20 ? 'bg-yellow-500' :
+                                                'bg-gray-400'
+                                        }`}
+                                    style={{ width: `${micVolume}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Network Status Indicator */}
+                        <div className="flex items-center gap-2">
+                            {isOnline ? (
+                                <>
+                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                    <span className="text-sm text-green-600 font-medium">
+                                        {connectionType === '2g' || connectionType === 'slow' ? '⚠️ Slow' : 'Online'}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-2 h-2 bg-red-500 rounded-full" />
+                                    <span className="text-sm text-red-600 font-medium">Offline</span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Network Error Toast */}
+                        {networkError && (
+                            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 py-1 rounded text-sm">
+                                {networkError}
+                            </div>
+                        )}
+                    </div>
+
 
                     {!isRecording && !isFollowUpMode && (
                         <Button
@@ -756,130 +640,106 @@ export default function PatientDetailPage() {
                                 setIsFollowUpSession(true)
                                 setChiefComplaint("Follow-up consultation")
                             }}
-                            className="flex items-center gap-2"
                         >
-                            <PlusIcon className="h-4 w-4" />
+                            <PlusIcon className="h-4 w-4 mr-2" />
                             Follow Up
                         </Button>
                     )}
                 </div>
 
-
                 {/* Recording Interface */}
                 {isRecording && currentSession && (
                     <div className="space-y-4">
-                        {/* Recording Status Bar */}
-                        <div className="bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-4">
+                        <div className="bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 border-2 border-red-200 rounded-xl p-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`h-3 w-3 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'}`}></div>
-                                        <span className="text-lg font-semibold text-red-800 dark:text-red-200">
-                                            {isPaused ? 'RECORDING PAUSED' : 'RECORDING IN PROGRESS'}
-                                        </span>
-                                    </div>
-                                    <div className="text-sm text-red-600 dark:text-red-300">
-                                        {formatDuration(recordingDuration)} • Multi-language STT Active
-                                    </div>
+                                    <div className={`h-3 w-3 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'}`}></div>
+                                    <span className="text-lg font-semibold text-red-800">
+                                        {isPaused ? 'PAUSED' : 'RECORDING'}
+                                    </span>
+                                    <span className="text-sm text-red-600">
+                                        {formatDuration(recordingDuration)}
+                                    </span>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">मराठी</span>
-                                        <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">English</span>
-                                        <span className="text-xs text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">हिंदी</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {!isPaused && (
-                                            <Button onClick={handlePauseRecording} variant="secondary" size="sm">
-                                                <PauseIcon className="w-4 h-4 mr-1" /> Pause
-                                            </Button>
-                                        )}
-                                        {isPaused && (
-                                            <Button onClick={handleResumeRecording} variant="primary" size="sm">
+                                <div className="flex gap-2">
+                                    <Button
+                                        onClick={handlePauseResume}
+                                        variant={sessionState === 'paused' ? 'primary' : 'secondary'}
+                                        size="sm"
+                                    >
+                                        {sessionState === 'paused' ? (
+                                            <>
                                                 <PlayIcon className="w-4 h-4 mr-1" /> Resume
-                                            </Button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <PauseIcon className="w-4 h-4 mr-1" /> Pause
+                                            </>
                                         )}
-                                        <Button onClick={stopConsultation} variant="secondary" size="sm" className="bg-red-600 hover:bg-red-700 text-white">
-                                            <StopIcon className="w-4 h-4 mr-1" /> Stop Recording
-                                        </Button>
-                                    </div>
+                                    </Button>
+                                    <Button
+                                        onClick={stopConsultation}
+                                        variant="secondary"
+                                        size="sm"
+                                        className="bg-red-600 text-white hover:bg-red-700"
+                                    >
+                                        <StopIcon className="w-4 h-4 mr-1" /> Stop
+                                    </Button>
                                 </div>
+
                             </div>
                         </div>
-
-
-
-
-                        {/* Audio Recorder - Simple REST API version */}
-                        <SimpleRecorder
-                            sessionId={currentSession || ''}
-                            onTranscriptUpdate={handleTranscriptionUpdate}
-                            onError={(error) => {
-                                console.error('[Patient Page] Recording error:', error)
-                                toast.error(error)
-                            }}
-                            onStart={() => {
-                                console.log('[Patient Page] Recording started')
-                                setIsRecording(true)
-                            }}
-                            onStop={() => {
-                                console.log('[Patient Page] Recording stopped')
-
-                                // 🔥 Move live transcript to final
-                                if (liveTranscription.trim()) {
-                                    setFinalTranscription(prev => {
-                                        const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription;
-                                        console.log(`📝 Moved ${liveTranscription.length} chars to final`);
-                                        return combined;
-                                    });
-                                    setLiveTranscription('');
-                                }
-
-                                setIsRecording(false)
-                            }}
-
-                        />
                     </div>
                 )}
 
 
-                {/* ✅ ADD THIS: Patient Information Card */}
-                <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">
-                    <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Patient Information</h3>
+                {/* {currentSession && (
+                    <div className="hidden">
+                        <SimpleRecorder
+                            sessionId={currentSession}
+                            onTranscriptUpdate={handleTranscriptionUpdate}
+                            onError={(error) => toast.error(error)}
+                            onStart={() => setIsRecording(true)}
+                            onStop={() => {
+                                if (liveTranscription.trim()) {
+                                    setFinalTranscription(prev => {
+                                        const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription
+                                        return combined
+                                    })
+                                    setLiveTranscription('')
+                                }
+                                setIsRecording(false)
+                            }}
+                        />
+                    </div>
+                )} */}
 
+                {/* Patient Info */}
+                <div className="bg-white dark:bg-neutral-800 rounded-xl border p-6">
+                    <h3 className="text-xl font-semibold mb-4">Patient Information</h3>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Full Name</p>
-                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.full_name}</p>
+                            <p className="text-sm text-neutral-500">Full Name</p>
+                            <p className="font-medium">{patient.full_name}</p>
                         </div>
-
                         <div>
-                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Age</p>
-                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.age} years</p>
+                            <p className="text-sm text-neutral-500">Age</p>
+                            <p className="font-medium">{patient.age} years</p>
                         </div>
-
                         <div>
-                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Gender</p>
-                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.gender}</p>
+                            <p className="text-sm text-neutral-500">Gender</p>
+                            <p className="font-medium">{patient.gender}</p>
                         </div>
-
                         <div>
-                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Phone</p>
-                            <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.phone_primary}</p>
+                            <p className="text-sm text-neutral-500">Phone</p>
+                            <p className="font-medium">{patient.phone_primary}</p>
                         </div>
-
-                        {patient.email && (
-                            <div className="col-span-2">
-                                <p className="text-sm text-neutral-500 dark:text-neutral-400">Email</p>
-                                <p className="text-neutral-900 dark:text-neutral-100 font-medium">{patient.email}</p>
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Editable Live Transcription */}
+                {/* Transcript */}
                 {currentSession && (
-                    <div className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-lg p-4">
+                    <div className="bg-white dark:bg-neutral-800 rounded-xl border-2 border-blue-200 p-4">
                         <EditableTranscript
                             finalTranscription={finalTranscription}
                             liveTranscription={liveTranscription}
@@ -891,197 +751,144 @@ export default function PatientDetailPage() {
                     </div>
                 )}
 
-                {/* ✅ Consultation History Section */}
-                {!isRecording && sessions.length > 0 && (
-                    <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-                                Consultation History
-                            </h3>
-                            <span className="text-sm text-neutral-500 dark:text-neutral-400">
-                                {sessions.length} session{sessions.length !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-
+                {/* New Consultation Modal */}
+                {showNewConsultation && !generatedReport && !isRecording && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 rounded-xl p-6">
+                        <h3 className="text-lg font-semibold mb-4">New Consultation Session</h3>
                         <div className="space-y-4">
-                            {sessions.map((session) => (
-                                <div
-                                    key={session.id}
-                                    className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors"
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Chief Complaint</label>
+                                <Input
+                                    value={chiefComplaint}
+                                    onChange={(e) => setChiefComplaint(e.target.value)}
+                                    placeholder="Enter reason for visit..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Session Type</label>
+                                <select
+                                    className="w-full px-3 py-2 border rounded-md"
+                                    value={sessionType}
+                                    onChange={(e) => setSessionType(e.target.value)}
                                 >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${session.status === 'completed'
-                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                                    }`}>
-                                                    {session.status}
-                                                </span>
-                                                <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                                                    {formatDate(session.started_at)}
-                                                </span>
-                                                <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                                                    {session.duration_minutes} min
-                                                </span>
-                                            </div>
-
-                                            <h4 className="font-medium text-neutral-900 dark:text-neutral-100 mb-1">
-                                                {session.session_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                            </h4>
-                                            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                                {session.chief_complaint || 'No chief complaint recorded'}
-                                            </p>
-
-                                            {session.has_transcription && (
-                                                <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
-                                                    <DocumentTextIcon className="h-4 w-4" />
-                                                    <span>Transcription available</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="flex flex-col gap-2">
-                                            {session.has_report && session.report_id && (
-                                                <Button
-                                                    variant="primary"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setSelectedReportId(session.report_id!)
-                                                        setShowReportModal(true)
-                                                    }}
-                                                    className="flex items-center gap-2"
-                                                >
-                                                    <DocumentTextIcon className="h-4 w-4" />
-                                                    View Report
-                                                </Button>
-                                            )}
-
-                                            {!session.has_report && session.has_transcription && (
-                                                <span className="text-xs text-neutral-500 dark:text-neutral-400 italic">
-                                                    Report not generated
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* AI-Powered Medical Report Generation */}
-                {finalTranscription && !isRecording && (
-                    <MedicalReportDisplay
-                        reportData={generatedReport}
-                        isGenerating={isGeneratingReport}
-                        onGenerateNew={() => setShowMedicationModal(true)}
-                    />
-                )}
-
-                {/* Medication Modal */}
-                <MedicationModal
-                    isOpen={showMedicationModal}
-                    onClose={() => setShowMedicationModal(false)}
-                    onSubmit={handleGenerateReport}
-                    isLoading={isGeneratingReport}
-                />
-
-                {/* Mental Health Follow-Up Interface */}
-                {showNewConsultation && !generatedReport && (
-                    <div className="space-y-6">
-                        <div className="medical-card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                            <div className="p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Mental Health Follow-Up Session</h3>
-                                    <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={() => setShowNewConsultation(false)}
-                                    >
-                                        Cancel
-                                    </Button>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {!isFollowUpSession && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                                                Session Focus
-                                            </label>
-                                            <Input
-                                                placeholder="Primary focus for today's session..."
-                                                value={chiefComplaint}
-                                                onChange={(e) => setChiefComplaint(e.target.value)}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                                            Session Type
-                                        </label>
-                                        <select
-                                            className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                            value={sessionType}
-                                            onChange={(e) => setSessionType(e.target.value)}
-                                        >
-                                            <option value="first_session">First Session</option>
-                                            <option value="follow-up">Follow-up Session</option>
-                                            <option value="therapy">Therapy Session</option>
-                                            <option value="assessment">Mental Health Assessment</option>
-                                            <option value="counseling">Counseling Session</option>
-                                            <option value="crisis">Crisis Intervention</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="p-4 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-700 rounded-lg">
-                                        <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
-                                            <MicrophoneIcon className="h-4 w-4" />
-                                            Audio Input Settings
-                                        </h4>
-                                        <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                                            Select your microphone before starting the session
-                                        </p>
-                                        <AudioDeviceSelector
-                                            selectedDeviceId={selectedAudioDevice}
-                                            onDeviceChange={setSelectedAudioDevice}
-                                        />
-                                    </div>
-
-                                    <div className="flex gap-3">
-                                        <Button
-                                            variant="primary"
-                                            onClick={startConsultation}
-                                            disabled={!chiefComplaint.trim() || loading}
-                                            className="flex items-center gap-2"
-                                        >
-                                            <MicrophoneIcon className="h-4 w-4" />
-                                            {loading ? 'Starting...' : 'Start Session'}
-                                        </Button>
-                                        <Button
-                                            variant="secondary"
-                                            onClick={() => {
-                                                setShowNewConsultation(false)
-                                                setIsFollowUpSession(false)
-                                                setChiefComplaint('')
-                                            }}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    </div>
-                                </div>
+                                    <option value="first_session">First Session</option>
+                                    <option value="follow-up">Follow-up</option>
+                                    <option value="therapy">Therapy</option>
+                                    <option value="assessment">Assessment</option>
+                                </select>
+                            </div>
+                            <AudioDeviceSelector
+                                selectedDeviceId={selectedAudioDevice}
+                                onDeviceChange={setSelectedAudioDevice}
+                            />
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="primary"
+                                    onClick={startConsultation}
+                                    disabled={!chiefComplaint.trim() || !selectedAudioDevice}
+                                >
+                                    <MicrophoneIcon className="h-4 w-4 mr-2" />
+                                    Start Session
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setShowNewConsultation(false)
+                                        setIsFollowUpSession(false)
+                                        setChiefComplaint('')
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
 
+
+            {/* Consultation History */}
+            {!isRecording && sessions.length > 0 && (
+                <div className="bg-white dark:bg-neutral-800 rounded-xl border p-6">
+                    <h3 className="text-xl font-semibold mb-6">Consultation History</h3>
+                    <div className="space-y-4">
+                        {sessions.map((session) => (
+                            <div key={session.id} className="border rounded-lg p-4">
+                                <div className="flex justify-between">
+                                    <div>
+                                        <h4 className="font-medium">{session.session_type}</h4>
+                                        <p className="text-sm text-neutral-600">{session.chief_complaint}</p>
+                                        <p className="text-xs text-neutral-500 mt-2">{formatDate(session.started_at)}</p>
+                                    </div>
+                                    {session.has_report && session.report_id && (
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                setSelectedReportId(session.report_id!)
+                                                setShowReportModal(true)
+                                            }}
+                                        >
+                                            View Report
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Report Display */}
+            {finalTranscription && !isRecording && (
+                <MedicalReportDisplay
+                    reportData={generatedReport}
+                    isGenerating={isGeneratingReport}
+                    onGenerateNew={() => setShowMedicationModal(true)}
+                />
+            )}
+
+            {/* Medication Modal */}
+            <MedicationModal
+                isOpen={showMedicationModal}
+                onClose={() => setShowMedicationModal(false)}
+                onSubmit={handleGenerateReport}
+                isLoading={isGeneratingReport}
+            />
+
+            {currentSession && (
+                <SimpleRecorder
+                    sessionId={currentSession}
+                    onTranscriptUpdate={handleTranscriptionUpdate}
+                    onError={(error) => toast.error(error)}
+                    onStart={() => {
+                        console.log('🎙️ Recording started')
+                        setIsRecording(true)
+                        setSessionState('recording')
+                    }}
+                    onStop={() => {
+                        console.log('🛑 Recording stopped')
+                        if (liveTranscription.trim()) {
+                            setFinalTranscription(prev => {
+                                const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription
+                                return combined
+                            })
+                            setLiveTranscription('')
+                        }
+                        setIsRecording(false)
+                        setSessionState('idle')
+                    }}
+                    isPaused={isPaused}
+                    selectedDeviceId={selectedAudioDevice}
+                    autoStart={true}
+                    onVolumeChange={setMicVolume}
+                    onNetworkError={setNetworkError}
+                />
+            )}
+
             {/* Report Modal */}
             {showReportModal && selectedReportId && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="overflow-y-auto w-full max-w-6xl h-[90vh] bg-white dark:bg-neutral-900 rounded-lg overflow-hidden">
+                    <div className="w-full max-w-6xl h-[90vh] bg-white rounded-lg overflow-auto">
                         <ReportView
                             reportId={selectedReportId}
                             onBack={() => {

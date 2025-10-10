@@ -112,14 +112,15 @@ async def transcribe_audio_chunk(
             except Exception as amp_err:
                 logger.warning(f"⚠️ [STT] Could not check audio amplitude: {str(amp_err)}")
             
-            # Read converted WAV
+            # Read converted WAV and normalize
             with open(wav_path, "rb") as f:
                 audio_content = f.read()
-            logger.info(f"✅ [STT] WAV file read: {len(audio_content)} bytes")
+                logger.info(f"✅ [STT] WAV file read: {len(audio_content)} bytes")
             
             # Clean up temp files
             os.unlink(temp_audio_path)
             os.unlink(wav_path)
+
             
         except FileNotFoundError:
             logger.error("❌ [STT] ffmpeg not found! Install with: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)")
@@ -146,10 +147,10 @@ async def transcribe_audio_chunk(
                 sample_rate_hertz=16000,  # Converted to 16kHz
                 audio_channel_count=1,
             ),
-            model="latest_long",
+            model="latest_short",
             language_codes=["mr-IN", "hi-IN", "en-IN"],  # Marathi, Hindi, English
         )
-        logger.info(f"✅ [STT] Step 3 complete: Config created (model=long, languages=mr-IN,hi-IN,en-IN, encoding=LINEAR16)")
+        logger.info(f"✅ [STT] Step 3 complete: Config created (model=latest_short, languages=mr-IN,hi-IN,en-IN, encoding=LINEAR16)")
         
         # Create recognition request
         logger.info(f"📋 [STT] Step 4: Creating recognition request...")
