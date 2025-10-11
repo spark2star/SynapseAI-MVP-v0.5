@@ -22,8 +22,8 @@ const SymptomAssessment: React.FC<Props> = ({ patientId }) => {
     const loadAssigned = async () => {
         setLoading(true)
         try {
-            const data = await symptomAPI.getPatientSymptoms(patientId)
-            setAssigned(data)
+            // const data = await symptomAPI.getPatientSymptoms(patientId)
+            // setAssigned(data)
         } catch (e) {
             console.error('Failed to load symptoms', e)
         } finally {
@@ -39,11 +39,11 @@ const SymptomAssessment: React.FC<Props> = ({ patientId }) => {
     const onAssign = async (intensity: IntensityLevel, duration: string) => {
         if (!selectedSymptom) return
         try {
-            await symptomAPI.assignToPatient(patientId, {
-                symptom_name: selectedSymptom,
-                is_custom: isCustom,
-                intensity,
-                duration
+            //             await symptomAPI.assignToPatient(patientId, {
+            //                 symptom_name: selectedSymptom,
+            //                 is_custom: isCustom,
+            //                 intensity,
+            //                 duration
             })
             await loadAssigned()
             setSelectedSymptom(null)

@@ -74,7 +74,12 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     
     # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000", "https://synapseai.health"]
+    ALLOWED_ORIGINS: List[str] = [
+    "http://localhost:3000",
+    "http://localhost:8000", 
+    "https://synapseai.health",
+    "https://synapseai-frontend-910625707162.asia-south1.run.app"
+]
     # ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     # ALLOWED_HEADERS: List[str] = ["*"]
     ALLOWED_METHODS: list[str] = ["*"]  # Or ["GET", "POST", "PUT", "DELETE", "OPTIONS"]

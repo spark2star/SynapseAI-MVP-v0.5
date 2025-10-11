@@ -144,7 +144,7 @@ start_infrastructure() {
     
     # Wait for services to be ready
     log "⏳ Waiting for PostgreSQL to be ready..."
-    until docker-compose exec postgres pg_isready -U emr_user -d emr_db > /dev/null 2>&1; do
+    until docker-compose exec postgres pg_isready -U postgres > /dev/null 2>&1; do
         sleep 2
     done
     

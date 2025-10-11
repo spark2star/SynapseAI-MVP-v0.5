@@ -1,0 +1,484 @@
+[
+  {
+    "insertId": "-1wczsacu7o",
+    "logName": "projects/synapse-product-1/logs/cloudaudit.googleapis.com%2Fsystem_event",
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "methodName": "/Services.CreateService",
+      "resourceName": "namespaces/synapse-product-1/revisions/synapse-backend-00001-ts4",
+      "response": {
+        "@type": "type.googleapis.com/google.cloud.run.v1.Revision",
+        "apiVersion": "serving.knative.dev/v1",
+        "kind": "Revision",
+        "metadata": {
+          "annotations": {
+            "autoscaling.knative.dev/maxScale": "3",
+            "run.googleapis.com/client-name": "gcloud",
+            "run.googleapis.com/client-version": "537.0.0",
+            "run.googleapis.com/cloudsql-instances": "synapse-product-1:us-central1:synapseai-db",
+            "run.googleapis.com/operation-id": "7a744da7-20bc-4332-a95d-56f42870208c",
+            "run.googleapis.com/startup-cpu-boost": "true",
+            "run.googleapis.com/vpc-access-connector": "synapseai-connector",
+            "run.googleapis.com/vpc-access-egress": "private-ranges-only",
+            "serving.knative.dev/creator": "mohdanees1717@gmail.com"
+          },
+          "creationTimestamp": "2025-10-11T17:12:52.278567Z",
+          "generation": 1,
+          "labels": {
+            "client.knative.dev/nonce": "cubxoyboap",
+            "cloud.googleapis.com/location": "asia-south1",
+            "run.googleapis.com/satisfiesPzs": "true",
+            "run.googleapis.com/startupProbeType": "Default",
+            "serving.knative.dev/configuration": "synapse-backend",
+            "serving.knative.dev/configurationGeneration": "1",
+            "serving.knative.dev/route": "synapse-backend",
+            "serving.knative.dev/service": "synapse-backend",
+            "serving.knative.dev/serviceUid": "372c9ce9-bfa0-4864-bbfb-39c4ccec9f1c"
+          },
+          "name": "synapse-backend-00001-ts4",
+          "namespace": "910625707162",
+          "ownerReferences": [
+            {
+              "apiVersion": "serving.knative.dev/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Configuration",
+              "name": "synapse-backend",
+              "uid": "fd2f4ea9-3e2c-43e7-9cfa-017de8cd43a9"
+            }
+          ],
+          "resourceVersion": "AAZA5Sa7Le0",
+          "selfLink": "/apis/serving.knative.dev/v1/namespaces/910625707162/revisions/synapse-backend-00001-ts4",
+          "uid": "bb54052c-bdb6-4ba4-8ab6-be490e2288b2"
+        },
+        "spec": {
+          "containerConcurrency": 80,
+          "containers": [
+            {
+              "image": "gcr.io/synapse-product-1/synapse-backend@sha256:66b7330330b326caa4d2efe3e908beb3f467a8effa4b55971dd861eb3fa3adfb",
+              "name": "synapse-backend-1",
+              "ports": [
+                {
+                  "containerPort": 8080,
+                  "name": "http1"
+                }
+              ],
+              "resources": {
+                "limits": {
+                  "cpu": "1",
+                  "memory": "512Mi"
+                }
+              },
+              "startupProbe": {
+                "failureThreshold": 1,
+                "periodSeconds": 240,
+                "tcpSocket": {
+                  "port": 8080
+                },
+                "timeoutSeconds": 240
+              }
+            }
+          ],
+          "serviceAccountName": "910625707162-compute@developer.gserviceaccount.com",
+          "timeoutSeconds": 300
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastTransitionTime": "2025-10-11T17:13:21.753581Z",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=synapse-product-1&resource=cloud_run_revision/service_name/synapse-backend/revision_name/synapse-backend-00001-ts4&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22synapse-backend%22%0Aresource.labels.revision_name%3D%22synapse-backend-00001-ts4%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "Ready"
+            },
+            {
+              "lastTransitionTime": "2025-10-11T17:13:21.753581Z",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=synapse-product-1&resource=cloud_run_revision/service_name/synapse-backend/revision_name/synapse-backend-00001-ts4&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22synapse-backend%22%0Aresource.labels.revision_name%3D%22synapse-backend-00001-ts4%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "ContainerHealthy"
+            },
+            {
+              "lastTransitionTime": "2025-10-11T17:13:14.463459Z",
+              "message": "Container image import completed in 19.59s.",
+              "status": "True",
+              "type": "ContainerReady"
+            },
+            {
+              "lastTransitionTime": "2025-10-11T17:13:18.426374Z",
+              "message": "Provisioning imported containers completed in 3.96s. Checking container health. This will wait for up to 4m for the configured startup probe, including an initial delay of 0s.",
+              "status": "True",
+              "type": "ResourcesAvailable"
+            },
+            {
+              "lastTransitionTime": "2025-10-11T17:13:18.426374Z",
+              "message": "System will retry after 0:00:00 from lastTransitionTime for attempt 0.",
+              "reason": "ImmediateRetry",
+              "severity": "Info",
+              "status": "True",
+              "type": "Retry"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "imageDigest": "gcr.io/synapse-product-1/synapse-backend@sha256:66b7330330b326caa4d2efe3e908beb3f467a8effa4b55971dd861eb3fa3adfb",
+              "name": "synapse-backend-1"
+            }
+          ],
+          "imageDigest": "gcr.io/synapse-product-1/synapse-backend@sha256:66b7330330b326caa4d2efe3e908beb3f467a8effa4b55971dd861eb3fa3adfb",
+          "logUrl": "https://console.cloud.google.com/logs/viewer?project=synapse-product-1&resource=cloud_run_revision/service_name/synapse-backend/revision_name/synapse-backend-00001-ts4&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22synapse-backend%22%0Aresource.labels.revision_name%3D%22synapse-backend-00001-ts4%22",
+          "observedGeneration": 1
+        }
+      },
+      "serviceName": "run.googleapis.com",
+      "status": {
+        "code": 9,
+        "message": "Ready condition status changed to False for Revision synapse-backend-00001-ts4 with message: The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=synapse-product-1&resource=cloud_run_revision/service_name/synapse-backend/revision_name/synapse-backend-00001-ts4&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22synapse-backend%22%0Aresource.labels.revision_name%3D%22synapse-backend-00001-ts4%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"
+      }
+    },
+    "receiveTimestamp": "2025-10-11T17:13:22.491207494Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "timestamp": "2025-10-11T17:13:21.764155Z"
+  },
+  {
+    "insertId": "68ea9031000b7b63ace810d7",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-10-11T17:13:21.915869678Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "textPayload": "Default STARTUP TCP probe failed 1 time consecutively for container \"synapse-backend-1\" on port 8080. The instance was not started.\nConnection failed with status CANCELLED.",
+    "timestamp": "2025-10-11T17:13:21.752483Z"
+  },
+  {
+    "insertId": "68ea9031000a4bace4155202",
+    "labels": {
+      "container_name": "synapse-backend-1",
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-10-11T17:13:21.915869678Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "WARNING",
+    "textPayload": "Container called exit(1).",
+    "timestamp": "2025-10-11T17:13:21.674723728Z"
+  },
+  {
+    "insertId": "68ea903100058a862df93739",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    For further information visit https://errors.pydantic.dev/2.12/v/missing",
+    "timestamp": "2025-10-11T17:13:21.363142Z"
+  },
+  {
+    "insertId": "68ea903100058a84e8645dfa",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  Field required [type=missing, input_value={}, input_type=dict]",
+    "timestamp": "2025-10-11T17:13:21.363140Z"
+  },
+  {
+    "insertId": "68ea903100058a82293ae329",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "FIELD_ENCRYPTION_KEY",
+    "timestamp": "2025-10-11T17:13:21.363138Z"
+  },
+  {
+    "insertId": "68ea903100058a7f9bae3e3e",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    For further information visit https://errors.pydantic.dev/2.12/v/missing",
+    "timestamp": "2025-10-11T17:13:21.363135Z"
+  },
+  {
+    "insertId": "68ea903100058a7d558fbce2",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  Field required [type=missing, input_value={}, input_type=dict]",
+    "timestamp": "2025-10-11T17:13:21.363133Z"
+  },
+  {
+    "insertId": "68ea903100058a7a2ddbb2a3",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "ENCRYPTION_KEY",
+    "timestamp": "2025-10-11T17:13:21.363130Z"
+  },
+  {
+    "insertId": "68ea903100058a780f63b73b",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    For further information visit https://errors.pydantic.dev/2.12/v/missing",
+    "timestamp": "2025-10-11T17:13:21.363128Z"
+  },
+  {
+    "insertId": "68ea903100058a75de02b26b",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  Field required [type=missing, input_value={}, input_type=dict]",
+    "timestamp": "2025-10-11T17:13:21.363125Z"
+  },
+  {
+    "insertId": "68ea903100058a7321a22c20",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "REDIS_URL",
+    "timestamp": "2025-10-11T17:13:21.363123Z"
+  },
+  {
+    "insertId": "68ea903100058a70bdc6b5e5",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    For further information visit https://errors.pydantic.dev/2.12/v/missing",
+    "timestamp": "2025-10-11T17:13:21.363120Z"
+  },
+  {
+    "insertId": "68ea903100058a6e98d05c45",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  Field required [type=missing, input_value={}, input_type=dict]",
+    "timestamp": "2025-10-11T17:13:21.363118Z"
+  },
+  {
+    "insertId": "68ea903100058a6b62ae0af4",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "DATABASE_URL",
+    "timestamp": "2025-10-11T17:13:21.363115Z"
+  },
+  {
+    "errorGroups": [
+      {
+        "id": "COOx1p7X3J6awwE"
+      }
+    ],
+    "insertId": "68ea903100058a58128f6ffb",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-11T17:13:21.366032748Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "textPayload": "Traceback (most recent call last):\n  File \"/usr/local/bin/uvicorn\", line 7, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/click/core.py\", line 1462, in __call__\n    return self.main(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/click/core.py\", line 1383, in main\n    rv = self.invoke(ctx)\n         ^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/click/core.py\", line 1246, in invoke\n    return ctx.invoke(self.callback, **ctx.params)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/click/core.py\", line 814, in invoke\n    return callback(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/main.py\", line 423, in main\n    run(\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/main.py\", line 593, in run\n    server.run()\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/server.py\", line 67, in run\n    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/_compat.py\", line 23, in asyncio_run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/asyncio/runners.py\", line 118, in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"uvloop/loop.pyx\", line 1518, in uvloop.loop.Loop.run_until_complete\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/server.py\", line 71, in serve\n    await self._serve(sockets)\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/server.py\", line 78, in _serve\n    config.load()\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/config.py\", line 438, in load\n    self.loaded_app = import_from_string(self.app)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/uvicorn/importer.py\", line 19, in import_from_string\n    module = importlib.import_module(module_str)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/importlib/__init__.py\", line 126, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1204, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1176, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1147, in _find_and_load_unlocked\n  File \"<frozen importlib._bootstrap>\", line 690, in _load_unlocked\n  File \"<frozen importlib._bootstrap_external>\", line 940, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 241, in _call_with_frames_removed\n  File \"/workspace/app/main.py\", line 17, in <module>\n    from app.core.config import settings\n  File \"/workspace/app/core/config.py\", line 177, in <module>\n    settings = get_settings()\n               ^^^^^^^^^^^^^^\n  File \"/workspace/app/core/config.py\", line 173, in get_settings\n    return Settings()\n           ^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/pydantic_settings/main.py\", line 193, in __init__\n    super().__init__(\n  File \"/usr/local/lib/python3.11/site-packages/pydantic/main.py\", line 250, in __init__\n    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npydantic_core._pydantic_core.ValidationError: 4 validation errors for Settings",
+    "timestamp": "2025-10-11T17:13:21.363096Z"
+  },
+  {
+    "insertId": "68ea902e0008e8f2dd74301c",
+    "labels": {
+      "instanceId": "0069c7a988e30a50d17d3858090a68d1cc3f8c006bfbb2b2616221fd24a6f9a805c74cde5cbc674845674b4002cb89f1ae20acca61e41a3ccc188a9112978c9c02a770d1de163e015a338f92a940d03e7b4f95085242",
+      "scaling_reason": "DEPLOYMENT_ROLLOUT"
+    },
+    "logName": "projects/synapse-product-1/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-10-11T17:13:18.587312859Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "synapse-backend",
+        "location": "asia-south1",
+        "project_id": "synapse-product-1",
+        "revision_name": "synapse-backend-00001-ts4",
+        "service_name": "synapse-backend"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "INFO",
+    "textPayload": "Starting new instance. Reason: DEPLOYMENT_ROLLOUT - Instance started due to traffic shifting between revisions due to deployment, traffic split adjustment, or deployment health check.",
+    "timestamp": "2025-10-11T17:13:18.583922Z"
+  }
+]

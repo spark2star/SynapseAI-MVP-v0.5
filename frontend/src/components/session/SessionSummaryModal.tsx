@@ -61,7 +61,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         const start = Date.now()
         while (Date.now() - start < timeoutMs) {
             try {
-                const statusResp = await apiService.get<any>(`/reports/${reportId}/status`)
+                const statusResp = await apiService.get(`/reports/${reportId}/status`)
                 const s = statusResp?.data?.status || statusResp?.status
                 if (s === 'completed' || s === 'failed') return s
             } catch (_) { }
@@ -93,7 +93,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
             console.log('📋 Generating report with progress + medications:', { progress, meds: validMeds })
 
-            const resp = await apiService.post<{ report_id?: number; session_id?: string }>(
+            const resp = await apiService.post(
                 '/reports/generate-session',
                 {
                     session_id: sessionId,
@@ -103,7 +103,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     additional_notes: additionalNotes,
                     session_type: sessionType
                 },
-                { timeout: 30000 }
             )
 
             if (!resp || (resp.status !== 'success' && resp.status !== 'accepted')) {
