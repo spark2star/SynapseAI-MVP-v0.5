@@ -27,6 +27,7 @@ import apiClient from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import SimpleRecorder from '@/components/consultation/recording/SimpleRecorder'
+import { SmartVADRecorder } from '@/components/SmartVADRecorder';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
 import AIInsights from '@/components/consultation/AIInsights'
@@ -80,6 +81,7 @@ export default function PatientDetailPage() {
 
     const [patient, setPatient] = useState<Patient | null>(null)
     const [sessions, setSessions] = useState<ConsultationSession[]>([])
+    const [currentSessionId, setCurrentSessionId] = useState<string>(''); // ✅ FIXED: Added for VAD
     const [loading, setLoading] = useState(true)
     const [isRecording, setIsRecording] = useState(false)
     const [isPaused, setIsPaused] = useState(false)
@@ -105,7 +107,10 @@ export default function PatientDetailPage() {
     const [micVolume, setMicVolume] = useState(0);
     const [networkError, setNetworkError] = useState<string | null>(null);
     const { isOnline, connectionType } = useNetworkStatus();
-
+    const [doctorMicId, setDoctorMicId] = useState<string>(); // ✅ FIXED: Added for VAD
+    const [showTranscriptModal, setShowTranscriptModal] = useState(false);
+    const [transcriptSegments, setTranscriptSegments] = useState<string[]>([]);
+    const [sessionId, setSessionId] = useState<string | null>(null);
 
     // ✅ FIX: Recording duration timer (only updates when recording)
     useEffect(() => {
@@ -121,6 +126,17 @@ export default function PatientDetailPage() {
 
         return () => clearInterval(interval)
     }, [isRecording, isPaused])
+
+    // Get available devices
+    useEffect(() => {
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const audioInputs = devices.filter(d => d.kind === 'audioinput');
+            console.log('[Audio Devices]', audioInputs);
+
+            // ✅ Find collar mic (user selects from dropdown)
+            // Or auto-detect by label containing "collar", "lavalier", etc.
+        });
+    }, []);
 
     useEffect(() => {
         if (patientId) {
@@ -265,6 +281,7 @@ export default function PatientDetailPage() {
 
             if (sessionId) {
                 setCurrentSession(sessionId)
+                setCurrentSessionId(sessionId); // ✅ FIXED: Set session ID for VAD
                 // ✅ SET STATE TO RECORDING
                 setSessionState('recording')
                 setIsRecording(true)
@@ -289,7 +306,6 @@ export default function PatientDetailPage() {
             toast.error(`Failed to start: ${errorMessage}`)
         }
     }
-
 
     const handleActiveSessionPrompt = () => {
         const confirmed = window.confirm(
@@ -332,6 +348,7 @@ export default function PatientDetailPage() {
 
             if (sessionId) {
                 setCurrentSession(sessionId)
+                setCurrentSessionId(sessionId); // ✅ FIXED: Set session ID for VAD
                 setIsRecording(true)
                 setShowNewConsultation(false)
                 setRecordingDuration(0)
@@ -357,6 +374,8 @@ export default function PatientDetailPage() {
     const stopConsultation = async () => {
         try {
             if (currentSession) {
+                console.log('🛑 Stopping session...');
+
                 // ✅ RESET STATE FIRST
                 setSessionState('idle')
                 setIsRecording(false)
@@ -367,6 +386,12 @@ export default function PatientDetailPage() {
                 const response = await apiClient.post(`/consultation/${currentSession}/stop`)
 
                 if (response.status === 'success') {
+                    console.log('✅ Session stopped:', response.data);
+
+                    // Show transcript modal
+                    setSessionId(currentSession);
+                    setShowTranscriptModal(true);
+
                     const newSession: ConsultationSession = {
                         id: 'session-new',
                         session_id: currentSession,
@@ -384,6 +409,7 @@ export default function PatientDetailPage() {
                     setChiefComplaint('')
                     setRecordingDuration(0)
                     setCurrentSession(null)
+                    setCurrentSessionId(''); // ✅ FIXED: Reset session ID
 
                     toast.success('Session completed')
                 }
@@ -393,7 +419,6 @@ export default function PatientDetailPage() {
             toast.error('Failed to stop consultation')
         }
     }
-
 
     const handlePauseResume = () => {
         if (sessionState === 'recording') {
@@ -408,7 +433,6 @@ export default function PatientDetailPage() {
             toast.success('Recording resumed')
         }
     }
-
 
     const formatDuration = (seconds: number) => {
         const mins = Math.floor(seconds / 60)
@@ -435,7 +459,7 @@ export default function PatientDetailPage() {
         console.log('📝 [page.tsx] Transcription received:', {
             transcript: data.transcript.slice(0, 100) + '...',
             isFinal: data.isFinal,
-            rawData: JSON.stringify(data)  // ✅ See exact data structure
+            rawData: JSON.stringify(data)
         });
 
         // ✅ Save ALL transcripts immediately
@@ -464,14 +488,15 @@ export default function PatientDetailPage() {
                 console.log(`📊 Total length: ${updated.length} chars`);
 
                 return updated;
-            });
+         });
 
             // Update live transcription
             setLiveTranscription(trimmedTranscript);
+
+            // ✅ Add to transcript segments for modal
+            setTranscriptSegments(prev => [...prev, trimmedTranscript]);
         }
-    }, []);  // ✅ Empty dependencies
-
-
+    }, []);
 
     const handleTranscriptionEdit = (newText: string) => {
         setFinalTranscription(newText)
@@ -598,8 +623,8 @@ export default function PatientDetailPage() {
                             <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div
                                     className={`h-full transition-all duration-100 ${micVolume > 50 ? 'bg-green-500' :
-                                            micVolume > 20 ? 'bg-yellow-500' :
-                                                'bg-gray-400'
+                                        micVolume > 20 ? 'bg-yellow-500' :
+                                            'bg-gray-400'
                                         }`}
                                     style={{ width: `${micVolume}%` }}
                                 />
@@ -630,7 +655,6 @@ export default function PatientDetailPage() {
                             </div>
                         )}
                     </div>
-
 
                     {!isRecording && !isFollowUpMode && (
                         <Button
@@ -686,33 +710,27 @@ export default function PatientDetailPage() {
                                         <StopIcon className="w-4 h-4 mr-1" /> Stop
                                     </Button>
                                 </div>
-
                             </div>
                         </div>
                     </div>
                 )}
 
-
-                {/* {currentSession && (
-                    <div className="hidden">
-                        <SimpleRecorder
-                            sessionId={currentSession}
-                            onTranscriptUpdate={handleTranscriptionUpdate}
-                            onError={(error) => toast.error(error)}
-                            onStart={() => setIsRecording(true)}
-                            onStop={() => {
-                                if (liveTranscription.trim()) {
-                                    setFinalTranscription(prev => {
-                                        const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription
-                                        return combined
-                                    })
-                                    setLiveTranscription('')
-                                }
-                                setIsRecording(false)
-                            }}
-                        />
-                    </div>
-                )} */}
+                {/* ✅ FIXED: SmartVADRecorder with correct sessionId */}
+                {currentSessionId && (
+                    <SmartVADRecorder
+                        sessionId={currentSessionId}
+                        isActive={isRecording && !isPaused}
+                        onTranscriptReceived={(transcript) => {
+                            console.log('[VAD Doctor said]:', transcript);
+                            // ✅ Add to final transcription
+                            handleTranscriptionUpdate({
+                                transcript,
+                                isFinal: true
+                            });
+                        }}
+                        doctorMicDeviceId={doctorMicId}
+                    />
+                )}
 
                 {/* Patient Info */}
                 <div className="bg-white dark:bg-neutral-800 rounded-xl border p-6">
@@ -779,7 +797,10 @@ export default function PatientDetailPage() {
                             </div>
                             <AudioDeviceSelector
                                 selectedDeviceId={selectedAudioDevice}
-                                onDeviceChange={setSelectedAudioDevice}
+                                onDeviceChange={(deviceId) => {
+                                    setSelectedAudioDevice(deviceId);
+                                    setDoctorMicId(deviceId); // ✅ FIXED: Set doctor mic for VAD
+                                }}
                             />
                             <div className="flex gap-3">
                                 <Button
@@ -804,101 +825,172 @@ export default function PatientDetailPage() {
                         </div>
                     </div>
                 )}
-            </div>
 
-
-            {/* Consultation History */}
-            {!isRecording && sessions.length > 0 && (
-                <div className="bg-white dark:bg-neutral-800 rounded-xl border p-6">
-                    <h3 className="text-xl font-semibold mb-6">Consultation History</h3>
-                    <div className="space-y-4">
-                        {sessions.map((session) => (
-                            <div key={session.id} className="border rounded-lg p-4">
-                                <div className="flex justify-between">
-                                    <div>
-                                        <h4 className="font-medium">{session.session_type}</h4>
-                                        <p className="text-sm text-neutral-600">{session.chief_complaint}</p>
-                                        <p className="text-xs text-neutral-500 mt-2">{formatDate(session.started_at)}</p>
+                {/* Consultation History */}
+                {!isRecording && sessions.length > 0 && (
+                    <div className="bg-white dark:bg-neutral-800 rounded-xl border p-6">
+                        <h3 className="text-xl font-semibold mb-6">Consultation History</h3>
+                        <div className="space-y-4">
+                            {sessions.map((session) => (
+                                <div key={session.id} className="border rounded-lg p-4">
+                                    <div className="flex justify-between">
+                                        <div>
+                                            <h4 className="font-medium">{session.session_type}</h4>
+                                            <p className="text-sm text-neutral-600">{session.chief_complaint}</p>
+                                            <p className="text-xs text-neutral-500 mt-2">{formatDate(session.started_at)}</p>
+                                        </div>
+                                        {session.has_report && session.report_id && (
+                                            <Button
+                                                size="sm"
+                                                onClick={() => {
+                                                    setSelectedReportId(session.report_id!)
+                                                    setShowReportModal(true)
+                                                }}
+                                            >
+                                                View Report
+                                            </Button>
+                                        )}
                                     </div>
-                                    {session.has_report && session.report_id && (
-                                        <Button
-                                            size="sm"
-                                            onClick={() => {
-                                                setSelectedReportId(session.report_id!)
-                                                setShowReportModal(true)
-                                            }}
-                                        >
-                                            View Report
-                                        </Button>
-                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Report Display */}
-            {finalTranscription && !isRecording && (
-                <MedicalReportDisplay
-                    reportData={generatedReport}
-                    isGenerating={isGeneratingReport}
-                    onGenerateNew={() => setShowMedicationModal(true)}
+                {/* Report Display */}
+                {finalTranscription && !isRecording && (
+                    <MedicalReportDisplay
+                        reportData={generatedReport}
+                        isGenerating={isGeneratingReport}
+                        onGenerateNew={() => setShowMedicationModal(true)}
+                    />
+                )}
+
+                {/* Medication Modal */}
+                <MedicationModal
+                    isOpen={showMedicationModal}
+                    onClose={() => setShowMedicationModal(false)}
+                    onSubmit={handleGenerateReport}
+                    isLoading={isGeneratingReport}
                 />
-            )}
 
-            {/* Medication Modal */}
-            <MedicationModal
-                isOpen={showMedicationModal}
-                onClose={() => setShowMedicationModal(false)}
-                onSubmit={handleGenerateReport}
-                isLoading={isGeneratingReport}
-            />
-
-            {currentSession && (
-                <SimpleRecorder
-                    sessionId={currentSession}
-                    onTranscriptUpdate={handleTranscriptionUpdate}
-                    onError={(error) => toast.error(error)}
-                    onStart={() => {
-                        console.log('🎙️ Recording started')
-                        setIsRecording(true)
-                        setSessionState('recording')
-                    }}
-                    onStop={() => {
-                        console.log('🛑 Recording stopped')
-                        if (liveTranscription.trim()) {
-                            setFinalTranscription(prev => {
-                                const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription
-                                return combined
-                            })
-                            setLiveTranscription('')
-                        }
-                        setIsRecording(false)
-                        setSessionState('idle')
-                    }}
-                    isPaused={isPaused}
-                    selectedDeviceId={selectedAudioDevice}
-                    autoStart={true}
-                    onVolumeChange={setMicVolume}
-                    onNetworkError={setNetworkError}
-                />
-            )}
-
-            {/* Report Modal */}
-            {showReportModal && selectedReportId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="w-full max-w-6xl h-[90vh] bg-white rounded-lg overflow-auto">
-                        <ReportView
-                            reportId={selectedReportId}
-                            onBack={() => {
-                                setShowReportModal(false)
-                                setSelectedReportId(null)
+                {/* SimpleRecorder (fallback/backup) */}
+                {currentSession && (
+                    <div className="hidden">
+                        <SimpleRecorder
+                            sessionId={currentSession}
+                            onTranscriptUpdate={handleTranscriptionUpdate}
+                            onError={(error) => toast.error(error)}
+                            onStart={() => {
+                                console.log('🎙️ Recording started')
+                                setIsRecording(true)
+                                setSessionState('recording')
                             }}
+                            onStop={() => {
+                                console.log('🛑 Recording stopped')
+                                if (liveTranscription.trim()) {
+                                    setFinalTranscription(prev => {
+                                        const combined = prev ? `${prev} ${liveTranscription}` : liveTranscription
+                                        return combined
+                                    })
+                                    setLiveTranscription('')
+                                }
+                                setIsRecording(false)
+                                setSessionState('idle')
+                            }}
+                            isPaused={isPaused}
+                            selectedDeviceId={selectedAudioDevice}
+                            autoStart={true}
+                            onVolumeChange={setMicVolume}
+                            onNetworkError={setNetworkError}
                         />
                     </div>
-                </div>
-            )}
+                )}
+
+                {/* Report Modal */}
+                {showReportModal && selectedReportId && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                        <div className="w-full max-w-6xl h-[90vh] bg-white rounded-lg overflow-auto">
+                            <ReportView
+                                reportId={selectedReportId}
+                                onBack={() => {
+                                    setShowReportModal(false)
+                                    setSelectedReportId(null)
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Transcript Review Modal */}
+                {showTranscriptModal && (
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col">
+                            {/* Header */}
+                            <div className="px-6 py-4 border-b border-gray-200">
+                                <h2 className="text-2xl font-bold text-gray-800">
+                                    Session Transcript
+                                </h2>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    Session ID: {sessionId}
+                                </p>
+                            </div>
+
+                            {/* Transcript Content */}
+                            <div className="flex-1 overflow-y-auto px-6 py-4">
+                                {transcriptSegments.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <p className="text-gray-400 text-lg">No transcript available</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {transcriptSegments.map((segment, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition"
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                                                        {idx + 1}
+                                                    </span>
+                                                    <p className="flex-1 text-gray-800 leading-relaxed">
+                                                        {segment}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer Actions */}
+                            <div className="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
+                                <button
+                                    onClick={() => {
+                                        setShowTranscriptModal(false);
+                                        setSessionId(null);
+                                        setTranscriptSegments([]);
+                                        fetchConsultationSessions();
+                                    }}
+                                    className="px-6 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-medium"
+                                >
+                                    Close
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        // Navigate to report generation
+                                        router.push(`/dashboard/consultations/${sessionId}/generate-report`);
+                                    }}
+                                    className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-medium"
+                                >
+                                    Generate Report
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

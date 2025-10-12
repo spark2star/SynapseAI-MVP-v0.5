@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     GCP_PROJECT_ID: str = "synapse-product-1"
     
     # Google STT for Healthcare (Multi-language with code-switching)
-    GOOGLE_STT_MODEL: str = "latest_long"  # Use 'chirp' for multilingual
+    GOOGLE_STT_MODEL: str = "latest_short"  # Use 'chirp' for multilingual
     GOOGLE_STT_PRIMARY_LANGUAGE: str = "hi-IN"  # Hindi (India) - Listed first for priority
     GOOGLE_STT_ALTERNATE_LANGUAGES: list = ["hi-IN", "mr-IN", "en-IN"]  # All languages equal (Hindi, Marathi, English)
     GOOGLE_STT_SAMPLE_RATE: int = 48000

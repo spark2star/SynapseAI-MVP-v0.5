@@ -9,14 +9,15 @@ interface SimpleAudioRecorderProps {
         currentFinal?: string
         currentLive?: string
     }) => void
-    onError?: (error: any) => void  
-    onStart?: () => void            
-    onStop?: () => void             
-    isPaused?: boolean              
-    selectedDeviceId?: string       
-    autoStart?: boolean   
-    onVolumeChange?: (volume: number) => void  
-    onNetworkError?: (error: string) => void           
+    onError?: (error: any) => void
+    onStart?: () => void
+    onStop?: () => void
+    isPaused?: boolean
+    selectedDeviceId?: string
+    autoStart?: boolean
+    onVolumeChange?: (volume: number) => void
+    onNetworkError?: (error: string) => void
+    continuousMode?: boolean  // NEW - Always send chunks, even during silence
 }
 
 interface TranscriptionResponse {
@@ -68,8 +69,9 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
     isPaused = false,
     selectedDeviceId,
     autoStart = true,
-    onVolumeChange,      // ✅ ADD
-    onNetworkError       // ✅ ADD
+    onVolumeChange,
+    onNetworkError,
+    continuousMode = true  // ✅ Default to continuous mode for better capture
 }) => {
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -81,19 +83,21 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
     const audioBufferRef = useRef<Float32Array[]>([]);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const isRecordingAudioRef = useRef(false);
-    
+
     // ✅ NEW: Retry configuration
     const MAX_RETRIES = 3;
     const RETRY_DELAY_MS = 2000;
 
     // Constants for chunking
-    const CHUNK_INTERVAL_MS = 30000;
+    const CHUNK_INTERVAL_MS = 10000; // 10 seconds - more frequent capture
     const MIN_CHUNK_SIZE = 16000 * 2;
-    
+    const OVERLAP_SECONDS = 0.5; // 500ms overlap to prevent missing audio at boundaries
+
     // ✅ NEW: Queue for failed chunks
-    const pendingChunksRef = useRef<Array<{ audio: Blob; timestamp: number }>>([]); 
+    const pendingChunksRef = useRef<Array<{ audio: Blob; timestamp: number }>>([]);
     const volumeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const currentVolumeRef = useRef<number>(0); // ✅ Store current volume
+    const previousChunkBufferRef = useRef<Float32Array | null>(null); // ✅ Store overlap buffer
 
     // ✅ Handle pause/resume
     useEffect(() => {
@@ -139,7 +143,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
 
                 if (result.status === "success" && result.transcript && result.transcript.trim()) {
                     console.log(`[STT] ✅ Got transcript: "${result.transcript}"`);
-                    
+
                     onTranscriptUpdate({
                         transcript: result.transcript,
                         isFinal: true,
@@ -164,7 +168,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
                         audio: audioBlob,
                         timestamp: Date.now()
                     });
-                    
+
                     onNetworkError?.(`Network issue - ${pendingChunksRef.current.length} chunks queued`);
                     throw error;
                 }
@@ -186,7 +190,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
 
         const totalLength = audioBufferRef.current.reduce((acc, arr) => acc + arr.length, 0);
 
-        if (totalLength < MIN_CHUNK_SIZE) {
+        if (!continuousMode && totalLength < MIN_CHUNK_SIZE) {
             console.log(`[STT] Buffer too small: ${totalLength} < ${MIN_CHUNK_SIZE}`);
             return;
         }
@@ -194,7 +198,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
         setIsProcessing(true);
 
         try {
-            const combinedAudio = new Float32Array(totalLength);
+            let combinedAudio = new Float32Array(totalLength);
             let offset = 0;
             for (const chunk of audioBufferRef.current) {
                 combinedAudio.set(chunk, offset);
@@ -203,23 +207,44 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
 
             audioBufferRef.current = [];
 
+            // ✅ ADD OVERLAP: Keep last 500ms of previous chunk to prevent missing audio at boundaries
+            const overlapSamples = Math.floor(OVERLAP_SECONDS * 16000);
+            if (previousChunkBufferRef.current && previousChunkBufferRef.current.length > 0) {
+                const overlapData = previousChunkBufferRef.current.slice(-overlapSamples);
+                const combinedWithOverlap = new Float32Array(overlapData.length + combinedAudio.length);
+                combinedWithOverlap.set(overlapData, 0);
+                combinedWithOverlap.set(combinedAudio, overlapData.length);
+                combinedAudio = combinedWithOverlap;
+                console.log(`[STT] 🔗 Added ${overlapSamples} samples (${OVERLAP_SECONDS}s) overlap`);
+            }
+
+            // Store for next chunk
+            previousChunkBufferRef.current = combinedAudio;
+
             const int16Audio = new Int16Array(combinedAudio.length);
             for (let i = 0; i < combinedAudio.length; i++) {
                 const s = Math.max(-1, Math.min(1, combinedAudio[i]));
                 int16Audio[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
             }
 
+            // ✅ IMPROVED AMPLITUDE ANALYSIS
             let maxAmplitude = 0;
+            let sumAmplitude = 0;
             for (let i = 0; i < int16Audio.length; i++) {
                 const abs = Math.abs(int16Audio[i]);
                 if (abs > maxAmplitude) maxAmplitude = abs;
+                sumAmplitude += abs;
+            }
+            const avgAmplitude = sumAmplitude / int16Audio.length;
+
+            // ✅ LOWER THRESHOLD - accept quieter audio
+            const AMPLITUDE_THRESHOLD = 500; // Lower threshold
+            if (maxAmplitude < AMPLITUDE_THRESHOLD) {
+                console.log(`[STT] ⚠️ Audio quiet (max: ${maxAmplitude}), but sending anyway for STT analysis`);
             }
 
-            // ✅ REMOVED AMPLITUDE CHECK - Don't skip quiet audio
-            console.log(`[STT] 📊 Audio amplitude: ${maxAmplitude}`);
-
             const durationInSeconds = int16Audio.length / 16000;
-            console.log(`[STT] 📦 Processing ${durationInSeconds.toFixed(1)}s of audio (max amplitude: ${maxAmplitude})`);
+            console.log(`[STT] 📦 Processing ${durationInSeconds.toFixed(1)}s of audio | max=${maxAmplitude} avg=${avgAmplitude.toFixed(0)}`);
 
             const wavBlob = createWavBlob(int16Audio, 16000);
 
@@ -239,7 +264,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
         } finally {
             setIsProcessing(false);
         }
-    }, [sessionId, onError, sendAudioWithRetry]);
+    }, [sessionId, onError, sendAudioWithRetry, continuousMode]);
 
     // ✅ Memoize startRecording
     const startRecording = useCallback(async () => {
@@ -278,7 +303,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
                 if (isRecordingAudioRef.current) {
                     const inputData = e.inputBuffer.getChannelData(0);
                     audioBufferRef.current.push(new Float32Array(inputData));
-                    
+
                     // ✅ NEW: Calculate volume for UI feedback
                     let sum = 0;
                     for (let i = 0; i < inputData.length; i++) {
@@ -303,14 +328,14 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
 
             intervalRef.current = setInterval(() => {
                 if (isRecordingAudioRef.current && !isPaused) {
-                    console.log('[STT] ⏱️ 30-second interval triggered, processing chunk...');
+                    console.log('[STT] ⏱️ 10-second interval triggered, processing chunk...');
                     processAudioBuffer();
                 } else {
                     console.log('[STT] ⏸️ Skipping interval - paused or not recording');
                 }
             }, CHUNK_INTERVAL_MS);
 
-            console.log('[STT] ✅ Recording started with 30-second auto-chunking');
+            console.log('[STT] ✅ Recording started with 10-second auto-chunking');
 
         } catch (error) {
             console.error('[STT] ❌ Error starting recording:', error);
@@ -369,7 +394,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
 
         const processQueue = async () => {
             console.log(`[STT] 🔄 Processing ${pendingChunksRef.current.length} queued chunks...`);
-            
+
             while (pendingChunksRef.current.length > 0) {
                 const chunk = pendingChunksRef.current.shift();
                 if (chunk) {
@@ -386,7 +411,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
         };
 
         const queueInterval = setInterval(processQueue, 10000);
-        
+
         return () => clearInterval(queueInterval);
     }, [isProcessing, sendAudioWithRetry]);
 

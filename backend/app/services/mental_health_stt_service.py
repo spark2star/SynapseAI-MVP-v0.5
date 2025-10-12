@@ -225,7 +225,7 @@ class MentalHealthSTTService:
             sample_rate_hertz=settings.GOOGLE_STT_SAMPLE_RATE,
             language_code=settings.GOOGLE_STT_PRIMARY_LANGUAGE,  # Marathi (India)
             alternative_language_codes=settings.GOOGLE_STT_ALTERNATE_LANGUAGES,  # English, Hindi
-            model=settings.GOOGLE_STT_MODEL,  # latest_long
+            model=settings.GOOGLE_STT_MODEL,  # latest_short
             use_enhanced=True,
             enable_automatic_punctuation=True,
             enable_spoken_punctuation=True,

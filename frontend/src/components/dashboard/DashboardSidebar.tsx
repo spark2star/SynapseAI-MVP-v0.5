@@ -85,9 +85,19 @@ export default function DashboardSidebar() {
     return (
         <div className="flex h-full flex-col bg-gray-50 dark:bg-slate-900 transition-colors duration-500 ease-in-out border-r border-gray-200 dark:border-slate-800">
             {/* Logo */}
-            <div className="flex h-16 items-center justify-start px-6 border-b border-gray-200 dark:border-slate-800 transition-colors duration-500">
-                <Logo size="md" showText={true} />
+            <div className="flex h-16 items-center px-6 border-b border-gray-200 dark:border-slate-800 transition-colors duration-500">
+                <div className="flex items-center gap-0.1">
+                    <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 mt-1.5">
+                        <Logo size="md" showText={false} />
+                    </div>
+                    <span className="text-xl font-semibold leading-none text-gray-900 dark:text-white">
+                        Synapse<span className="text-cyan-500 dark:text-cyan-400">AI</span>
+                    </span>
+                </div>
             </div>
+
+
+
 
             {/* Navigation */}
             <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">

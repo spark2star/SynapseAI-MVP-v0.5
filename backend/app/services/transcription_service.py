@@ -70,7 +70,7 @@ class TranscriptionService:
             transcript_segments=[],
             processing_status=TranscriptionStatus.PROCESSING,
             stt_service="vertex-ai",
-            stt_model="latest_long",
+            stt_model="latest_short",
             stt_language="hi-IN",
             confidence_score=0.0,
             word_count=0,
