@@ -35,6 +35,8 @@ import EditableTranscript from '@/components/consultation/EditableTranscript'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
 import MedicationModal, { Medication } from '@/components/consultation/MedicationModal'
 import ReportView from '@/components/report/ReportView'
+import TranscriptReviewSection from '@/components/consultation/TranscriptReviewSection'
+import ReportModal from '@/components/consultation/ReportModal'
 
 interface Patient {
     id: string
@@ -111,6 +113,12 @@ export default function PatientDetailPage() {
     const [showTranscriptModal, setShowTranscriptModal] = useState(false);
     const [transcriptSegments, setTranscriptSegments] = useState<string[]>([]);
     const [sessionId, setSessionId] = useState<string | null>(null);
+
+    // Enhanced workflow state
+    const [showTranscriptReview, setShowTranscriptReview] = useState(false);
+    const [currentTranscript, setCurrentTranscript] = useState('');
+    const [showReportModalEnhanced, setShowReportModalEnhanced] = useState(false);
+    const [reportData, setReportData] = useState<any>(null);
 
     // ✅ FIX: Recording duration timer (only updates when recording)
     useEffect(() => {
@@ -388,9 +396,18 @@ export default function PatientDetailPage() {
                 if (response.status === 'success') {
                     console.log('✅ Session stopped:', response.data);
 
-                    // Show transcript modal
-                    setSessionId(currentSession);
-                    setShowTranscriptModal(true);
+                    // ✅ ENHANCED WORKFLOW: Get full transcript and show review section
+                    const fullTranscript = finalTranscription || transcriptSegments.join(' ') || '';
+
+                    if (fullTranscript.trim()) {
+                        setCurrentTranscript(fullTranscript);
+                        setSessionId(currentSession);
+                        setShowTranscriptReview(true);
+                    } else {
+                        // No transcript available - show old modal
+                        setSessionId(currentSession);
+                        setShowTranscriptModal(true);
+                    }
 
                     const newSession: ConsultationSession = {
                         id: 'session-new',
@@ -411,7 +428,7 @@ export default function PatientDetailPage() {
                     setCurrentSession(null)
                     setCurrentSessionId(''); // ✅ FIXED: Reset session ID
 
-                    toast.success('Session completed')
+                    toast.success('Session completed - Review your transcript')
                 }
             }
         } catch (error) {
@@ -431,6 +448,48 @@ export default function PatientDetailPage() {
             setSessionState('recording')
             setIsPaused(false)
             toast.success('Recording resumed')
+        }
+    }
+
+    // ✅ ENHANCED WORKFLOW: Handle transcript confirmation
+    const handleTranscriptConfirmed = (editedTranscript: string) => {
+        setCurrentTranscript(editedTranscript)
+        setShowTranscriptReview(false)
+        setShowMedicationModal(true)
+    }
+
+    // ✅ ENHANCED WORKFLOW: Handle medication and status submission
+    const handleMedicationSubmit = async (medications: Medication[], patientStatus?: string) => {
+        try {
+            setShowMedicationModal(false)
+            setIsGeneratingReport(true)
+
+            console.log('🤖 Generating report with enhanced workflow...')
+            console.log('📝 Patient status:', patientStatus)
+            console.log('💊 Medications:', medications)
+
+            const response = await apiClient.post('/reports/generate', {
+                session_id: sessionId,
+                reviewed_transcript: currentTranscript,
+                patient_status: patientStatus || 'stable',
+                medications: medications,
+                skip_medications: medications.length === 0,
+                session_type: isFollowUpSession ? 'follow_up' : 'new_patient'
+            })
+
+            if (response.status === 'success' && response.data) {
+                console.log('✅ Report generated successfully!')
+                setReportData(response.data)
+                setShowReportModalEnhanced(true)
+                toast.success('Report generated successfully!')
+            } else {
+                throw new Error('Failed to generate report')
+            }
+        } catch (error) {
+            console.error('Error generating report:', error)
+            toast.error('Failed to generate report. Please try again.')
+        } finally {
+            setIsGeneratingReport(false)
         }
     }
 
@@ -488,7 +547,7 @@ export default function PatientDetailPage() {
                 console.log(`📊 Total length: ${updated.length} chars`);
 
                 return updated;
-         });
+            });
 
             // Update live transcription
             setLiveTranscription(trimmedTranscript);
@@ -989,6 +1048,33 @@ export default function PatientDetailPage() {
                             </div>
                         </div>
                     </div>
+                )}
+
+                {/* ✅ ENHANCED WORKFLOW: Transcript Review Section */}
+                {showTranscriptReview && (
+                    <TranscriptReviewSection
+                        initialTranscript={currentTranscript}
+                        onConfirm={handleTranscriptConfirmed}
+                    />
+                )}
+
+                {/* ✅ ENHANCED WORKFLOW: Enhanced Report Modal with Quality Metrics */}
+                {reportData && (
+                    <ReportModal
+                        isOpen={showReportModalEnhanced}
+                        report={reportData.generated_report || ''}
+                        sttConfidence={reportData.stt_confidence_score || 0}
+                        llmConfidence={reportData.llm_confidence_score || 0}
+                        keywords={reportData.keywords || []}
+                        reportId={reportData.report_id || null}
+                        onClose={() => {
+                            setShowReportModalEnhanced(false)
+                            setReportData(null)
+                            setCurrentTranscript('')
+                            setShowTranscriptReview(false)
+                            fetchConsultationSessions()
+                        }}
+                    />
                 )}
             </div>
         </div>

@@ -52,33 +52,80 @@ class GeminiService:
             logger.error(f"❌ Failed to initialize Gemini service: {str(e)}")
             raise
     
-    async def generate_medical_report(self, transcription: str, session_type: str = "follow_up") -> dict:
+    async def generate_medical_report(self, transcription: str, session_type: str = "follow_up", patient_status: str = "stable", medications: str = "") -> dict:
         """
-        Generate a structured mental health report from consultation transcription
+        Generate a structured mental health report from consultation transcription with quality metrics
+        
+        Returns:
+        {
+            "report": "...",
+            "confidence_score": 0.85,
+            "keywords": ["anxiety", "sleep", ...],
+            "reasoning": "..."
+        }
         """
         try:
             if session_type == "follow_up":
-                prompt = self._get_follow_up_prompt(transcription)
+                prompt = self._get_follow_up_prompt(transcription, patient_status, medications)
             else:
-                prompt = self._get_new_patient_prompt(transcription)
+                prompt = self._get_new_patient_prompt(transcription, patient_status, medications)
             
             logger.info(f"🤖 Generating {session_type} report for transcript length: {len(transcription)}")
             logger.info(f"📝 Transcript preview: {transcription[:200]}...")
             
-            # Call real Gemini 2.5 Flash API
-            response = self.model.generate_content(prompt)
+            # Call real Gemini 2.5 Flash API with JSON response format
+            generation_config = {
+                "temperature": 0.3,
+                "top_p": 0.95,
+                "top_k": 40,
+                "max_output_tokens": 2048,
+                "response_mime_type": "application/json"
+            }
+            
+            model_with_config = genai.GenerativeModel(
+                self.model_name,
+                generation_config=generation_config
+            )
+            
+            response = model_with_config.generate_content(prompt)
             
             logger.info(f"✅ Gemini response received: {len(response.text)} characters")
             logger.info(f"📄 Response preview: {response.text[:300]}...")
             
-            return {
-                "status": "success",
-                "report": response.text,
-                "model_used": self.model_name,
-                "session_type": session_type,
-                "transcription_length": len(transcription),
-                "generated_at": datetime.now(timezone.utc).isoformat()
-            }
+            # Parse JSON response
+            import json
+            try:
+                result = json.loads(response.text)
+                
+                # Ensure keywords are limited to 10
+                if "keywords" in result and isinstance(result["keywords"], list):
+                    result["keywords"] = result["keywords"][:10]
+                
+                return {
+                    "status": "success",
+                    "report": result.get("report", response.text),
+                    "confidence_score": result.get("confidence_score", 0.75),
+                    "keywords": result.get("keywords", []),
+                    "reasoning": result.get("reasoning", ""),
+                    "model_used": self.model_name,
+                    "session_type": session_type,
+                    "transcription_length": len(transcription),
+                    "generated_at": datetime.now(timezone.utc).isoformat()
+                }
+            except json.JSONDecodeError:
+                # Fallback if Gemini doesn't return valid JSON
+                logger.warning(f"⚠️ JSON parsing error. Using plain text response.")
+                return {
+                    "status": "success",
+                    "report": response.text,
+                    "confidence_score": 0.5,
+                    "keywords": ["report", "generated", "consultation"],
+                    "reasoning": "JSON parsing failed",
+                    "model_used": self.model_name,
+                    "session_type": session_type,
+                    "transcription_length": len(transcription),
+                    "generated_at": datetime.now(timezone.utc).isoformat()
+                }
             
         except Exception as e:
             logger.error(f"❌ Error generating medical report: {str(e)}")
@@ -92,10 +139,12 @@ class GeminiService:
                 "region": "asia-south1"
             }
     
-    def _get_follow_up_prompt(self, transcription: str) -> str:
+    def _get_follow_up_prompt(self, transcription: str, patient_status: str = "stable", medications: str = "") -> str:
         """
-        Specialized prompt for follow-up mental health sessions
+        Specialized prompt for follow-up mental health sessions with quality metrics
         """
+        medication_text = medications if medications else "No medications prescribed"
+        
         return f"""
 You are an experienced mental health professional reviewing a follow-up consultation transcript. 
 
@@ -114,6 +163,11 @@ You are an experienced mental health professional reviewing a follow-up consulta
 
 TRANSCRIPT TO ANALYZE:
 {transcription}
+
+PATIENT STATUS: {patient_status}
+
+MEDICATIONS PRESCRIBED:
+{medication_text}
 
 TASK: Generate a CONCISE follow-up mental health assessment report with the following structure:
 
@@ -135,6 +189,7 @@ TASK: Generate a CONCISE follow-up mental health assessment report with the foll
 ## MEDICATION & TREATMENT
 - Current medications (if mentioned)
 - Treatment compliance and concerns
+- Include prescribed medications from above
 
 ## RISK ASSESSMENT & SIDE EFFECTS
 - side effects of medications
@@ -150,13 +205,31 @@ GUIDELINES:
 5. Focus on key clinical findings and actionable insights
 6. No placeholder text or template language
 
-Provide a clean, structured report without extra formatting or placeholders.
+OUTPUT FORMAT - Return ONLY valid JSON with this exact structure:
+{{
+  "report": "<full markdown report text with all sections>",
+  "confidence_score": 0.85,
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8", "keyword9", "keyword10"],
+  "reasoning": "Brief explanation of confidence score based on transcript clarity, completeness, and coherence"
+}}
+
+CONFIDENCE SCORE CRITERIA (0.0-1.0):
+- 0.9-1.0: Excellent clarity, comprehensive information, clear clinical narrative
+- 0.7-0.89: Good quality, most key information present, minor gaps
+- 0.5-0.69: Moderate quality, some missing information or unclear sections
+- 0.0-0.49: Poor quality, significant gaps or very unclear transcription
+
+KEYWORDS: Extract exactly 10 most important clinical keywords from the consultation (e.g., "anxiety", "insomnia", "medication", "improvement", "therapy", "stress", "panic attacks", "sleep disturbance", "appetite", "mood").
+
+Return ONLY the JSON object. No markdown code blocks, no extra text.
 """
 
-    def _get_new_patient_prompt(self, transcription: str) -> str:
+    def _get_new_patient_prompt(self, transcription: str, patient_status: str = "stable", medications: str = "") -> str:
         """
-        Specialized prompt for new patient mental health sessions
+        Specialized prompt for new patient mental health sessions with quality metrics
         """
+        medication_text = medications if medications else "No medications prescribed"
+        
         return f"""
 You are an experienced mental health professional conducting an initial consultation assessment.
 
@@ -175,6 +248,11 @@ You are an experienced mental health professional conducting an initial consulta
 
 TRANSCRIPT TO ANALYZE:
 {transcription}
+
+PATIENT STATUS: {patient_status}
+
+MEDICATIONS PRESCRIBED:
+{medication_text}
 
 TASK: Generate a comprehensive initial mental health assessment report:
 
@@ -208,8 +286,29 @@ TASK: Generate a comprehensive initial mental health assessment report:
 - Differential diagnoses to consider
 - Severity assessment
 
+## TREATMENT PLAN
+- Include prescribed medications from above
+- Recommended interventions
+
+OUTPUT FORMAT - Return ONLY valid JSON with this exact structure:
+{{
+  "report": "<full markdown report text with all sections>",
+  "confidence_score": 0.85,
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8", "keyword9", "keyword10"],
+  "reasoning": "Brief explanation of confidence score based on transcript clarity, completeness, and coherence"
+}}
+
+CONFIDENCE SCORE CRITERIA (0.0-1.0):
+- 0.9-1.0: Excellent clarity, comprehensive information, clear clinical narrative
+- 0.7-0.89: Good quality, most key information present, minor gaps
+- 0.5-0.69: Moderate quality, some missing information or unclear sections
+- 0.0-0.49: Poor quality, significant gaps or very unclear transcription
+
+KEYWORDS: Extract exactly 10 most important clinical keywords from the consultation (e.g., "depression", "anxiety", "trauma", "insomnia", "medication", "therapy", "panic", "stress", "suicidal thoughts", "mood swings").
 
 GUIDELINES: Use professional terminology, be objective, highlight urgent concerns, maintain confidentiality.
+
+Return ONLY the JSON object. No markdown code blocks, no extra text.
 """
 
 # Global instance

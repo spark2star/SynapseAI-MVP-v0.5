@@ -20,14 +20,15 @@ export const SmartVADRecorder = ({
   const [isRecording, setIsRecording] = useState(false);
   const speechStartTimeRef = useRef<number>(0);
 
-  // ✅ VAD Configuration for Doctor's Voice (Collar Mic)
+  // ✅ VAD Configuration for MENTAL HEALTH / PSYCHIATRIC SESSIONS
   const vad = useMicVAD({
-    // ⚙️ More sensitive thresholds for collar mic
-    positiveSpeechThreshold: 0.6,      // Lower = more sensitive (was 0.7)
-    negativeSpeechThreshold: 0.4,      // Lower threshold (was 0.5)
-    minSpeechMs: 60,                   // Faster response - 60ms (was 100ms)
-    redemptionMs: 300,                 // Longer grace period = 300ms (was 240ms)
-    preSpeechPadMs: 60,                // More padding - 60ms (was 30ms)
+    // ⚙️ OPTIMIZED FOR EMOTIONAL SPEECH: Patients cry, pause, hesitate during therapy
+    // These settings are tolerant of natural emotional patterns in therapeutic conversations
+    positiveSpeechThreshold: 0.75,    // ⬆️ Higher = more confident (less false triggers from crying/sobbing)
+    negativeSpeechThreshold: 0.2,     // ⬇️ Very low = very tolerant of pauses (patient thinking/crying)
+    minSpeechMs: 160,                  // ⬆️ Require substantial speech before triggering
+    redemptionMs: 600,                 // ⬆️ Allow LONGER pauses (30 frames * 20ms = 600ms for emotional moments)
+    preSpeechPadMs: 100,               // ⬆️ Capture more at start (emotional onset, hesitation)
 
     // 🎯 Speech detection callbacks
     onSpeechStart: () => {

@@ -1,0 +1,265 @@
+/* Enhanced Report Workflow Styles */
+
+/* Transcript Review Section */
+.transcript-review-section {
+    @apply mt-8 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700;
+    animation: slideInUp 0.3s ease-out;
+}
+
+.transcript-box {
+    @apply w-full min-h-96 px-4 py-3 rounded-lg;
+    transition: all 0.3s ease;
+}
+
+.transcript-box.editable {
+    @apply border-2 border-blue-300 dark:border-blue-600 bg-white dark:bg-slate-900;
+}
+
+.transcript-box:not(.editable) {
+    @apply bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700;
+}
+
+/* Quality Metrics Cards */
+.metric-card {
+    @apply p-4 rounded-lg transition-all duration-300;
+}
+
+.metric-card.high {
+    @apply bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700;
+}
+
+.metric-card.medium {
+    @apply bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700;
+}
+
+.metric-card.low {
+    @apply bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700;
+}
+
+.metric-value {
+    @apply text-3xl font-bold transition-colors duration-300;
+}
+
+.metric-value.high {
+    @apply text-green-600 dark:text-green-400;
+}
+
+.metric-value.medium {
+    @apply text-yellow-600 dark:text-yellow-400;
+}
+
+.metric-value.low {
+    @apply text-red-600 dark:text-red-400;
+}
+
+/* Keywords Section */
+.keywords-section {
+    @apply mt-4;
+}
+
+.keywords-list {
+    @apply flex flex-wrap gap-2;
+}
+
+.keyword-tag {
+    @apply px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium border border-blue-200 dark:border-blue-700;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.keyword-tag:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
+}
+
+/* Feedback Buttons */
+.feedback-buttons {
+    @apply flex gap-3;
+}
+
+.btn-feedback {
+    @apply flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium shadow-md transition-all duration-300;
+}
+
+.btn-feedback.thumbs-up {
+    @apply bg-green-500 hover:bg-green-600 text-white;
+}
+
+.btn-feedback.thumbs-up:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(34, 197, 94, 0.3);
+}
+
+.btn-feedback.thumbs-down {
+    @apply bg-red-500 hover:bg-red-600 text-white;
+}
+
+.btn-feedback.thumbs-down:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(239, 68, 68, 0.3);
+}
+
+.btn-feedback:disabled {
+    @apply bg-gray-300 cursor-not-allowed opacity-50;
+    transform: none !important;
+}
+
+/* Feedback Submitted State */
+.feedback-submitted {
+    @apply text-center py-4;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.feedback-submitted p {
+    @apply inline-flex items-center gap-2 px-6 py-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-medium;
+}
+
+/* Report Modal */
+.report-modal {
+    @apply bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col;
+    animation: scaleIn 0.3s ease-out;
+}
+
+.report-content {
+    @apply flex-1 overflow-y-auto px-6 py-6;
+}
+
+.report-content pre {
+    @apply whitespace-pre-wrap text-sm leading-relaxed font-sans;
+}
+
+/* Modal Overlays */
+.modal-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4;
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Loading States */
+.generating-indicator {
+    @apply flex items-center justify-center gap-3 py-6;
+}
+
+.generating-indicator .spinner {
+    @apply w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full;
+    animation: spin 1s linear infinite;
+}
+
+/* Animations */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .metric-card {
+        @apply p-3;
+    }
+
+    .metric-value {
+        @apply text-2xl;
+    }
+
+    .keywords-list {
+        @apply gap-1.5;
+    }
+
+    .keyword-tag {
+        @apply px-2 py-0.5 text-xs;
+    }
+
+    .report-modal {
+        @apply max-h-[95vh];
+    }
+}
+
+/* Accessibility */
+.btn-feedback:focus-visible,
+.keyword-tag:focus-visible {
+    @apply outline-none ring-2 ring-offset-2 ring-blue-500;
+}
+
+/* Dark Mode Enhancements */
+@media (prefers-color-scheme: dark) {
+    .modal-overlay {
+        backdrop-filter: blur(8px);
+    }
+
+    .report-content {
+        scrollbar-color: #475569 #1e293b;
+    }
+
+    .report-content::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .report-content::-webkit-scrollbar-track {
+        background: #1e293b;
+    }
+
+    .report-content::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 4px;
+    }
+
+    .report-content::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+}
+
+/* Print Styles */
+@media print {
+
+    .modal-overlay,
+    .feedback-section,
+    .btn-feedback {
+        display: none !important;
+    }
+
+    .report-content {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .quality-metrics {
+        break-inside: avoid;
+    }
+}

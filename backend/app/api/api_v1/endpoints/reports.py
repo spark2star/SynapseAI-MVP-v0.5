@@ -134,14 +134,15 @@ async def generate_report(
     current_user: User = Depends(require_doctor_or_admin)
 ):
     """
-    Generate AI report from transcript and return the generated content.
-    This is a direct generation endpoint (does not persist to DB automatically).
+    Generate AI report from transcript with enhanced workflow support.
     
     Expected payload:
     {
-      "transcription": "transcript text",
       "session_id": "uuid",
-      "patient_id": "uuid",
+      "reviewed_transcript": "edited transcript text",
+      "patient_status": "improving" | "stable" | "worse",
+      "medications": [{"name": "...", "dosage": "...", "frequency": "...", "duration": "...", "instructions": "..."}],
+      "skip_medications": false,
       "session_type": "follow_up" | "new_patient"
     }
     """
@@ -149,13 +150,49 @@ async def generate_report(
         import traceback
         
         # Validate required fields
-        if not report_data.get('transcription'):
-            raise HTTPException(status_code=400, detail="Missing required field: transcription")
+        if not report_data.get('reviewed_transcript') and not report_data.get('transcription'):
+            raise HTTPException(status_code=400, detail="Missing required field: reviewed_transcript or transcription")
         
+        session_id = report_data.get('session_id')
+        reviewed_transcript = report_data.get('reviewed_transcript') or report_data.get('transcription')
+        patient_status = report_data.get('patient_status', 'stable')
+        medications = report_data.get('medications', [])
+        skip_medications = report_data.get('skip_medications', False)
         session_type = report_data.get('session_type', 'follow_up')
-        transcription = report_data.get('transcription')
         
-        logger.info(f"🤖 Generating {session_type} report from transcript ({len(transcription)} chars)")
+        logger.info(f"🤖 Generating {session_type} report with enhanced workflow")
+        logger.info(f"📝 Transcript length: {len(reviewed_transcript)} chars, Patient status: {patient_status}")
+        
+        # Get session to calculate STT confidence
+        session_obj = None
+        avg_stt_confidence = 0.0
+        
+        if session_id:
+            session_obj = db.query(ConsultationSession).filter(
+                ConsultationSession.session_id == session_id,
+                ConsultationSession.doctor_id == current_user.id
+            ).first()
+            
+            if session_obj:
+                # Calculate STT confidence score (average of all transcript chunks)
+                transcripts = db.query(Transcription).filter(
+                    Transcription.session_id == session_obj.id
+                ).all()
+                
+                stt_scores = [t.confidence_score for t in transcripts if t.confidence_score]
+                avg_stt_confidence = sum(stt_scores) / len(stt_scores) if stt_scores else 0.0
+                logger.info(f"📊 STT Confidence: {avg_stt_confidence:.2f} (from {len(stt_scores)} chunks)")
+        
+        # Prepare medication text for Gemini
+        if skip_medications or not medications:
+            medication_text = "No medications prescribed"
+            medications_json = []
+        else:
+            medications_json = medications
+            medication_text = "\n".join([
+                f"- {m.get('name', 'Unknown')} ({m.get('dosage', '')}) - {m.get('frequency', '')} for {m.get('duration', '')}"
+                for m in medications
+            ])
         
         # Generate report using Gemini service
         if not gemini_service:
@@ -165,8 +202,10 @@ async def generate_report(
             )
         
         report_result = await gemini_service.generate_medical_report(
-            transcription=transcription,
-            session_type=session_type
+            transcription=reviewed_transcript,
+            session_type=session_type,
+            patient_status=patient_status,
+            medications=medication_text
         )
         
         if report_result.get('status') == 'error':
@@ -175,15 +214,70 @@ async def generate_report(
                 detail=f"AI generation failed: {report_result.get('error')}"
             )
         
-        logger.info(f"✅ Report generated successfully using {report_result.get('model_used')}")
+        logger.info(f"✅ Report generated with confidence: {report_result.get('confidence_score', 0):.2f}")
+        logger.info(f"🏷️ Keywords: {', '.join(report_result.get('keywords', [])[:5])}...")
+        
+        # Store report in database if session exists
+        report_id = None
+        if session_obj:
+            # Get or create transcription
+            transcription = db.query(Transcription).filter(
+                Transcription.session_id == session_obj.id
+            ).first()
+            
+            if not transcription:
+                transcription = Transcription(
+                    session_id=session_obj.id,
+                    transcript_text=reviewed_transcript,
+                    processing_status=TranscriptionStatus.COMPLETED.value,
+                    processing_completed_at=datetime.now(timezone.utc).isoformat()
+                )
+                db.add(transcription)
+                db.commit()
+                db.refresh(transcription)
+            
+            # Create report record
+            report = Report(
+                id=str(uuid.uuid4()),
+                session_id=session_obj.id,
+                transcription_id=transcription.id,
+                reviewed_transcript=reviewed_transcript,
+                patient_status=patient_status,
+                generated_content=report_result.get('report'),
+                report_type='consultation',
+                status='completed',
+                ai_model="gemini-2.5-flash",
+                stt_confidence_score=avg_stt_confidence,
+                llm_confidence_score=report_result.get('confidence_score', 0.75),
+                keywords=report_result.get('keywords', []),
+                structured_data={
+                    'medication_plan': medications_json,
+                    'session_type': session_type,
+                    'reasoning': report_result.get('reasoning', '')
+                },
+                generation_started_at=datetime.now(timezone.utc).isoformat(),
+                generation_completed_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            )
+            
+            db.add(report)
+            db.commit()
+            db.refresh(report)
+            report_id = str(report.id)
+            
+            logger.info(f"💾 Report saved to database: {report_id}")
         
         return {
             "status": "success",
             "data": {
-                "report": report_result.get('report'),
+                "report_id": report_id,
+                "generated_report": report_result.get('report'),
+                "stt_confidence_score": avg_stt_confidence,
+                "llm_confidence_score": report_result.get('confidence_score', 0.75),
+                "keywords": report_result.get('keywords', []),
                 "model_used": report_result.get('model_used'),
-                "session_type": report_result.get('session_type'),
-                "transcription_length": report_result.get('transcription_length'),
+                "session_type": session_type,
                 "generated_at": report_result.get('generated_at')
             }
         }
@@ -193,6 +287,7 @@ async def generate_report(
     except Exception as e:
         logger.error(f"❌ Report generation error: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
+        db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate report: {str(e)}"
@@ -315,6 +410,82 @@ async def save_report(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to save report: {str(e)}"
+        )
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    feedback_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_doctor_or_admin)
+):
+    """
+    Submit doctor feedback (thumbs up/down) for a report.
+    
+    Expected payload:
+    {
+      "report_id": "uuid",
+      "feedback": "thumbs_up" | "thumbs_down"
+    }
+    """
+    try:
+        report_id = feedback_data.get('report_id')
+        feedback = feedback_data.get('feedback')
+        
+        if not report_id or not feedback:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required fields: report_id and feedback"
+            )
+        
+        if feedback not in ["thumbs_up", "thumbs_down"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid feedback value. Must be 'thumbs_up' or 'thumbs_down'"
+            )
+        
+        # Get report and verify ownership
+        report = db.query(Report).join(
+            ConsultationSession,
+            Report.session_id == ConsultationSession.id
+        ).filter(
+            Report.id == report_id,
+            ConsultationSession.doctor_id == current_user.id
+        ).first()
+        
+        if not report:
+            raise HTTPException(
+                status_code=404,
+                detail="Report not found or access denied"
+            )
+        
+        # Update feedback
+        report.doctor_feedback = feedback
+        report.feedback_submitted_at = datetime.now(timezone.utc)
+        report.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        
+        logger.info(f"👍👎 Feedback submitted for report {report_id}: {feedback}")
+        
+        return {
+            "status": "success",
+            "message": "Feedback submitted successfully",
+            "data": {
+                "report_id": report_id,
+                "feedback": feedback,
+                "submitted_at": report.feedback_submitted_at.isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Feedback submission error: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to submit feedback: {str(e)}"
         )
 
 

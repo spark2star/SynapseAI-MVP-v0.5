@@ -3,9 +3,9 @@ Report generation and template models.
 Handles AI-generated medical reports and customizable templates.
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, Boolean, Integer
+from sqlalchemy import Column, String, ForeignKey, Text, Boolean, Integer, Float, DateTime
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from enum import Enum
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -49,16 +49,16 @@ class Report(BaseModel):
     status = Column(String(20), nullable=False, default=ReportStatus.PENDING.value)
     version = Column(Integer, nullable=False, default=1)
     
-    version = Column(Integer, nullable=False, default=1)
     # Patient progress tracking
     patient_status = Column(String(20), nullable=True)  # 'improving', 'stable', 'worse'
-    # Generated content (encrypted)
-    generated_content = Column(EncryptedType(20000), nullable=True)
-
-
+    
     # Generated content (encrypted)
     generated_content = Column(EncryptedType(20000), nullable=True)  # Main report content
     structured_data = Column(JSONB, nullable=True)  # Structured medical data
+    
+    # Enhanced workflow fields
+    reviewed_transcript = Column(EncryptedType(10000), nullable=True)  # Doctor-edited transcript
+    keywords = Column(ARRAY(String), nullable=True)  # 10 summary keywords from Gemini
     
     # AI generation details
     ai_model = Column(String(100), nullable=True)  # gemini-2.5-flash
@@ -67,10 +67,16 @@ class Report(BaseModel):
     generation_completed_at = Column(String(50), nullable=True)
     generation_duration = Column(Integer, nullable=True)  # Seconds
     
-    # Quality and confidence
-    confidence_score = Column(String(10), nullable=True)  # AI confidence 0-1
+    # Quality and confidence scores
+    confidence_score = Column(String(10), nullable=True)  # Legacy AI confidence 0-1
     quality_score = Column(String(10), nullable=True)  # Report quality assessment
     completeness_score = Column(String(10), nullable=True)  # How complete the report is
+    stt_confidence_score = Column(Float, nullable=True)  # Average STT confidence from transcripts
+    llm_confidence_score = Column(Float, nullable=True)  # Gemini's report quality assessment
+    
+    # Doctor feedback
+    doctor_feedback = Column(String(20), nullable=True)  # "thumbs_up" or "thumbs_down"
+    feedback_submitted_at = Column(DateTime, nullable=True)  # Timestamp for feedback
     
     # Manual review and signing
     reviewed_by = Column(String(36), ForeignKey("users.id"), nullable=True)

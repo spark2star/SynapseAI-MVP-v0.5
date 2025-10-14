@@ -1,0 +1,93 @@
+================================================================================
+📱 UI PREVIEW: Recording Controls (Bottom-Right Corner)
+================================================================================
+
+WHEN RECORDING IN AUTO MODE (Default):
+┌──────────────────────────────────────┐
+│                                      │
+│          ┌─────────────┐             │
+│          │    0:23     │  ← Duration │
+│          └─────────────┘             │
+│                                      │
+│  ☐ Manual Chunking Mode  ← Toggle   │
+│                                      │
+│  ┌──────────────────────┐            │
+│  │   📤 Send Now        │ ← Button  │
+│  └──────────────────────┘            │
+│                                      │
+│  ⏱️ Auto-send every 30s  ← Status   │
+│                                      │
+└──────────────────────────────────────┘
+
+WHEN RECORDING IN MANUAL MODE:
+┌──────────────────────────────────────┐
+│                                      │
+│          ┌─────────────┐             │
+│          │    1:42     │             │
+│          └─────────────┘             │
+│       Manual Mode Active  ← Indicator│
+│                                      │
+│  ☑ Manual Chunking Mode              │
+│                                      │
+│  ┌──────────────────────┐            │
+│  │   📤 Send Now        │            │
+│  └──────────────────────┘            │
+│                                      │
+│  ⏱️ Recording - Click "Send Now"    │
+│     when ready                       │
+│                                      │
+└──────────────────────────────────────┘
+
+WHEN PROCESSING:
+┌──────────────────────────────────────┐
+│                                      │
+│          ┌─────────────┐             │
+│          │    0:47     │             │
+│          └─────────────┘             │
+│                                      │
+│  ☐ Manual Chunking Mode              │
+│                                      │
+│  ┌──────────────────────┐            │
+│  │ 📤 Send Now          │ (Disabled) │
+│  │   (Processing...)    │            │
+│  └──────────────────────┘            │
+│                                      │
+│  🔄 Processing...                    │
+│                                      │
+└──────────────────────────────────────┘
+
+COLORS:
+- Background: White with slight transparency
+- Duration: Red text (#dc2626) on pink background
+- Manual indicator: Blue text (#2563eb)
+- Send button: Blue background (#2563eb), white text
+- Send button hover: Darker blue (#1d4ed8)
+- Send button disabled: Gray (#9ca3af)
+- Status: Gray text on light gray background
+
+POSITIONING:
+- Fixed to bottom-right corner
+- 20px from right edge
+- 20px from bottom edge
+- Floats above all other content (z-index: 1000)
+- Shadow for depth
+- Rounded corners (12px)
+
+BEHAVIOR:
+- Only visible when recording is active
+- Disappears when recording stops
+- Duration updates every 1 second
+- Manual mode toggle works instantly
+- Send button disabled when:
+  * Not recording
+  * Processing in progress
+  * No audio data collected yet
+
+ACCESSIBILITY:
+✅ Keyboard navigable (Tab key)
+✅ Screen reader friendly (ARIA labels)
+✅ Focus states visible
+✅ High contrast colors
+✅ Clear visual hierarchy
+
+================================================================================
