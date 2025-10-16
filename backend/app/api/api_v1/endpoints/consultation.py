@@ -55,7 +55,7 @@ class StartConsultationRequest(BaseModel):
     """Request model for starting a consultation session."""
     patient_id: str = Field(..., description="Patient ID")
     doctor_id: str = Field(..., description="Doctor ID")
-    chief_complaint: str = Field(..., description="Primary reason for consultation")
+    chief_complaint: Optional[str] = Field(None, description="Primary reason for consultation")
     session_type: str = Field(default="consultation", description="Type of session")
 
 

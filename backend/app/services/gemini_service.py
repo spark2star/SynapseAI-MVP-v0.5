@@ -92,10 +92,21 @@ class GeminiService:
             logger.info(f"✅ Gemini response received: {len(response.text)} characters")
             logger.info(f"📄 Response preview: {response.text[:300]}...")
             
-            # Parse JSON response
+            # Parse JSON response (handle markdown code blocks)
             import json
+            import re
+            
+            response_text = response.text.strip()
+            
+            # Try to extract JSON from markdown code blocks
+            if response_text.startswith('```'):
+                # Extract content between ```json and ``` or just ``` and ```
+                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+                if json_match:
+                    response_text = json_match.group(1)
+            
             try:
-                result = json.loads(response.text)
+                result = json.loads(response_text)
                 
                 # Ensure keywords are limited to 10
                 if "keywords" in result and isinstance(result["keywords"], list):
@@ -112,15 +123,17 @@ class GeminiService:
                     "transcription_length": len(transcription),
                     "generated_at": datetime.now(timezone.utc).isoformat()
                 }
-            except json.JSONDecodeError:
-                # Fallback if Gemini doesn't return valid JSON
-                logger.warning(f"⚠️ JSON parsing error. Using plain text response.")
+            except json.JSONDecodeError as e:
+                # Fallback: Extract keywords from transcript text
+                logger.warning(f"⚠️ JSON parsing error: {str(e)}. Extracting keywords from transcript.")
+                keywords = self._extract_keywords_from_transcript(transcription)
+                
                 return {
                     "status": "success",
                     "report": response.text,
                     "confidence_score": 0.5,
-                    "keywords": ["report", "generated", "consultation"],
-                    "reasoning": "JSON parsing failed",
+                    "keywords": keywords,
+                    "reasoning": "JSON parsing failed - keywords extracted from transcript",
                     "model_used": self.model_name,
                     "session_type": session_type,
                     "transcription_length": len(transcription),
@@ -310,6 +323,43 @@ GUIDELINES: Use professional terminology, be objective, highlight urgent concern
 
 Return ONLY the JSON object. No markdown code blocks, no extra text.
 """
+
+    def _extract_keywords_from_transcript(self, transcription: str) -> list:
+        """Extract meaningful clinical keywords from transcription when JSON parsing fails."""
+        
+        # Common mental health keywords to look for (Hindi/English)
+        clinical_terms = {
+            'anxiety': ['anxiety', 'चिंता', 'घबराहट'],
+            'depression': ['depression', 'उदासी', 'अवसाद'],
+            'sleep': ['sleep', 'insomnia', 'नींद', 'सोना'],
+            'stress': ['stress', 'तनाव', 'दबाव'],
+            'panic': ['panic', 'घबराहट', 'panic attack'],
+            'tremor': ['tremor', 'trembling', 'कांपना', 'हाथ कांपना'],
+            'palpitation': ['palpitation', 'heart', 'धड़कन', 'दिल'],
+            'breathing': ['breathe', 'dyspnea', 'सांस', 'साँस'],
+            'fatigue': ['fatigue', 'tired', 'थकान', 'थका'],
+            'concentration': ['concentration', 'focus', 'ध्यान', 'काम'],
+            'family': ['family', 'परिवार'],
+            'counseling': ['counseling', 'therapy', 'परामर्श'],
+            'medication': ['medication', 'medicine', 'दवा'],
+            'work': ['work', 'office', 'काम', 'ऑफिस']
+        }
+        
+        # Find which keywords are mentioned
+        found_keywords = []
+        transcription_lower = transcription.lower()
+        
+        for keyword, variations in clinical_terms.items():
+            for variation in variations:
+                if variation.lower() in transcription_lower:
+                    found_keywords.append(keyword)
+                    break  # Don't add same keyword multiple times
+        
+        # Return top 10, or defaults if none found
+        if found_keywords:
+            return found_keywords[:10]
+        else:
+            return ["consultation", "patient", "assessment"]
 
 # Global instance
 try:

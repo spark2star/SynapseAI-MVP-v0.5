@@ -103,7 +103,7 @@ export default function HeroSection() {
                         <img
                             src="/Logo-MVP-v0.5.png"
                             alt="SynapseAI"
-                            className="w-8 h-8 sm:w-10 sm:h-10"
+                            className="w-16 h-16 sm:w-20 sm:h-20"
                         />
                         <div className="flex flex-col">
                             <span className="text-lg sm:text-2xl font-heading font-bold tracking-tight text-[#0A4D8B]">

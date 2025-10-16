@@ -30,13 +30,12 @@ import SimpleRecorder from '@/components/consultation/recording/SimpleRecorder'
 import { SmartVADRecorder } from '@/components/SmartVADRecorder';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import AudioDeviceSelector from '@/components/consultation/AudioDeviceSelector'
+import LanguageSelector from '@/components/consultation/LanguageSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
 import MedicationModal, { Medication } from '@/components/consultation/MedicationModal'
 import ReportView from '@/components/report/ReportView'
-import TranscriptReviewSection from '@/components/consultation/TranscriptReviewSection'
-import ReportModal from '@/components/consultation/ReportModal'
 
 interface Patient {
     id: string
@@ -110,15 +109,8 @@ export default function PatientDetailPage() {
     const [networkError, setNetworkError] = useState<string | null>(null);
     const { isOnline, connectionType } = useNetworkStatus();
     const [doctorMicId, setDoctorMicId] = useState<string>(); // ✅ FIXED: Added for VAD
-    const [showTranscriptModal, setShowTranscriptModal] = useState(false);
-    const [transcriptSegments, setTranscriptSegments] = useState<string[]>([]);
+    const [selectedLanguage, setSelectedLanguage] = useState<string>('')
     const [sessionId, setSessionId] = useState<string | null>(null);
-
-    // Enhanced workflow state
-    const [showTranscriptReview, setShowTranscriptReview] = useState(false);
-    const [currentTranscript, setCurrentTranscript] = useState('');
-    const [showReportModalEnhanced, setShowReportModalEnhanced] = useState(false);
-    const [reportData, setReportData] = useState<any>(null);
 
     // ✅ FIX: Recording duration timer (only updates when recording)
     useEffect(() => {
@@ -154,22 +146,23 @@ export default function PatientDetailPage() {
     }, [patientId])
 
     useEffect(() => {
-        if (isFollowUpMode && patient && !isRecording && !showNewConsultation) {
+        if (isFollowUpMode && patient && !isRecording && !showNewConsultation && !finalTranscription) {
             setShowNewConsultation(true)
             setIsFollowUpSession(true)
+            setSessionType('follow-up')
             setChiefComplaint("Follow-up consultation")
         }
-    }, [isFollowUpMode, patient, isRecording, showNewConsultation])
+    }, [isFollowUpMode, patient, isRecording, showNewConsultation, finalTranscription])
 
     useEffect(() => {
-        if (isNewPatient && patient && !isRecording && !showNewConsultation) {
+        if (isNewPatient && patient && !isRecording && !showNewConsultation && !finalTranscription) {
             console.log('🆕 New patient detected')
             setShowNewConsultation(true)
             setSessionType(preSelectedSessionType || 'first_session')
             setChiefComplaint('First session - Initial assessment')
             toast.success('✅ Patient registered!')
         }
-    }, [isNewPatient, patient, isRecording, showNewConsultation, preSelectedSessionType])
+    }, [isNewPatient, patient, isRecording, showNewConsultation, finalTranscription, preSelectedSessionType])
 
     useEffect(() => {
         const handleOpenMedicationModal = (e: any) => {
@@ -396,17 +389,9 @@ export default function PatientDetailPage() {
                 if (response.status === 'success') {
                     console.log('✅ Session stopped:', response.data);
 
-                    // ✅ ENHANCED WORKFLOW: Get full transcript and show review section
-                    const fullTranscript = finalTranscription || transcriptSegments.join(' ') || '';
-
-                    if (fullTranscript.trim()) {
-                        setCurrentTranscript(fullTranscript);
-                        setSessionId(currentSession);
-                        setShowTranscriptReview(true);
-                    } else {
-                        // No transcript available - show old modal
-                        setSessionId(currentSession);
-                        setShowTranscriptModal(true);
+                    // Session stopped successfully - transcript will be shown via EditableTranscript component
+                    if (!finalTranscription || !finalTranscription.trim()) {
+                        toast.error('No transcript was captured during the session');
                     }
 
                     const newSession: ConsultationSession = {
@@ -425,8 +410,10 @@ export default function PatientDetailPage() {
                     setSessions(prev => [newSession, ...prev])
                     setChiefComplaint('')
                     setRecordingDuration(0)
-                    setCurrentSession(null)
-                    setCurrentSessionId(''); // ✅ FIXED: Reset session ID
+                    setShowNewConsultation(false) // Hide "New Consultation Session" section
+                    // Keep currentSession for report generation - don't clear it
+                    // setCurrentSession(null)
+                    // setCurrentSessionId(''); // ✅ FIXED: Reset session ID
 
                     toast.success('Session completed - Review your transcript')
                 }
@@ -448,48 +435,6 @@ export default function PatientDetailPage() {
             setSessionState('recording')
             setIsPaused(false)
             toast.success('Recording resumed')
-        }
-    }
-
-    // ✅ ENHANCED WORKFLOW: Handle transcript confirmation
-    const handleTranscriptConfirmed = (editedTranscript: string) => {
-        setCurrentTranscript(editedTranscript)
-        setShowTranscriptReview(false)
-        setShowMedicationModal(true)
-    }
-
-    // ✅ ENHANCED WORKFLOW: Handle medication and status submission
-    const handleMedicationSubmit = async (medications: Medication[], patientStatus?: string) => {
-        try {
-            setShowMedicationModal(false)
-            setIsGeneratingReport(true)
-
-            console.log('🤖 Generating report with enhanced workflow...')
-            console.log('📝 Patient status:', patientStatus)
-            console.log('💊 Medications:', medications)
-
-            const response = await apiClient.post('/reports/generate', {
-                session_id: sessionId,
-                reviewed_transcript: currentTranscript,
-                patient_status: patientStatus || 'stable',
-                medications: medications,
-                skip_medications: medications.length === 0,
-                session_type: isFollowUpSession ? 'follow_up' : 'new_patient'
-            })
-
-            if (response.status === 'success' && response.data) {
-                console.log('✅ Report generated successfully!')
-                setReportData(response.data)
-                setShowReportModalEnhanced(true)
-                toast.success('Report generated successfully!')
-            } else {
-                throw new Error('Failed to generate report')
-            }
-        } catch (error) {
-            console.error('Error generating report:', error)
-            toast.error('Failed to generate report. Please try again.')
-        } finally {
-            setIsGeneratingReport(false)
         }
     }
 
@@ -551,9 +496,6 @@ export default function PatientDetailPage() {
 
             // Update live transcription
             setLiveTranscription(trimmedTranscript);
-
-            // ✅ Add to transcript segments for modal
-            setTranscriptSegments(prev => [...prev, trimmedTranscript]);
         }
     }, []);
 
@@ -569,11 +511,13 @@ export default function PatientDetailPage() {
 
             if (!finalTranscription || finalTranscription.trim().length === 0) {
                 toast.error('No transcript available')
+                setIsGeneratingReport(false)
                 return
             }
 
             if (!currentSession) {
                 toast.error('No active session')
+                setIsGeneratingReport(false)
                 return
             }
 
@@ -588,32 +532,15 @@ export default function PatientDetailPage() {
 
             const reportResponse = await apiClient.post('/reports/generate', generatePayload)
 
-            if (reportResponse.status !== 'success' || !reportResponse.data?.report) {
+            if (reportResponse.status !== 'success' || !reportResponse.data?.generated_report) {
                 throw new Error('Report generation failed')
             }
 
-            const generatedContent = reportResponse.data.report
-
-            const savePayload = {
-                session_id: currentSession,
-                patient_id: patientId,
-                generated_content: generatedContent,
-                report_type: sessionType || 'follow_up',
-                status: 'completed',
-                medication_plan: medications,
-                patient_status: patientStatus
-            }
-
-            const saveResponse = await apiClient.post('/reports/save', savePayload)
-
-            if (saveResponse.status !== 'success') {
-                throw new Error('Failed to save report')
-            }
-
+            // Report is already saved by backend, just use the response
             setGeneratedReport(reportResponse.data)
-            setReportId(saveResponse.data.report.id)
+            setReportId(reportResponse.data.report_id)
 
-            toast.success('Report generated!')
+            toast.success('Report generated successfully!')
 
             setTimeout(() => {
                 const reportElement = document.getElementById('generated-report')
@@ -834,14 +761,6 @@ export default function PatientDetailPage() {
                         <h3 className="text-lg font-semibold mb-4">New Consultation Session</h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Chief Complaint</label>
-                                <Input
-                                    value={chiefComplaint}
-                                    onChange={(e) => setChiefComplaint(e.target.value)}
-                                    placeholder="Enter reason for visit..."
-                                />
-                            </div>
-                            <div>
                                 <label className="block text-sm font-medium mb-2">Session Type</label>
                                 <select
                                     className="w-full px-3 py-2 border rounded-md"
@@ -861,11 +780,15 @@ export default function PatientDetailPage() {
                                     setDoctorMicId(deviceId); // ✅ FIXED: Set doctor mic for VAD
                                 }}
                             />
+                            <LanguageSelector
+                                selectedLanguage={selectedLanguage}
+                                onLanguageChange={setSelectedLanguage}
+                            />
                             <div className="flex gap-3">
                                 <Button
                                     variant="primary"
                                     onClick={startConsultation}
-                                    disabled={!chiefComplaint.trim() || !selectedAudioDevice}
+                                    disabled={!selectedAudioDevice || !selectedLanguage}
                                 >
                                     <MicrophoneIcon className="h-4 w-4 mr-2" />
                                     Start Session
@@ -875,7 +798,6 @@ export default function PatientDetailPage() {
                                     onClick={() => {
                                         setShowNewConsultation(false)
                                         setIsFollowUpSession(false)
-                                        setChiefComplaint('')
                                     }}
                                 >
                                     Cancel
@@ -886,7 +808,7 @@ export default function PatientDetailPage() {
                 )}
 
                 {/* Consultation History */}
-                {!isRecording && sessions.length > 0 && (
+                {!isRecording && sessions.length > 0 && !isFollowUpMode && (
                     <div className="bg-white dark:bg-neutral-800 rounded-xl border p-6">
                         <h3 className="text-xl font-semibold mb-6">Consultation History</h3>
                         <div className="space-y-4">
@@ -934,7 +856,7 @@ export default function PatientDetailPage() {
                 />
 
                 {/* SimpleRecorder (fallback/backup) */}
-                {currentSession && (
+                {currentSession && isRecording && (
                     <div className="hidden">
                         <SimpleRecorder
                             sessionId={currentSession}
@@ -981,101 +903,6 @@ export default function PatientDetailPage() {
                     </div>
                 )}
 
-                {/* Transcript Review Modal */}
-                {showTranscriptModal && (
-                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col">
-                            {/* Header */}
-                            <div className="px-6 py-4 border-b border-gray-200">
-                                <h2 className="text-2xl font-bold text-gray-800">
-                                    Session Transcript
-                                </h2>
-                                <p className="text-sm text-gray-600 mt-1">
-                                    Session ID: {sessionId}
-                                </p>
-                            </div>
-
-                            {/* Transcript Content */}
-                            <div className="flex-1 overflow-y-auto px-6 py-4">
-                                {transcriptSegments.length === 0 ? (
-                                    <div className="text-center py-12">
-                                        <p className="text-gray-400 text-lg">No transcript available</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {transcriptSegments.map((segment, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition"
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                                                        {idx + 1}
-                                                    </span>
-                                                    <p className="flex-1 text-gray-800 leading-relaxed">
-                                                        {segment}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Footer Actions */}
-                            <div className="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
-                                <button
-                                    onClick={() => {
-                                        setShowTranscriptModal(false);
-                                        setSessionId(null);
-                                        setTranscriptSegments([]);
-                                        fetchConsultationSessions();
-                                    }}
-                                    className="px-6 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-medium"
-                                >
-                                    Close
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        // Navigate to report generation
-                                        router.push(`/dashboard/consultations/${sessionId}/generate-report`);
-                                    }}
-                                    className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-medium"
-                                >
-                                    Generate Report
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ✅ ENHANCED WORKFLOW: Transcript Review Section */}
-                {showTranscriptReview && (
-                    <TranscriptReviewSection
-                        initialTranscript={currentTranscript}
-                        onConfirm={handleTranscriptConfirmed}
-                    />
-                )}
-
-                {/* ✅ ENHANCED WORKFLOW: Enhanced Report Modal with Quality Metrics */}
-                {reportData && (
-                    <ReportModal
-                        isOpen={showReportModalEnhanced}
-                        report={reportData.generated_report || ''}
-                        sttConfidence={reportData.stt_confidence_score || 0}
-                        llmConfidence={reportData.llm_confidence_score || 0}
-                        keywords={reportData.keywords || []}
-                        reportId={reportData.report_id || null}
-                        onClose={() => {
-                            setShowReportModalEnhanced(false)
-                            setReportData(null)
-                            setCurrentTranscript('')
-                            setShowTranscriptReview(false)
-                            fetchConsultationSessions()
-                        }}
-                    />
-                )}
             </div>
         </div>
     )
