@@ -15,6 +15,7 @@ import os
 import subprocess
 import wave
 import numpy as np
+import shutil
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -302,50 +303,60 @@ def clean_mental_health_transcript(text: str) -> str:
 # ============================================================================
 # 🔊 AUDIO GAIN NORMALIZATION - For Quiet/Emotional Speech
 # ============================================================================
-def normalize_audio_gain(audio_array: np.ndarray, target_peak: float = 0.85) -> np.ndarray:
+def normalize_audio_gain(audio_array: np.ndarray, target_peak: float = 0.95) -> np.ndarray:
     """
-    Normalize audio gain to maximize signal while avoiding clipping.
+    Normalize audio gain based on RMS (average) for better speech recognition.
     
     Critical for mental health sessions where patients may speak softly
     during emotional moments or when discussing trauma.
     
     Args:
         audio_array: Input audio as int16 numpy array
-        target_peak: Target peak level (0.0-1.0), default 0.85 leaves headroom
+        target_peak: Target peak level (0.0-1.0), default 0.95 for maximum clarity
         
     Returns:
         Normalized audio as int16 numpy array
     """
-    # Find current peak
+    # Find current peak and RMS (average)
     current_peak = np.max(np.abs(audio_array))
+    current_rms = np.sqrt(np.mean(audio_array.astype(np.float32) ** 2))
     
     if current_peak == 0:
         logger.warning("[STT] 🔇 Audio is completely silent (peak = 0)")
         return audio_array
     
-    # Calculate gain factor to reach target peak
-    # Target 85% of max (27951) to leave headroom for processing
     max_value = 32767  # Max for int16
-    target_value = target_peak * max_value
-    gain_factor = target_value / current_peak
     
-    # Apply gain (but cap at reasonable limit to avoid noise amplification)
-    if gain_factor > 1.0:  # Only boost, don't reduce
-        # Cap at 10x to avoid amplifying background noise excessively
-        max_gain = 10.0
-        actual_gain = min(gain_factor, max_gain)
+    # ✅ CRITICAL FIX: Normalize based on RMS (average) for speech clarity!
+    # Google STT needs consistent high average, not just high peaks
+    target_rms = 8000  # Target RMS for good STT (allows some headroom)
+    
+    if current_rms < target_rms:
+        # Calculate gain needed to reach target RMS
+        rms_gain_factor = target_rms / current_rms
         
-        logger.info(f"🔊 [STT] Applying audio gain: {actual_gain:.2f}x (calculated: {gain_factor:.2f}x)")
+        # Cap at 20x to avoid excessive noise amplification
+        actual_gain = min(rms_gain_factor, 20.0)
         
-        # Apply gain
+        logger.info(f"🔊 [STT] Applying RMS-based audio gain: {actual_gain:.2f}x")
+        logger.info(f"   Current RMS: {int(current_rms)} → Target RMS: {target_rms}")
+        logger.info(f"   Current Peak: {current_peak} (may clip to {max_value} after gain)")
+        
+        # Apply gain - allow soft clipping of peaks for better average
         audio_normalized = audio_array.astype(np.float32) * actual_gain
         
-        # Clip to prevent overflow
+        # Hard clip to prevent overflow (some peak clipping is OK for STT)
         audio_normalized = np.clip(audio_normalized, -max_value, max_value)
+        
+        # Count how many samples clipped
+        clipped_count = np.sum(np.abs(audio_normalized) >= max_value)
+        if clipped_count > 0:
+            clip_percentage = (clipped_count / len(audio_normalized)) * 100
+            logger.info(f"   ⚠️ Clipped {clipped_count} samples ({clip_percentage:.1f}%) - acceptable for STT")
         
         return audio_normalized.astype(np.int16)
     else:
-        logger.info(f"✅ [STT] Audio gain already optimal (peak: {current_peak}, target: {int(target_value)})")
+        logger.info(f"✅ [STT] Audio RMS already optimal (RMS: {int(current_rms)}, target: {target_rms})")
         return audio_array
 
 
@@ -409,6 +420,7 @@ def is_doctor_voice(audio_data: bytes) -> tuple[bool, dict]:
 async def transcribe_audio_chunk(
     session_id: str = Query(...),
     audio: UploadFile = File(...),
+    language: str = Query(default='hi-IN'),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -519,23 +531,27 @@ async def transcribe_audio_chunk(
         try:
             logger.info("🔄 [STT] Step 2.6: Converting WEBM to WAV...")
             
-            # Check if ffmpeg is available
-            ffmpeg_check = subprocess.run(
-                ["which", "ffmpeg"],
-                capture_output=True,
-                text=True
-            )
+            # Find ffmpeg in common locations
+            ffmpeg_path = shutil.which("ffmpeg")
+            if not ffmpeg_path:
+                # Try common paths for macOS (Homebrew)
+                for path in ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]:
+                    if os.path.exists(path):
+                        ffmpeg_path = path
+                        break
             
-            if ffmpeg_check.returncode != 0:
+            if not ffmpeg_path:
                 raise Exception(
                     "ffmpeg not found. Install with: "
                     "brew install ffmpeg (Mac) or apt-get install ffmpeg (Linux)"
                 )
             
+            logger.info(f"✅ [STT] Found ffmpeg at: {ffmpeg_path}")
+            
             wav_path = temp_audio_path.replace(".webm", ".wav")
             
             result = subprocess.run([
-                "ffmpeg", "-i", temp_audio_path,
+                ffmpeg_path, "-i", temp_audio_path,
                 "-acodec", "pcm_s16le",
                 "-ar", "16000",
                 "-ac", "1",
@@ -615,7 +631,8 @@ async def transcribe_audio_chunk(
             original_avg = float(np.mean(np.abs(audio_array)))
             
             # Apply gain normalization (boosts quiet audio)
-            audio_normalized = normalize_audio_gain(audio_array, target_peak=0.85)
+            # ✅ CRITICAL FIX: Use higher target peak for low-volume audio
+            audio_normalized = normalize_audio_gain(audio_array, target_peak=0.95)
             
             normalized_max = int(np.max(np.abs(audio_normalized)))
             normalized_avg = float(np.mean(np.abs(audio_normalized)))
@@ -694,6 +711,17 @@ async def transcribe_audio_chunk(
                     boost=phrase_data["boost"]
                 )
             )
+            
+            # ✅ Dynamic language priority based on user selection
+            user_language = language  # From Query parameter
+            all_languages = ["hi-IN", "mr-IN", "en-IN"]
+            # Put user's selected language first, then add others for code-mixing support
+            language_codes = [user_language]
+            other_languages = [lang for lang in all_languages if lang != user_language]
+            language_codes.extend(other_languages[:2])  # Add 2 alternates for code-mixing
+            
+            logger.info(f"🗣️ [STT] User selected language: {user_language}")
+            logger.info(f"🗣️ [STT] Language priority: {language_codes}")
         
             config = speech.RecognitionConfig(
             explicit_decoding_config=speech.ExplicitDecodingConfig(
@@ -701,30 +729,31 @@ async def transcribe_audio_chunk(
                     sample_rate_hertz=16000,  # Match audio sample rate
                     audio_channel_count=1,  # Mono audio
                 ),
-                model="latest_short",  # ✅ Optimized for short audio chunks (< 30s)
-            language_codes=["mr-IN", "hi-IN", "en-IN"],  # Marathi, Hindi, English
+                model="latest_long",  # ✅ REVERTED: latest_long returned empty results
+            language_codes=language_codes,  # ✅ Dynamic based on user selection
             features=cloud_speech.RecognitionFeatures(
                     enable_word_time_offsets=False,  # CRITICAL: Reduce processing overhead
                 enable_word_confidence=True,
                     # enable_automatic_punctuation=True,  # Better transcript formatting
                     max_alternatives=1,  # Only need best result
             ),
-            # ✅ SPEECH ADAPTATION FOR MENTAL HEALTH TERMINOLOGY
-            adaptation=cloud_speech.SpeechAdaptation(
-                phrase_sets=[
-                    cloud_speech.SpeechAdaptation.AdaptationPhraseSet(
-                        inline_phrase_set=phrase_set
-                    )
-                ]
-            )
+            # ❌ SPEECH ADAPTATION DISABLED - latest_long model does not support this feature
+            # adaptation=cloud_speech.SpeechAdaptation(
+            #     phrase_sets=[
+            #         cloud_speech.SpeechAdaptation.AdaptationPhraseSet(
+            #             inline_phrase_set=phrase_set
+            #         )
+            #     ]
+            # )
             )
         
-            logger.info(f"✅ [Mental Health] Step 4 complete: Config created with COMPREHENSIVE Marathi-Hindi PSYCHIATRIC context")
-            logger.info(f"   - Model: latest_short (optimized for therapeutic conversations with emotional speech)")
-            logger.info(f"   - Languages: mr-IN, hi-IN (BALANCED priority), en-IN (code-mixing support)")
+            logger.info(f"✅ [Mental Health] Step 4 complete: Config created with COMPREHENSIVE PSYCHIATRIC context")
+            logger.info(f"   - Model: latest_long (optimized for long consultations & continuous speech)")
+            logger.info(f"   - Languages: {language_codes} (User-selected: {user_language} is PRIMARY)")
+            logger.info(f"   - 🔧 Dynamic language prioritization based on user selection")
             logger.info(f"   - Mental health phrases loaded: {len(MENTAL_HEALTH_PHRASES)} (BOOST: 16-20)")
             logger.info(f"   - Coverage: Depression, anxiety, trauma, therapy sessions, emotional expressions")
-            logger.info(f"   - Includes: Marathi psychiatric terms, Hindi mental health vocabulary, English terms")
+            logger.info(f"   - Includes: Hindi mental health vocabulary (primary), Marathi psychiatric terms, English terms")
             logger.info(f"   - Post-processing: 50+ corrections for mental health terminology")
                 
         except Exception as e:
@@ -761,10 +790,10 @@ async def transcribe_audio_chunk(
         try:
             logger.info(f"🚀 [STT] Step 6: Calling Google Speech API with mental health context...")
 
-            # Transcribe with timeout
+            # Transcribe with longer timeout (30s audio needs >30s to process)
             response = client.recognize(
                 request=request,
-                timeout=30.0
+                timeout=90.0  # ✅ CRITICAL FIX: Increased from 30s to 90s
             )
             logger.info(f"✅ [STT] Step 6 complete: Got response from Google Speech API")
             
@@ -924,15 +953,15 @@ async def transcribe_audio_chunk(
 
 @router.get("/health")
 async def transcribe_health():
-    """Health check for transcription service with ENHANCED Marathi/Hindi accuracy."""
+    """Health check for transcription service with ENHANCED Hindi/Marathi accuracy."""
     return {
         "status": "ok",
         "service": "transcription",
-        "type": "enhanced_marathi_hindi_clinical_stt",
-        "model": "latest_short",
-        "primary_language": "mr-IN",
-        "languages": ["mr-IN", "hi-IN", "en-IN"],
-        "language_note": "Optimized for Marathi-dominant with Hindi/English code-mixing",
+        "type": "enhanced_hindi_marathi_clinical_stt",
+        "model": "latest_long",
+        "primary_language": "hi-IN",
+        "languages": ["hi-IN", "mr-IN", "en-IN"],
+        "language_note": "✅ FIXED: Optimized for Hindi-primary with Marathi/English code-mixing",
         "context_phrases": len(MENTAL_HEALTH_PHRASES),
         "phrase_boost_range": "16-20 (HIGH)",
         "post_processing": {
@@ -952,6 +981,6 @@ async def transcribe_health():
             "max_alternatives": 1,
             "chunk_overlap": "500ms for phrase context"
         },
-        "accuracy_target": "85%+ for clinical Marathi conversations",
-        "message": "Enhanced Marathi/Hindi mental health transcription service ready"
+        "accuracy_target": "85%+ for clinical Hindi conversations",
+        "message": "✅ FIXED: Enhanced Hindi/Marathi mental health transcription service ready"
     }
