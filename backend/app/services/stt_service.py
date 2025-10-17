@@ -27,11 +27,15 @@ class STTService:
     """Service for handling Speech-to-Text operations."""
     
     def __init__(self):
-        # Initialize Google Cloud Speech client with service account
-        credentials = service_account.Credentials.from_service_account_file(
-            settings.GCP_CREDENTIALS_PATH,
-            scopes=['https://www.googleapis.com/auth/cloud-platform']
-        )
+        # Initialize Google Cloud Speech client
+        # Credentials are set up via GOOGLE_APPLICATION_CREDENTIALS env var
+        # by gcp_setup.setup_gcp_credentials() in main.py
+        try:
+            self.client = speech.SpeechClient()
+            logger.info("✅ STT Service initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize STT Service: {e}")
+            raise
         self.client = speech.SpeechClient(credentials=credentials)
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
         self.project_id = settings.GCP_PROJECT_ID
@@ -280,5 +284,13 @@ class STTService:
             if session_id in self.active_sessions:
                 del self.active_sessions[session_id]
 
-# Global STT service instance
-stt_service = STTService()
+
+# Lazy initialization of STT service
+_stt_service_instance: Optional[STTService] = None
+
+def get_stt_service() -> STTService:
+    """Get or create STT service instance."""
+    global _stt_service_instance
+    if _stt_service_instance is None:
+        _stt_service_instance = STTService()
+    return _stt_service_instance

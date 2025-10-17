@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.session import ConsultationSession, SessionStatus
-from app.services.stt_service import stt_service
+from app.services.stt_service import get_stt_service
 from app.core.audit import audit_logger, AuditEventType
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,7 @@ async def start_stt_streaming(session_id: str, websocket: WebSocket):
         websocket_uri = f"ws://localhost:8000/ws/audio/{session_id}"
         
         # Stream STT results
-        async for stt_result in stt_service.start_streaming_recognition(session_id, websocket_uri):
+        async for stt_result in get_stt_service.start_streaming_recognition(session_id, websocket_uri):
             # Forward STT results to frontend
             await websocket_manager.send_message(session_id, {
                 "type": "transcription",
@@ -202,7 +202,7 @@ async def handle_control_message(
             
         elif message_type == "stop_recording":
             # Stop recording and finalize transcription
-            result = await stt_service.finalize_session_transcription(session_id)
+            result = await get_stt_service.finalize_session_transcription(session_id)
             await websocket_manager.send_message(session_id, {
                 "type": "recording_stopped",
                 "session_id": session_id,
