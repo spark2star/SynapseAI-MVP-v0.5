@@ -13,7 +13,8 @@ import time
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-
+from app.core.gcp_setup import setup_gcp_credentials
+setup_gcp_credentials()
 from app.core.config import settings
 from app.core.database import create_tables, db_health
 from app.api.api_v1.api import api_router
@@ -25,8 +26,7 @@ from app.core.logging_config import setup_logging
 from app.core.middleware import RequestIDMiddleware, ErrorLoggingMiddleware
 from app.core.rate_limit import limiter, rate_limit_handler, RateLimitExceeded
 import app.models  # Ensure all models are registered before create_tables
-from app.core.gcp_setup import setup_gcp_credentials
-setup_gcp_credentials()
+
 
 # Setup structured logging (P0-5)
 logger = setup_logging(log_level=settings.LOG_LEVEL.upper())
