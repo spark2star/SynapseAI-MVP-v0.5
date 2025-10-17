@@ -21,13 +21,36 @@ from app.services.transcription_service import TranscriptionService
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Initialize Speech client once
-try:
-    speech_client = speech.SpeechClient()
-    logger.info("Google Speech client initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize Speech client: {e}")
-    speech_client = None
+# # Initialize Speech client once
+# try:
+#     speech_client = speech.SpeechClient()
+#     logger.info("Google Speech client initialized successfully")
+# except Exception as e:
+#     logger.error(f"Failed to initialize Speech client: {e}")
+#     speech_client = None
+
+# Lazy initialization of Speech client
+_speech_client: speech.SpeechClient | None = None
+
+def get_speech_client() -> speech.SpeechClient:
+    """
+    Get or create Speech client instance.
+    Uses lazy initialization to defer client creation until after credentials are set.
+    """
+    global _speech_client
+    if _speech_client is None:
+        try:
+            _speech_client = speech.SpeechClient()
+            logger.info("✅ Google Speech client initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Speech client: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Speech-to-Text service unavailable: {str(e)}"
+            )
+    return _speech_client
+
+
 
 @router.post("/chunk")
 async def transcribe_audio_chunk(
@@ -40,11 +63,11 @@ async def transcribe_audio_chunk(
     Transcribe a chunk of audio using Google Speech-to-Text V2.
     """
     
-    if not speech_client:
-        raise HTTPException(
-            status_code=503,
-            detail="Speech-to-Text service unavailable"
-        )
+    # Get speech client (initializes lazily if needed)
+    try:
+        client = get_speech_client()
+    except HTTPException:
+        raise
     
     try:
         # Verify session exists and belongs to user
@@ -100,7 +123,7 @@ async def transcribe_audio_chunk(
         )
         
         # Call Google Speech API
-        response = speech_client.recognize(request=request)
+        response = client.recognize(request=request)
         
         # Extract transcript
         transcript = ""
