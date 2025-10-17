@@ -71,12 +71,20 @@ export default function ChangePasswordPage() {
             if (result.success) {
                 toast.success('Password changed successfully! Redirecting to dashboard...');
 
+                // Update the user state to clear password_reset_required
+                const currentUser = user;
+                if (currentUser) {
+                    currentUser.password_reset_required = false;
+                }
+
                 setTimeout(() => {
                     const role = user?.role || 'doctor';
                     const redirectPath = role === 'admin' ? '/admin/dashboard' : '/dashboard';
-                    window.location.href = redirectPath;
+
+                    // Force a complete reload to ensure auth state is fresh
+                    window.location.replace(redirectPath);
                 }, 1500);
-            } else {
+            }else {
                 setError(result.error || 'Failed to change password');
                 toast.error(result.error || 'Failed to change password');
             }

@@ -268,7 +268,7 @@ export const useAuthStore = create<AuthState>()(
                     const response = await apiService.get('/users/profile')
 
                     if (response.status === 'success' && response.data) {
-                        set({ profile: response.data })
+                        set({ profile: response.data.profile })
                     }
                 } catch (error) {
                     console.error('Profile fetch error:', error)

@@ -15,7 +15,6 @@ from app.core.security import (
 )
 from app.core.audit import audit_logger, AuditEventType
 from app.models.user import User, UserProfile
-from app.models.doctor_profile import DoctorProfile
 from app.schemas.user import (
     UserResponse, UserProfileResponse, UserDetailResponse, 
     UserUpdate, UserListResponse
@@ -33,7 +32,6 @@ async def get_user_profile(
     """
     Get current user's profile information.
     Returns user data and profile if it exists (profile may not exist for admin users).
-    For doctors, also returns DoctorProfile information.
     """
     try:
         # Get user with profile
@@ -74,39 +72,11 @@ async def get_user_profile(
                 updated_at=profile.updated_at
             )
         
-        # ✅ ADD: For doctors, also get DoctorProfile
-        doctor_profile_data = None
-        if user.role == "doctor":
-            doctor_profile = db.query(DoctorProfile).filter(
-                DoctorProfile.user_id == current_user_id
-            ).first()
-            
-            if doctor_profile:
-                # Split full_name into first_name and last_name
-                name_parts = doctor_profile.full_name.split(' ', 1)
-                first_name = name_parts[0] if len(name_parts) > 0 else ""
-                last_name = name_parts[1] if len(name_parts) > 1 else ""
-                
-                doctor_profile_data = {
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "full_name": doctor_profile.full_name,
-                    "medical_registration_number": doctor_profile.medical_registration_number,
-                    "state_medical_council": doctor_profile.state_medical_council,
-                    "clinic_name": doctor_profile.clinic_name,
-                    "phone": doctor_profile.phone_number,
-                    "specialization": doctor_profile.specializations,
-                    "profile_completed": doctor_profile.profile_completed
-                }
-        
-        # Use doctor_profile_data if profile_response is None
-        final_profile = profile_response.dict() if profile_response else doctor_profile_data
-        
         return {
             "status": "success",
             "data": {
                 "user": user_response.dict(),
-                "profile": final_profile
+                "profile": profile_response.dict() if profile_response else None
             },
             "metadata": {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -121,7 +91,6 @@ async def get_user_profile(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve user profile: {str(e)}"
         )
-
 
 
 @router.put("/profile", response_model=Dict[str, Any])

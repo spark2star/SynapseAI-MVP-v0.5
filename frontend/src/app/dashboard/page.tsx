@@ -50,6 +50,12 @@ interface Patient {
 export default function DashboardPage() {
     const router = useRouter()
     const { user, profile } = useAuthStore()
+    // const doctorName = profile?.first_name && profile?.last_name
+    //     ? `${profile.first_name} ${profile.last_name}`
+    //     : user?.email?.split('@')[0] || 'Doctor';
+    const doctorName = profile?.first_name && profile?.last_name
+        ? `${profile.first_name} ${profile.last_name}`
+        : 'Doctor';
     const [stats, setStats] = useState<DashboardStats>({
         totalPatients: 0,
         todayAppointments: 0,
@@ -165,7 +171,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div>
                                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
-                                        Welcome back, Dr. James Bond
+                                        Welcome back, Dr. {doctorName}
                                     </h1>
                                     <p className="text-sky-600 dark:text-sky-300 text-sm lg:text-base">
                                         Your patient care overview for today

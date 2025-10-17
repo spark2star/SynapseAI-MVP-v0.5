@@ -39,7 +39,10 @@ export default function DashboardHeader() {
         })
     }
 
-    const displayName = 'Dr. James Bond' // Fixed name as requested
+    const displayName = profile?.first_name && profile?.last_name
+        ? `Dr. ${profile.first_name} ${profile.last_name}`
+        : `Dr. ${user?.email?.split('@')[0] || 'Doctor'}`;
+
 
     return (
         <div className="sticky top-0 z-30 bg-white dark:bg-neutral-800 shadow-sm border-b border-neutral-200 dark:border-neutral-700 transition-all duration-300">
