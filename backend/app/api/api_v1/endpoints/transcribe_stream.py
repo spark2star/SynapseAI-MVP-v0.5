@@ -3,6 +3,7 @@ import logging
 import asyncio
 from queue import Queue
 import threading
+from typing import Optional
 
 from google.cloud import speech_v2 as speech
 
@@ -12,7 +13,28 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Initialize Speech client
-speech_client = speech.SpeechClient()
+# speech_client = speech.SpeechClient()
+
+
+
+# Lazy initialization of Speech client (initialized on first use)
+_speech_client: Optional[speech.SpeechClient] = None
+
+def get_speech_client() -> speech.SpeechClient:
+    """
+    Get or create Speech client instance.
+    Uses lazy initialization to defer client creation until after credentials are set.
+    Thread-safe singleton pattern.
+    """
+    global _speech_client
+    if _speech_client is None:
+        try:
+            _speech_client = speech.SpeechClient()
+            logger.info("✅ Speech client initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Speech client: {e}")
+            raise
+    return _speech_client
 
 
 @router.websocket("/stream/{session_id}")
@@ -88,7 +110,7 @@ async def transcribe_stream(
                 loop = asyncio.get_event_loop()
                 responses = await loop.run_in_executor(
                     None,
-                    lambda: speech_client.streaming_recognize(requests=audio_generator())
+                    lambda: get_speech_client().streaming_recognize(requests=audio_generator())
                 )
                 
                 # Process responses
