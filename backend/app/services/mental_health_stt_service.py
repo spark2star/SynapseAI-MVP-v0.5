@@ -223,8 +223,8 @@ class MentalHealthSTTService:
         config = RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
             sample_rate_hertz=settings.GOOGLE_STT_SAMPLE_RATE,
-            language_code=settings.GOOGLE_STT_PRIMARY_LANGUAGE,  # Marathi (India)
-            alternative_language_codes=settings.GOOGLE_STT_ALTERNATE_LANGUAGES,  # English, Hindi
+            language_code="hi-IN",  # ✅ CRITICAL FIX: Force Hindi as PRIMARY language
+            alternative_language_codes=["mr-IN", "en-IN"],  # Marathi, English as alternates
             model=settings.GOOGLE_STT_MODEL,  # latest_short
             use_enhanced=True,
             enable_automatic_punctuation=True,
@@ -254,7 +254,8 @@ class MentalHealthSTTService:
             "session_id": session_id,
             "patient_id": patient_id,
             "started_at": datetime.now(timezone.utc),
-            "language_support": ["mr-IN", "en-IN", "hi-IN"],
+            "language_support": ["hi-IN", "mr-IN", "en-IN"],  # ✅ Hindi primary
+            "primary_language": "hi-IN",  # ✅ Explicitly set
             "model": settings.GOOGLE_STT_MODEL,
             "mental_health_optimized": True,
             "status": "active"
@@ -343,9 +344,9 @@ class MentalHealthSTTService:
     def get_supported_languages(self) -> Dict[str, str]:
         """Return supported languages with their codes."""
         return {
-            "mr-IN": "Marathi (India) - Primary",
-            "en-IN": "English (India) - Alternate", 
-            "hi-IN": "Hindi (India) - Alternate"
+            "hi-IN": "Hindi (India) - Primary ✅",
+            "mr-IN": "Marathi (India) - Alternate", 
+            "en-IN": "English (India) - Alternate"
         }
     
     def get_mental_health_terms(self, language: str = "all") -> Dict[str, list]:

@@ -31,6 +31,8 @@ interface ReportData {
     stt_confidence_score?: number
     llm_confidence_score?: number
     keywords?: string[]
+    medications?: any[]  // ✅ Added medications
+    patient_status?: string  // ✅ Added patient status
 }
 
 interface MedicalReportDisplayProps {
@@ -242,11 +244,31 @@ export default function MedicalReportDisplay({
         writeSubHeading('Generated', reportData.generated_at ? new Date(reportData.generated_at).toLocaleString() : 'N/A')
         cursorY += 2
 
-        // Key Terms (top of PDF)
-        if (Array.isArray(reportData.highlight_tags) && reportData.highlight_tags.length > 0) {
-            writeSectionTitle('Key Terms')
-            const line = reportData.highlight_tags.join(', ')
+        // ✅ Key Terms (top of PDF) - use keywords first, fallback to highlight_tags
+        const keyTerms = reportData.keywords || reportData.highlight_tags || []
+        if (Array.isArray(keyTerms) && keyTerms.length > 0) {
+            writeSectionTitle('Key Terms & Coverage')
+            const line = keyTerms.join(', ')
             writeParagraph(line)
+        }
+
+        // ✅ Medications Section (if provided)
+        if (Array.isArray(reportData.medications) && reportData.medications.length > 0) {
+            writeSectionTitle('Prescribed Medications')
+            reportData.medications.forEach((med: any) => {
+                const medLine = `${med.name || 'Unknown'} - ${med.dosage || ''} - ${med.frequency || ''} for ${med.duration || ''}`
+                writeBullet(medLine)
+                if (med.instructions) {
+                    writeParagraph(`   Instructions: ${med.instructions}`, 6)
+                }
+            })
+            cursorY += 2
+        }
+
+        // ✅ Patient Status (if provided)
+        if (reportData.patient_status) {
+            writeSectionTitle('Patient Progress')
+            writeParagraph(`Status: ${reportData.patient_status.charAt(0).toUpperCase() + reportData.patient_status.slice(1)}`)
         }
 
         // 30-second concise summary (from AI if available)

@@ -808,7 +808,7 @@ export default function PatientDetailPage() {
                 )}
 
                 {/* Consultation History */}
-                {!isRecording && sessions.length > 0 && !isFollowUpMode && (
+                {!isRecording && !isGeneratingReport && sessions.length > 0 && !isFollowUpMode && (
                     <div className="bg-white dark:bg-neutral-800 rounded-xl border p-6">
                         <h3 className="text-xl font-semibold mb-6">Consultation History</h3>
                         <div className="space-y-4">
@@ -884,6 +884,7 @@ export default function PatientDetailPage() {
                             autoStart={true}
                             onVolumeChange={setMicVolume}
                             onNetworkError={setNetworkError}
+                            primaryLanguage={selectedLanguage}
                         />
                     </div>
                 )}

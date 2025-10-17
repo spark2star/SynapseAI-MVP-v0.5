@@ -21,6 +21,9 @@ def upgrade():
     # Add reviewed_transcript column (encrypted text)
     op.add_column('reports', sa.Column('reviewed_transcript', sa.Text(), nullable=True))
     
+    # Add medications column as JSONB (PostgreSQL)
+    op.add_column('reports', sa.Column('medications', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
+    
     # Add keywords array column
     op.add_column('reports', sa.Column('keywords', postgresql.ARRAY(sa.String()), nullable=True))
     
@@ -40,5 +43,8 @@ def downgrade():
     op.drop_column('reports', 'llm_confidence_score')
     op.drop_column('reports', 'stt_confidence_score')
     op.drop_column('reports', 'keywords')
+    op.drop_column('reports', 'medications')
     op.drop_column('reports', 'reviewed_transcript')
+
+
 

@@ -18,6 +18,7 @@ interface SimpleAudioRecorderProps {
     onVolumeChange?: (volume: number) => void
     onNetworkError?: (error: string) => void
     continuousMode?: boolean  // NEW - Always send chunks, even during silence
+    primaryLanguage?: string  // NEW - Primary language for transcription (e.g., 'en-IN', 'hi-IN', 'mr-IN')
 }
 
 interface TranscriptionResponse {
@@ -71,7 +72,8 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
     autoStart = true,
     onVolumeChange,
     onNetworkError,
-    continuousMode = true  // ✅ Default to continuous mode for better capture
+    continuousMode = true,  // ✅ Default to continuous mode for better capture
+    primaryLanguage = 'hi-IN'  // ✅ Default to Hindi if not specified
 }) => {
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -152,12 +154,13 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
                 formData.append('audio', audioBlob, 'audio.wav');
 
                 console.log(`[STT] 📤 Sending audio (attempt ${attempt + 1}/${retriesLeft + 1})...`);
+                console.log(`[STT] 🗣️ Primary language: ${primaryLanguage}`);
 
                 // CRITICAL: Create new AbortController for this request
                 abortControllerRef.current = new AbortController();
                 const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), 30000);
 
-                const response = await fetch(`http://localhost:8080/api/v1/stt/chunk?session_id=${sessionId}`, {
+                const response = await fetch(`http://localhost:8080/api/v1/stt/chunk?session_id=${sessionId}&language=${primaryLanguage}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -219,7 +222,7 @@ const SimpleAudioRecorder: React.FC<SimpleAudioRecorderProps> = memo(({
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
-    }, [sessionId, onTranscriptUpdate, onNetworkError]);
+    }, [sessionId, primaryLanguage, onTranscriptUpdate, onNetworkError]);
 
     // ✅ Memoize processAudioBuffer
     const processAudioBuffer = useCallback(async () => {
