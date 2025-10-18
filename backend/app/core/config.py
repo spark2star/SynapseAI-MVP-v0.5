@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     "http://localhost:8000", 
     "https://synapseai.health",
     "https://synapseai-frontend-910625707162.asia-south1.run.app",
-    "https://synapseai-mvp-v05-production.up.railway.app",
+    "synapseai-mvp-v05-production.up.railway.app",
 ]
     # ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     # ALLOWED_HEADERS: List[str] = ["*"]
