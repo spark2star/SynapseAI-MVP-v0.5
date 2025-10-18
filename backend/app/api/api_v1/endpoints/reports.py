@@ -9,7 +9,7 @@ import uuid
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, HTTPException, Depends, status, Query
+from fastapi import APIRouter, HTTPException, Depends, status, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, func
@@ -18,13 +18,16 @@ from app.core.database import get_db
 from app.core.dependencies import require_doctor_or_admin
 from app.core.security import get_current_user_id
 from app.core.pagination import paginate_query
-from app.schemas.report import ReportResponse, ReportDetailResponse, DiagnosisItem, MedicationItem, RecommendationItem
+from app.core.rate_limit import limiter
+from app.schemas.report import ReportResponse, ReportDetailResponse, DiagnosisItem, MedicationItem, RecommendationItem, SignReportRequest, SignReportResponse
 from app.models.user import User
 from app.models.session import Transcription, TranscriptionStatus, ConsultationSession
 from app.models.report import Report
 from app.models.symptom import IntakePatient
+from app.models.audit_log import AuditLog, AuditEventType
 from app.services.session_service import SessionService
 from app.services.report_service import ReportService
+from app.services.report_signing_service import ReportSigningService
 from app.services.gemini_service import gemini_service
 from app.core.exceptions import SynapseAIException
 
@@ -933,4 +936,198 @@ async def get_report_detail(
         raise HTTPException(
             status_code=500,
             detail={"message": "Failed to retrieve report", "request_id": request_id}
+        )
+
+
+# ============================================================================
+# REPORT SIGNING ENDPOINT (DIGITAL SIGNATURE WITH PASSWORD VERIFICATION)
+# ============================================================================
+
+@router.post("/{report_id}/sign")
+@limiter.limit("5/minute")  # Rate limit: 5 signing attempts per minute
+async def sign_report(
+    request: Request,
+    report_id: str,
+    sign_request: SignReportRequest,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """
+    Digitally sign a completed clinical report with password re-authentication.
+    
+    This endpoint:
+    1. Verifies the current user is the report owner
+    2. Verifies the report status is 'completed'
+    3. Re-authenticates the user with their password
+    4. Generates a SHA-256 hash of the report content
+    5. Updates the report with signature details
+    6. Creates an audit log entry
+    
+    Args:
+        report_id: UUID of the report to sign
+        sign_request: Request containing the user's password
+        
+    Returns:
+        SignReportResponse with signature details
+        
+    Raises:
+        401: Invalid password
+        403: User does not own this report
+        404: Report not found
+        400: Report status is not 'completed' or already signed
+    """
+    request_id = str(uuid.uuid4())[:8]
+    
+    try:
+        logger.info(
+            f"[{request_id}] Report signing request - Report: {report_id}, User: {current_user_id}"
+        )
+        
+        # Get current user
+        user = db.query(User).filter(User.id == current_user_id).first()
+        if not user:
+            logger.error(f"[{request_id}] User not found - User: {current_user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Get report with session relationship
+        report = db.query(Report)\
+            .options(joinedload(Report.session))\
+            .filter(Report.id == report_id)\
+            .first()
+        
+        if not report:
+            logger.warning(
+                f"[{request_id}] Report not found - Report: {report_id}, User: {current_user_id}"
+            )
+            
+            # Log failed attempt
+            AuditLog.log_event(
+                db_session=db,
+                event_type="report_sign_failed",
+                doctor_user_id=current_user_id,
+                details={
+                    "report_id": report_id,
+                    "reason": "report_not_found",
+                    "request_id": request_id
+                }
+            )
+            db.commit()
+            
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+        
+        # Sign the report (includes all verification logic)
+        try:
+            signed_report = await ReportSigningService.sign_report(
+                db=db,
+                report=report,
+                user=user,
+                password=sign_request.password
+            )
+            
+            # Create audit log entry for successful signing
+            AuditLog.log_event(
+                db_session=db,
+                event_type="report_signed",
+                doctor_user_id=current_user_id,
+                details={
+                    "report_id": str(signed_report.id),
+                    "signature_hash": signed_report.signature_hash,
+                    "report_type": signed_report.report_type,
+                    "session_id": str(signed_report.session_id),
+                    "signed_at": signed_report.signed_at,
+                    "request_id": request_id
+                }
+            )
+            db.commit()
+            
+            logger.info(
+                f"[{request_id}] SUCCESS - Report signed - "
+                f"Report: {report_id}, Hash: {signed_report.signature_hash[:16]}..."
+            )
+            
+            # Build response
+            response = SignReportResponse(
+                report_id=str(signed_report.id),
+                status=signed_report.status,
+                signed_at=datetime.fromisoformat(signed_report.signed_at.replace('Z', '+00:00')) if isinstance(signed_report.signed_at, str) else signed_report.signed_at,
+                signed_by=user.email,
+                signature_hash=signed_report.signature_hash
+            )
+            
+            return {
+                "status": "success",
+                "message": "Report signed successfully",
+                "data": response.dict(),
+                "request_id": request_id
+            }
+            
+        except HTTPException as e:
+            # Log failed signing attempt with reason
+            reason = "unknown"
+            if e.status_code == status.HTTP_401_UNAUTHORIZED:
+                reason = "invalid_password"
+            elif e.status_code == status.HTTP_403_FORBIDDEN:
+                reason = "unauthorized_access"
+            elif e.status_code == status.HTTP_400_BAD_REQUEST:
+                if "already been signed" in e.detail:
+                    reason = "already_signed"
+                elif "must be completed" in e.detail:
+                    reason = "invalid_status"
+                else:
+                    reason = "invalid_request"
+            
+            AuditLog.log_event(
+                db_session=db,
+                event_type="report_sign_failed",
+                doctor_user_id=current_user_id,
+                details={
+                    "report_id": report_id,
+                    "reason": reason,
+                    "error_detail": e.detail,
+                    "request_id": request_id
+                }
+            )
+            db.commit()
+            
+            logger.warning(
+                f"[{request_id}] Report signing failed - "
+                f"Report: {report_id}, Reason: {reason}"
+            )
+            
+            raise
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"[{request_id}] ERROR signing report - Report: {report_id}: {str(e)}",
+            exc_info=True
+        )
+        
+        # Log unexpected error
+        try:
+            AuditLog.log_event(
+                db_session=db,
+                event_type="report_sign_failed",
+                doctor_user_id=current_user_id,
+                details={
+                    "report_id": report_id,
+                    "reason": "system_error",
+                    "error": str(e),
+                    "request_id": request_id
+                }
+            )
+            db.commit()
+        except:
+            pass
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"message": "Failed to sign report", "request_id": request_id}
         )

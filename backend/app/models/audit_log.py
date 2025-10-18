@@ -26,6 +26,8 @@ class AuditEventType(str, Enum):
     LOGIN_FAILED = "login_failed"
     ACCOUNT_LOCKED = "account_locked"
     ACCOUNT_UNLOCKED = "account_unlocked"
+    REPORT_SIGNED = "report_signed"
+    REPORT_SIGN_FAILED = "report_sign_failed"
 
 
 class AuditLog(BaseModel):

@@ -34,7 +34,7 @@ import LanguageSelector from '@/components/consultation/LanguageSelector'
 import AIInsights from '@/components/consultation/AIInsights'
 import EditableTranscript from '@/components/consultation/EditableTranscript'
 import MedicalReportDisplay from '@/components/consultation/MedicalReportDisplay'
-import MedicationModal, { Medication } from '@/components/consultation/MedicationModal'
+import SessionSummaryModal from '@/components/session/SessionSummaryModal'
 import ReportView from '@/components/report/ReportView'
 
 interface Patient {
@@ -847,12 +847,32 @@ export default function PatientDetailPage() {
                     />
                 )}
 
-                {/* Medication Modal */}
-                <MedicationModal
+                {/* Session Summary Modal */}
+                <SessionSummaryModal
                     isOpen={showMedicationModal}
                     onClose={() => setShowMedicationModal(false)}
-                    onSubmit={handleGenerateReport}
-                    isLoading={isGeneratingReport}
+                    sessionId={currentSession || ''}
+                    transcription={finalTranscription}
+                    onReportGenerated={async (reportId) => {
+                        try {
+                            // Fetch the generated report
+                            const reportData = await apiClient.get(`/reports/${reportId}`)
+                            setGeneratedReport(reportData)
+                            setReportId(reportId.toString())
+
+                            // Scroll to report
+                            setTimeout(() => {
+                                const reportElement = document.getElementById('generated-report')
+                                if (reportElement) {
+                                    reportElement.scrollIntoView({ behavior: 'smooth' })
+                                }
+                            }, 100)
+                        } catch (error) {
+                            console.error('Failed to fetch report:', error)
+                            toast.error('Failed to load report')
+                        }
+                    }}
+                    sessionType={sessionType || 'follow_up'}
                 />
 
                 {/* SimpleRecorder (fallback/backup) */}

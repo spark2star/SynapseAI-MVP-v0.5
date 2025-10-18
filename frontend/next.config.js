@@ -11,10 +11,6 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://synapseai-backend-910625707162.asia-south1.run.app/api/v1'
   },
 
-  experimental: {
-    serverActions: true
-  },
-
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,

@@ -174,6 +174,24 @@ async def require_doctor_or_admin(
     return current_user
 
 
+async def require_receptionist(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Require receptionist role."""
+    if current_user.role != UserRole.RECEPTIONIST.value:
+        raise ForbiddenException("Receptionist access required")
+    return current_user
+
+
+async def require_doctor_or_receptionist(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Require doctor or receptionist role."""
+    if current_user.role not in [UserRole.DOCTOR.value, UserRole.RECEPTIONIST.value]:
+        raise ForbiddenException("Doctor or Receptionist access required")
+    return current_user
+
+
 # Pagination Dependencies
 class PaginationParams:
     """Common pagination parameters."""

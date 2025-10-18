@@ -83,6 +83,7 @@ class Report(BaseModel):
     signed_by = Column(String(36), ForeignKey("users.id"), nullable=True)
     reviewed_at = Column(String(50), nullable=True)
     signed_at = Column(String(50), nullable=True)
+    signature_hash = Column(String(64), nullable=True)  # SHA-256 hash for digital signature verification
     
     # Manual corrections
     manual_corrections = Column(EncryptedType(5000), nullable=True)

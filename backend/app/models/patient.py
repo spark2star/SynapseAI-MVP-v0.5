@@ -35,6 +35,12 @@ class BloodGroup(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ProfileStatus(str, Enum):
+    """Patient profile completion status."""
+    DEMOGRAPHICS_ONLY = "DEMOGRAPHICS_ONLY"
+    CLINICAL_INFO_COMPLETE = "CLINICAL_INFO_COMPLETE"
+
+
 class Patient(BaseModel):
     """
     Patient model with encrypted demographic information.
@@ -87,6 +93,9 @@ class Patient(BaseModel):
     
     # System fields
     created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    
+    # Profile completion status (for two-stage registration)
+    profile_status = Column(String(30), nullable=False, default=ProfileStatus.DEMOGRAPHICS_ONLY.value, index=True)
     
     # For search functionality (hashed identifiers)
     name_hash = Column(String(64), nullable=False, index=True)  # For searching by name

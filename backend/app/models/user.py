@@ -45,6 +45,9 @@ class User(BaseModel):
     mfa_secret = Column(EncryptedType(255), nullable=True)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     
+    # Receptionist invitation tracking
+    invited_by_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    
     # Security tracking
     last_login = Column(DateTime(timezone=True), nullable=True)
     failed_login_attempts = Column(String(10), default="0", nullable=False)
@@ -65,6 +68,10 @@ class User(BaseModel):
     consultation_sessions = relationship("ConsultationSession", back_populates="doctor")
     generated_reports = relationship("Report", foreign_keys="[Report.signed_by]")
     appointments = relationship("Appointment", back_populates="doctor", foreign_keys="Appointment.doctor_id")
+    
+    # Receptionist relationships
+    invited_by = relationship("User", remote_side="User.id", foreign_keys=[invited_by_id])
+    invited_staff = relationship("User", foreign_keys="User.invited_by_id", remote_side=[invited_by_id], overlaps="invited_by")
     
     def __repr__(self):
         return f"<User(id='{self.id}', email_hash='{self.email_hash[:8]}...', role='{self.role}')>"

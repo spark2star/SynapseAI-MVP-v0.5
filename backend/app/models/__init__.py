@@ -19,6 +19,8 @@ from .billing import Bill  # noqa: F401
 from .audit import AuditLog  # noqa: F401
 from .contact import ContactSubmission  # noqa: F401
 from .newsletter import NewsletterSubscription  # noqa: F401
+from .medication import Medication  # noqa: F401
+from .staff_invitation import StaffInvitation  # noqa: F401
 """
 Database models for the EMR system.
 All models implement encryption for sensitive data fields.
@@ -40,6 +42,8 @@ from .symptom import (
     MasterSymptom, UserSymptom, PatientSymptom, IntakePatient,
     SymptomSeverity, SymptomFrequency, DurationUnit
 )
+from .medication import Medication
+from .staff_invitation import StaffInvitation
 
 __all__ = [
     "User",
@@ -63,5 +67,7 @@ __all__ = [
     "IntakePatient",
     "SymptomSeverity",
     "SymptomFrequency",
-    "DurationUnit"
+    "DurationUnit",
+    "Medication",
+    "StaffInvitation"
 ]

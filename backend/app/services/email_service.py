@@ -831,4 +831,130 @@ class EmailService:
         return self._send_email(to_email, subject, html_body)
 
 
+    def send_staff_invitation_email(
+        self,
+        to_email: str,
+        doctor_name: str,
+        invitation_url: str,
+        expires_at: datetime
+    ) -> bool:
+        """Send invitation email to receptionist"""
+        logger.info(f"📧 Sending staff invitation to: {to_email}")
+        
+        subject = f"You're Invited to Join {doctor_name}'s Clinic on SynapseAI"
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; color: #333; line-height: 1.6; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ 
+                    background: linear-gradient(135deg, #50B9E8, #0A4D8B); 
+                    color: white; 
+                    padding: 40px; 
+                    text-align: center; 
+                    border-radius: 8px 8px 0 0; 
+                }}
+                .content {{ 
+                    background: #f9f9f9; 
+                    padding: 30px; 
+                    border-radius: 0 0 8px 8px; 
+                }}
+                .invite-button {{
+                    display: inline-block;
+                    padding: 15px 30px;
+                    background: #10B981;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 20px 0;
+                }}
+                .info-box {{
+                    background: white;
+                    border-left: 4px solid #50B9E8;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 4px;
+                }}
+                .warning-box {{
+                    background: #FEF3CD;
+                    border: 1px solid #FFA500;
+                    padding: 15px;
+                    border-radius: 6px;
+                    margin: 20px 0;
+                    font-size: 14px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1 style="margin: 0; font-size: 28px;">🎉 You're Invited!</h1>
+                    <p style="margin: 10px 0 0 0; opacity: 0.95;">Join {doctor_name}'s Clinic on SynapseAI</p>
+                </div>
+                <div class="content">
+                    <p><strong>Hello!</strong></p>
+                    
+                    <p>{doctor_name} has invited you to join their clinic as a receptionist on <strong>SynapseAI</strong>, 
+                    a secure and intelligent EMR platform designed for modern healthcare practices.</p>
+                    
+                    <div class="info-box">
+                        <h3 style="color: #0A4D8B; margin-top: 0;">👥 Your Role:</h3>
+                        <p style="margin: 0;">As a receptionist, you'll be able to:</p>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>Register new patients with demographic information</li>
+                            <li>Manage patient appointments and scheduling</li>
+                            <li>View patient contact details for coordination</li>
+                            <li>Support the clinic's administrative workflow</li>
+                        </ul>
+                        <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">
+                            <em>Note: You will not have access to sensitive clinical data or medical records.</em>
+                        </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{invitation_url}" class="invite-button">
+                            ✅ Accept Invitation & Create Account
+                        </a>
+                    </div>
+                    
+                    <div class="warning-box">
+                        <strong>⏰ Important:</strong> This invitation expires on <strong>{expires_at.strftime('%B %d, %Y at %I:%M %p UTC')}</strong>. 
+                        Please accept it before then to create your account.
+                    </div>
+                    
+                    <div class="info-box">
+                        <h3 style="color: #0A4D8B; margin-top: 0;">🔐 Security & Privacy:</h3>
+                        <p style="margin: 0;">SynapseAI is built with security at its core:</p>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>End-to-end encryption for all patient data</li>
+                            <li>Role-based access control (RBAC)</li>
+                            <li>HIPAA-compliant infrastructure</li>
+                            <li>Comprehensive audit logging</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="margin-top: 30px; font-size: 14px; color: #666;">
+                        <strong>Questions?</strong> Contact {doctor_name} or reach out to our support team at 
+                        <a href="mailto:{self.admin_email}">{self.admin_email}</a>
+                    </p>
+                    
+                    <p style="margin-top: 30px;">
+                    We look forward to having you on board!<br>
+                    <strong>The SynapseAI Team</strong><br>
+                    <em>Effortless Intelligence, Absolute Security</em>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return self._send_email(to_email, subject, html_body)
+
+
 email_service = EmailService()

@@ -38,6 +38,7 @@ class DoctorProfile(BaseModel):
     clinic_address = Column(Text, nullable=True)
     specializations = Column(JSONB, nullable=True)  # Array of specializations
     years_of_experience = Column(Integer, nullable=True)
+    qualifications = Column(String(255), nullable=True)  # Doctor credentials (e.g., "MBBS, MD")
     digital_signature_url = Column(String(500), nullable=True)
     phone_number = Column(String(20), nullable=True)
     alternate_email = Column(String(255), nullable=True)

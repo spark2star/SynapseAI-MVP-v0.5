@@ -456,6 +456,7 @@ class AuthenticationService:
                 "role": user.role,
                 "doctor_status": user.doctor_status if user.role == "doctor" else None,
                 "profile_completed": profile_completed if user.role == "doctor" else None,
+                "password_reset_required": user.password_reset_required,
                 "session_type": "extended" if login_data.remember_me else "normal"
             }
             
@@ -537,11 +538,25 @@ class AuthenticationService:
                     detail="User no longer active"
                 )
             
+            # Check if doctor profile is completed (for verified doctors)
+            profile_completed = True
+            if user.role == "doctor" and user.doctor_status == "verified":
+                from app.models.doctor_profile import DoctorProfile
+                doctor_profile = self.db.query(DoctorProfile).filter(
+                    DoctorProfile.user_id == user.id
+                ).first()
+                
+                if doctor_profile:
+                    profile_completed = doctor_profile.profile_completed
+            
             # Generate new access token
             token_data = {
                 "sub": user.id,
                 "email": user.email,
-                "role": user.role
+                "role": user.role,
+                "doctor_status": user.doctor_status if user.role == "doctor" else None,
+                "profile_completed": profile_completed if user.role == "doctor" else None,
+                "password_reset_required": user.password_reset_required
             }
             
             new_access_token = self.jwt_manager.create_access_token(token_data)

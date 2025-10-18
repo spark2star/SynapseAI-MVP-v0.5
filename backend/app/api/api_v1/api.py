@@ -9,7 +9,8 @@ from app.api.api_v1.endpoints import (
     consultation as consultation_endpoints, 
     newsletter, contact, intake, profile, admin, doctor, forms,
     sessions, templates, analytics,
-    transcribe, transcribe_stream, transcribe_simple
+    transcribe, transcribe_stream, transcribe_simple, staff, patients_v2,
+    medications, dashboard
 )
 from app.api.websocket import consultation
 
@@ -21,7 +22,9 @@ api_router.include_router(doctor.router, prefix="/doctor", tags=["doctor-registr
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(profile.router, prefix="/profile", tags=["practitioner-profile"])
+api_router.include_router(staff.router, prefix="/staff", tags=["staff-management"])
 api_router.include_router(patients.router, prefix="/patients", tags=["patients"])
+api_router.include_router(patients_v2.router, prefix="/patients/v2", tags=["patients-v2-two-stage"])
 api_router.include_router(sessions.router, prefix="/sessions", tags=["consultation-sessions"])
 api_router.include_router(templates.router, prefix="/templates", tags=["report-templates"])
 api_router.include_router(health.router, prefix="/health", tags=["health"])
@@ -32,6 +35,8 @@ api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
 api_router.include_router(intake.router, prefix="/intake", tags=["patient-intake"])
 api_router.include_router(forms.router, prefix="/forms", tags=["forms"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(medications.router, prefix="/medications", tags=["medications"])
 api_router.include_router(transcribe.router, prefix="/transcribe", tags=["transcribe"])
 api_router.include_router(transcribe_simple.router, prefix="/stt", tags=["simple-transcription"])
 

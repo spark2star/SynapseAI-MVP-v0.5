@@ -10,11 +10,15 @@ from datetime import datetime, timezone
 import os
 import uuid
 import shutil
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.core.audit import audit_logger, AuditEventType
+from app.core.rate_limit import limiter
 from app.models.user import User, UserProfile
 from app.schemas.profile import (
     PractitionerProfileRead, 
@@ -307,4 +311,245 @@ async def update_practitioner_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update profile: {str(e)}"
+        )
+
+
+@router.post("/complete", response_model=Dict[str, Any])
+@limiter.limit("10/minute")  # Rate limit: 10 profile completion attempts per minute
+async def complete_profile(
+    request: Request,
+    qualifications: str = Form(...),
+    clinic_name: str = Form(...),
+    clinic_address: str = Form(...),
+    phone: str = Form(...),
+    logo: Optional[UploadFile] = File(None),
+    digital_signature: UploadFile = File(...),
+    current_user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """
+    Complete doctor profile after first login.
+    
+    This endpoint handles the mandatory profile completion workflow for newly verified doctors.
+    It accepts multipart form data with file uploads for logo and digital signature.
+    
+    Args:
+        qualifications: Doctor credentials (e.g., "MBBS, DPM")
+        clinic_name: Name of clinic/practice
+        clinic_address: Full clinic address
+        phone: Contact phone number
+        logo: Clinic logo image file (optional)
+        digital_signature: Doctor's signature image file (required)
+        current_user_id: Current authenticated user ID
+        db: Database session
+    
+    Returns:
+        Profile completion response with updated profile data
+    
+    Raises:
+        HTTPException: If user not found, not a doctor, profile already completed, or upload fails
+    """
+    from app.models.doctor_profile import DoctorProfile
+    from app.models.audit_log import AuditLog, AuditEventType
+    from app.services.file_upload_service import get_file_upload_service
+    from app.core.dependencies import require_doctor
+    
+    try:
+        # Validate input fields
+        if not qualifications or not qualifications.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "VALIDATION_ERROR",
+                    "message": "Qualifications are required",
+                    "field": "qualifications"
+                }
+            )
+        
+        if not clinic_name or not clinic_name.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "VALIDATION_ERROR",
+                    "message": "Clinic name is required",
+                    "field": "clinic_name"
+                }
+            )
+        
+        if not clinic_address or not clinic_address.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "VALIDATION_ERROR",
+                    "message": "Clinic address is required",
+                    "field": "clinic_address"
+                }
+            )
+        
+        if not phone or not phone.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "VALIDATION_ERROR",
+                    "message": "Phone number is required",
+                    "field": "phone"
+                }
+            )
+        
+        # Get user and verify role
+        user = db.query(User).filter(User.id == current_user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "USER_NOT_FOUND",
+                    "message": "User not found"
+                }
+            )
+        
+        # Verify user is a doctor
+        if user.role != "doctor":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "FORBIDDEN",
+                    "message": "Only doctors can complete profile"
+                }
+            )
+        
+        # Get doctor profile
+        doctor_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user_id).first()
+        if not doctor_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "PROFILE_NOT_FOUND",
+                    "message": "Doctor profile not found"
+                }
+            )
+        
+        # Check if profile already completed
+        if doctor_profile.profile_completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "PROFILE_ALREADY_COMPLETED",
+                    "message": "Profile has already been completed"
+                }
+            )
+        
+        # Get user profile
+        user_profile = db.query(UserProfile).filter(UserProfile.user_id == current_user_id).first()
+        if not user_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
+        
+        # Get file upload service
+        file_service = get_file_upload_service()
+        
+        # Upload digital signature (required)
+        signature_url = await file_service.upload_file(
+            file=digital_signature,
+            user_id=current_user_id,
+            file_type='signature'
+        )
+        
+        # Upload logo (optional)
+        logo_url = None
+        if logo:
+            logo_url = await file_service.upload_file(
+                file=logo,
+                user_id=current_user_id,
+                file_type='logo'
+            )
+        
+        # Update DoctorProfile
+        doctor_profile.qualifications = qualifications.strip()
+        doctor_profile.digital_signature_url = signature_url
+        doctor_profile.profile_completed = True
+        
+        # Update UserProfile
+        user_profile.clinic_name = clinic_name.strip()
+        user_profile.clinic_address = clinic_address.strip()
+        user_profile.phone = phone.strip()
+        if logo_url:
+            user_profile.logo_url = logo_url
+        
+        # Update timestamps
+        doctor_profile.updated_at = datetime.now(timezone.utc)
+        user_profile.updated_at = datetime.now(timezone.utc)
+        
+        # Commit changes
+        db.commit()
+        db.refresh(doctor_profile)
+        db.refresh(user_profile)
+        
+        # Create audit log entry
+        AuditLog.log_event(
+            db_session=db,
+            event_type=AuditEventType.PROFILE_COMPLETED,
+            doctor_user_id=current_user_id,
+            ip_address=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("user-agent", "unknown"),
+            details={
+                "qualifications": qualifications,
+                "clinic_name": clinic_name,
+                "signature_uploaded": True,
+                "logo_uploaded": logo_url is not None
+            }
+        )
+        db.commit()
+        
+        # Build response
+        profile_data = PractitionerProfileRead(
+            id=user.id,
+            email=user.email,
+            first_name=user_profile.first_name,
+            last_name=user_profile.last_name,
+            full_name=f"{user_profile.first_name} {user_profile.last_name}",
+            clinic_name=user_profile.clinic_name,
+            clinic_address=user_profile.clinic_address,
+            phone=user_profile.phone,
+            license_number=user_profile.license_number,
+            specialization=user_profile.specialization,
+            logo_url=user_profile.logo_url,
+            avatar_url=user_profile.avatar_url,
+            updated_at=user_profile.updated_at
+        )
+        
+        return {
+            "message": "Profile completed successfully. You can now access the dashboard.",
+            "profile_completed": True,
+            "profile": profile_data.model_dump()
+        }
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        # Log error
+        try:
+            AuditLog.log_event(
+                db_session=db,
+                event_type="profile_completion_failed",
+                doctor_user_id=current_user_id,
+                ip_address=request.client.host if request.client else "unknown",
+                user_agent=request.headers.get("user-agent", "unknown"),
+                details={"error": str(e)}
+            )
+            db.commit()
+        except:
+            pass
+        
+        logger.error(f"Profile completion error for user {current_user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "PROFILE_COMPLETION_FAILED",
+                "message": "Failed to complete profile. Please try again.",
+                "retry": True
+            }
         )

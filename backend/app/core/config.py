@@ -119,6 +119,13 @@ class Settings(BaseSettings):
     ALLOWED_AUDIO_FORMATS: List[str] = ["wav", "mp3", "m4a", "webm"]
     ALLOWED_FILE_TYPES: List[str] = ["pdf", "doc", "docx", "jpg", "jpeg", "png"]
     
+    # Google Cloud Storage Configuration
+    GCP_STORAGE_BUCKET: str = Field(default="synapseai-uploads")
+    GCP_STORAGE_PATH_LOGOS: str = Field(default="doctor-logos")
+    GCP_STORAGE_PATH_SIGNATURES: str = Field(default="doctor-signatures")
+    MAX_IMAGE_SIZE_MB: int = Field(default=5)
+    ALLOWED_IMAGE_FORMATS: List[str] = ["jpg", "jpeg", "png"]
+    
     # Session
     SESSION_EXPIRE_MINUTES: int = 30
     
@@ -172,6 +179,13 @@ class Settings(BaseSettings):
     @validator("ALLOWED_FILE_TYPES", pre=True)
     def validate_file_types(cls, v):
         """Parse comma-separated file types if provided as string."""
+        if isinstance(v, str):
+            return [fmt.strip() for fmt in v.split(",")]
+        return v
+    
+    @validator("ALLOWED_IMAGE_FORMATS", pre=True)
+    def validate_image_formats(cls, v):
+        """Parse comma-separated image formats if provided as string."""
         if isinstance(v, str):
             return [fmt.strip() for fmt in v.split(",")]
         return v

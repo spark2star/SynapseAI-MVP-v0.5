@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { ArrowLeftIcon, PrinterIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, PrinterIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import { apiService } from '@/services/api'
 import type { ReportData } from '@/types/report'
+import SignReportModal from '@/components/reports/SignReportModal'
+import { toast } from 'react-hot-toast'
 
 interface ReportViewProps {
     reportId: string  // Change to string for UUID
@@ -14,6 +16,7 @@ const ReportView: React.FC<ReportViewProps> = ({ reportId, onBack }) => {
     const [report, setReport] = useState<ReportData | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [showSignModal, setShowSignModal] = useState(false)
 
     useEffect(() => {
         fetchReport()
@@ -50,6 +53,13 @@ const ReportView: React.FC<ReportViewProps> = ({ reportId, onBack }) => {
     const handlePrint = () => {
         window.print()
     }
+
+    const handleSignSuccess = () => {
+        toast.success('Report signed successfully!')
+        fetchReport() // Refresh report data to show signed status
+    }
+
+    const canSign = report?.status === 'completed' && !report?.signed_at
 
     if (isLoading) {
         return (
@@ -91,13 +101,34 @@ const ReportView: React.FC<ReportViewProps> = ({ reportId, onBack }) => {
                         Back to Session
                     </button>
 
-                    <button
-                        onClick={handlePrint}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        <PrinterIcon className="h-4 w-4" />
-                        Print Report
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {/* Sign Button - Only show if report is completed and not signed */}
+                        {canSign && (
+                            <button
+                                onClick={() => setShowSignModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                                <CheckCircleIcon className="h-4 w-4" />
+                                Sign and Finalize Report
+                            </button>
+                        )}
+
+                        {/* Signed Status Badge */}
+                        {report?.signed_at && (
+                            <div className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg border border-green-300 dark:border-green-700">
+                                <CheckCircleIcon className="h-4 w-4" />
+                                <span className="font-medium">Signed</span>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handlePrint}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <PrinterIcon className="h-4 w-4" />
+                            Print Report
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -132,9 +163,22 @@ const ReportView: React.FC<ReportViewProps> = ({ reportId, onBack }) => {
                     <div className="mt-12 pt-6 border-t text-center text-xs text-gray-500 dark:text-gray-400">
                         <p>This report was generated with AI assistance and should be reviewed by the clinician.</p>
                         <p className="mt-1">Report ID: {report.id}</p>
+                        {report.signed_at && (
+                            <p className="mt-2 text-green-600 dark:text-green-400 font-medium">
+                                Digitally signed on {new Date(report.signed_at).toLocaleString()}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Sign Report Modal */}
+            <SignReportModal
+                isOpen={showSignModal}
+                reportId={String(reportId)}
+                onClose={() => setShowSignModal(false)}
+                onSuccess={handleSignSuccess}
+            />
         </div>
     )
 }

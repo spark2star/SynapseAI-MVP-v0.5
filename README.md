@@ -4,12 +4,14 @@ Next-generation Electronic Medical Records system with AI-powered transcription 
 
 ## 🏥 Features
 
+- **Clinical Command Center**: Actionable dashboard with priority-based workflows
 - **Privacy by Design**: Field-level encryption for all sensitive data
 - **AI-Powered Transcription**: Real-time speech-to-text with Google STT
 - **Intelligent Reporting**: Automated report generation with Gemini 2.5 Flash
 - **Comprehensive Audit**: Full audit trail for HIPAA compliance
 - **Role-Based Access**: Secure multi-role authentication system
 - **Real-time Sessions**: Live consultation recording and transcription
+- **Two-Stage Patient Registration**: Streamlined receptionist and doctor workflows
 
 ## 🔧 Technology Stack
 
@@ -87,22 +89,46 @@ Next-generation Electronic Medical Records system with AI-powered transcription 
 ├── backend/                 # FastAPI backend
 │   ├── app/
 │   │   ├── api/            # API endpoints
+│   │   │   └── api_v1/
+│   │   │       └── endpoints/
+│   │   │           └── dashboard.py  # Dashboard analytics endpoint
 │   │   ├── core/           # Core configuration
 │   │   ├── models/         # Database models
 │   │   ├── schemas/        # Pydantic schemas
 │   │   └── services/       # Business logic
 │   ├── alembic/            # Database migrations
+│   ├── docs/               # Backend documentation
+│   │   └── DASHBOARD_API.md  # Dashboard API docs
 │   └── tests/              # Backend tests
+│       └── test_dashboard.py  # Dashboard tests
 ├── frontend/               # Next.js frontend
 │   ├── src/
-│   │   ├── components/     # React components
+│   │   ├── app/
+│   │   │   └── dashboard/  # Dashboard page
+│   │   ├── components/
+│   │   │   ├── dashboard/  # Dashboard components
+│   │   │   │   ├── ClinicalIntakeQueue.tsx
+│   │   │   │   ├── NeedsAttentionCard.tsx
+│   │   │   │   ├── PatientSearchBar.tsx
+│   │   │   │   ├── StatCard.tsx
+│   │   │   │   └── WeeklySessionsChart.tsx
+│   │   │   └── ui/         # Reusable UI components
 │   │   ├── hooks/          # Custom hooks
 │   │   ├── services/       # API services
 │   │   └── store/          # State management
+│   ├── docs/               # Frontend documentation
+│   │   ├── DASHBOARD_COMPONENTS.md  # Component docs
+│   │   └── DASHBOARD_USER_GUIDE.md  # User guide
 ├── infrastructure/         # Infrastructure configs
 │   ├── docker/             # Docker configurations
 │   ├── terraform/          # Cloud infrastructure
 │   └── kubernetes/         # K8s configurations
+├── .kiro/                  # Kiro specs and configuration
+│   └── specs/
+│       └── dashboard-redesign/  # Dashboard feature spec
+│           ├── requirements.md
+│           ├── design.md
+│           └── tasks.md
 └── docs/                   # Documentation
 ```
 
@@ -135,11 +161,21 @@ The system uses encrypted PostgreSQL with the following main entities:
 - `POST /api/v1/auth/logout` - User logout
 - `POST /api/v1/auth/refresh` - Refresh JWT token
 
+### Dashboard
+- `GET /api/v1/dashboard/stats` - Get consolidated dashboard statistics
+  - Pending intake patients (up to 5)
+  - Needs attention patients count
+  - Pending reports count
+  - Active patients count
+  - Weekly sessions data
+
 ### Patients
 - `POST /api/v1/patients/create` - Create patient
 - `GET /api/v1/patients/{id}` - Get patient details
 - `PUT /api/v1/patients/{id}` - Update patient
 - `GET /api/v1/patients/search` - Search patients
+- `POST /api/v1/patients/v2/demographics` - Create patient demographics (Stage 1)
+- `PUT /api/v1/patients/v2/{id}/clinical-info` - Complete clinical info (Stage 2)
 
 ### Sessions
 - `POST /api/v1/sessions/start` - Start consultation
@@ -150,6 +186,9 @@ The system uses encrypted PostgreSQL with the following main entities:
 - `POST /api/v1/reports/generate` - Generate AI report
 - `GET /api/v1/reports/{id}` - Get report
 - `GET /api/v1/reports/templates` - List templates
+
+### Medications
+- `GET /api/v1/medications/search` - Search medications by name
 
 ## 🧪 Testing
 
@@ -229,12 +268,30 @@ kubectl apply -f .
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## 📚 Documentation
+
+### Feature Documentation
+- [Dashboard API Documentation](backend/docs/DASHBOARD_API.md) - Dashboard endpoint details
+- [Dashboard Components](frontend/docs/DASHBOARD_COMPONENTS.md) - Component architecture
+- [Dashboard User Guide](frontend/docs/DASHBOARD_USER_GUIDE.md) - End-user documentation
+
+### Specifications
+- [Dashboard Requirements](/.kiro/specs/dashboard-redesign/requirements.md) - Feature requirements
+- [Dashboard Design](/.kiro/specs/dashboard-redesign/design.md) - Technical design
+- [Dashboard Tasks](/.kiro/specs/dashboard-redesign/tasks.md) - Implementation plan
+
+### General Documentation
+- [Database Migrations](docs/MIGRATIONS.md) - Migration guide
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues
+- [Rollback Procedures](docs/ROLLBACK.md) - Deployment rollback
+
 ## 🆘 Support
 
 For support and questions:
 - Create an issue in the repository
 - Check the documentation in `/docs`
 - Review the API documentation at `/api/v1/docs`
+- Read the [Dashboard User Guide](frontend/docs/DASHBOARD_USER_GUIDE.md)
 
 ## ⚡ Quick Commands
 

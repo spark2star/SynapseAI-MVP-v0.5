@@ -2,109 +2,150 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import toast from 'react-hot-toast';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import Card from '@/components/ui/Card';
+import apiClient from '@/services/api';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+// Validation schema
+const profileCompletionSchema = z.object({
+    qualifications: z.string()
+        .min(1, 'Qualifications are required')
+        .max(255, 'Qualifications must be less than 255 characters'),
+    clinic_name: z.string()
+        .min(1, 'Clinic name is required')
+        .max(255, 'Clinic name must be less than 255 characters'),
+    clinic_address: z.string()
+        .min(1, 'Clinic address is required')
+        .max(1000, 'Clinic address must be less than 1000 characters'),
+    phone: z.string()
+        .min(1, 'Phone number is required')
+        .regex(/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number (e.g., +919876543210)'),
+    logo: z.any().optional(),
+    digital_signature: z.any()
+        .refine((files) => files?.length > 0, 'Digital signature is required')
+        .refine(
+            (files) => files?.[0]?.size <= 5 * 1024 * 1024,
+            'Signature file must be less than 5MB'
+        )
+        .refine(
+            (files) => ['image/jpeg', 'image/jpg', 'image/png'].includes(files?.[0]?.type),
+            'Only JPG, JPEG, and PNG formats are allowed'
+        ),
+});
 
-const SPECIALIZATIONS = [
-    'General Medicine',
-    'Cardiology',
-    'Dermatology',
-    'Endocrinology',
-    'Gastroenterology',
-    'Neurology',
-    'Oncology',
-    'Orthopedics',
-    'Pediatrics',
-    'Psychiatry',
-    'Radiology',
-    'Surgery',
-    'Urology',
-    'Other'
-];
+type ProfileCompletionForm = z.infer<typeof profileCompletionSchema>;
+
+interface UserInfo {
+    full_name: string;
+    medical_registration_number?: string;
+}
 
 export default function CompleteProfilePage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [formData, setFormData] = useState({
-        clinic_name: '',
-        clinic_address: '',
-        specializations: [] as string[],
-        years_of_experience: '',
-        phone_number: '',
-        alternate_email: ''
+    const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+        watch,
+    } = useForm<ProfileCompletionForm>({
+        resolver: zodResolver(profileCompletionSchema),
     });
 
-    // Check if user is authenticated and has correct status
+    const logoFiles = watch('logo');
+    const signatureFiles = watch('digital_signature');
+
+    // Check authentication and fetch user info
     useEffect(() => {
         const token = localStorage.getItem('access_token');
         if (!token) {
             router.push('/auth/login');
+            return;
+        }
+
+        // Decode JWT to get user info
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setUserInfo({
+                full_name: payload.full_name || 'Doctor',
+                medical_registration_number: payload.medical_registration_number,
+            });
+        } catch (error) {
+            console.error('Failed to decode token:', error);
         }
     }, [router]);
 
-    const handleSpecializationToggle = (spec: string) => {
-        setFormData(prev => ({
-            ...prev,
-            specializations: prev.specializations.includes(spec)
-                ? prev.specializations.filter(s => s !== spec)
-                : [...prev.specializations, spec]
-        }));
-    };
+    // Handle logo preview
+    useEffect(() => {
+        if (logoFiles && logoFiles.length > 0) {
+            const file = logoFiles[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setLogoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setLogoPreview(null);
+        }
+    }, [logoFiles]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError(null);
+    // Handle signature preview
+    useEffect(() => {
+        if (signatureFiles && signatureFiles.length > 0) {
+            const file = signatureFiles[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setSignaturePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setSignaturePreview(null);
+        }
+    }, [signatureFiles]);
 
-        // Validation
-        if (!formData.clinic_name.trim()) {
-            setError('Clinic name is required');
-            return;
-        }
-        if (!formData.clinic_address.trim()) {
-            setError('Clinic address is required');
-            return;
-        }
-        if (formData.specializations.length === 0) {
-            setError('Please select at least one specialization');
-            return;
-        }
-        if (!formData.years_of_experience || parseInt(formData.years_of_experience) < 0) {
-            setError('Please enter valid years of experience');
-            return;
-        }
-        if (!formData.phone_number.trim()) {
-            setError('Phone number is required');
-            return;
-        }
+    const onSubmit = async (data: ProfileCompletionForm) => {
+        setLoading(true);
 
         try {
-            setLoading(true);
-            const token = localStorage.getItem('access_token');
+            // Build multipart form data
+            const formData = new FormData();
+            formData.append('qualifications', data.qualifications);
+            formData.append('clinic_name', data.clinic_name);
+            formData.append('clinic_address', data.clinic_address);
+            formData.append('phone', data.phone);
 
-            const response = await axios.put(
-                `${API_URL}/doctor/profile`,
-                {
-                    clinic_name: formData.clinic_name,
-                    clinic_address: formData.clinic_address,
-                    specializations: formData.specializations,
-                    years_of_experience: parseInt(formData.years_of_experience),
-                    phone_number: formData.phone_number,
-                    alternate_email: formData.alternate_email || null
-                },
-                {
-                    headers: { Authorization: `Bearer ${token}` }
-                }
-            );
-
-            if (response.data.status === 'success') {
-                // Profile completed successfully
-                router.push('/dashboard');
+            // Add logo if provided
+            if (data.logo && data.logo.length > 0) {
+                formData.append('logo', data.logo[0]);
             }
-        } catch (err: any) {
-            console.error('Profile completion error:', err);
-            setError(err.response?.data?.error?.message || 'Failed to complete profile. Please try again.');
+
+            // Add digital signature
+            if (data.digital_signature && data.digital_signature.length > 0) {
+                formData.append('digital_signature', data.digital_signature[0]);
+            }
+
+            // Submit to API using the API client
+            const result = await apiClient.completeProfile(formData);
+
+            // Show success message
+            toast.success(result.message || 'Profile completed successfully!');
+
+            // Redirect to dashboard after a short delay
+            setTimeout(() => {
+                router.push('/dashboard');
+            }, 1000);
+        } catch (error: any) {
+            console.error('Profile completion error:', error);
+            toast.error(error.message || 'Failed to complete profile. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -115,186 +156,219 @@ export default function CompleteProfilePage() {
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="mb-8 text-center">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#50B9E8] to-[#0A4D8B] rounded-full flex items-center justify-center mx-auto mb-4">
                         <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                     </div>
-                    <h1 className="text-4xl font-bold text-gray-800 mb-2">Complete Your Profile</h1>
+                    <h1 className="text-4xl font-bold text-gray-800 mb-2">
+                        Complete Your Profile
+                    </h1>
                     <p className="text-gray-600 text-lg">
-                        Welcome! Please provide additional information to complete your registration.
+                        Welcome{userInfo?.full_name ? `, Dr. ${userInfo.full_name}` : ''}! Please provide your professional details to get started.
                     </p>
                 </div>
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
-                        <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                        <div>
-                            <span>{error}</span>
-                            <button onClick={() => setError(null)} className="ml-4 text-red-900 hover:text-red-700 font-medium">
-                                Dismiss
-                            </button>
-                        </div>
-                    </div>
-                )}
-
                 {/* Form */}
-                <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
-                    {/* Clinic Information */}
-                    <div className="border-b border-gray-200 pb-6">
-                        <h2 className="text-xl font-semibold text-gray-800 mb-4">Clinic Information</h2>
+                <form onSubmit={handleSubmit(onSubmit)}>
+                    <Card className="space-y-6">
+                        {/* Practice Details Section */}
+                        <div className="border-b border-gray-200 pb-6">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                <svg className="w-6 h-6 text-[#50B9E8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                                Practice Details
+                            </h2>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Clinic Name <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.clinic_name}
-                                    onChange={(e) => setFormData({ ...formData, clinic_name: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                                    placeholder="e.g., City Medical Center"
-                                    maxLength={255}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Clinic Address <span className="text-red-500">*</span>
-                                </label>
-                                <textarea
-                                    value={formData.clinic_address}
-                                    onChange={(e) => setFormData({ ...formData, clinic_address: e.target.value })}
-                                    rows={3}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                                    placeholder="Full clinic address including city, state, and PIN code"
-                                    maxLength={500}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Professional Information */}
-                    <div className="border-b border-gray-200 pb-6">
-                        <h2 className="text-xl font-semibold text-gray-800 mb-4">Professional Information</h2>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-3">
-                                    Specializations <span className="text-red-500">*</span>
-                                </label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    {SPECIALIZATIONS.map((spec) => (
-                                        <button
-                                            key={spec}
-                                            type="button"
-                                            onClick={() => handleSpecializationToggle(spec)}
-                                            className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${formData.specializations.includes(spec)
-                                                    ? 'bg-blue-600 text-white border-blue-600'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
-                                                }`}
-                                        >
-                                            {spec}
-                                        </button>
-                                    ))}
+                            <div className="space-y-4">
+                                {/* Clinic Logo Upload */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Clinic Logo (Optional)
+                                    </label>
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex-1">
+                                            <input
+                                                type="file"
+                                                accept="image/jpeg,image/jpg,image/png"
+                                                {...register('logo')}
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#50B9E8] focus:border-[#50B9E8] transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#50B9E8] file:text-white hover:file:bg-[#0A4D8B]"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                JPG, JPEG, or PNG. Max 5MB.
+                                            </p>
+                                        </div>
+                                        {logoPreview && (
+                                            <div className="w-24 h-24 border-2 border-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+                                                <img
+                                                    src={logoPreview}
+                                                    alt="Logo preview"
+                                                    className="w-full h-full object-contain"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-2">
-                                    Selected: {formData.specializations.length > 0 ? formData.specializations.join(', ') : 'None'}
-                                </p>
-                            </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Years of Experience <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    value={formData.years_of_experience}
-                                    onChange={(e) => setFormData({ ...formData, years_of_experience: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                                    placeholder="e.g., 5"
-                                    min="0"
-                                    max="70"
+                                {/* Clinic Name */}
+                                <Input
+                                    label="Clinic Name"
+                                    placeholder="e.g., City Medical Center"
+                                    {...register('clinic_name')}
+                                    error={errors.clinic_name?.message}
+                                    required
                                 />
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Contact Information */}
-                    <div className="pb-6">
-                        <h2 className="text-xl font-semibold text-gray-800 mb-4">Contact Information</h2>
+                                {/* Clinic Address */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Clinic Address <span className="text-red-600">*</span>
+                                    </label>
+                                    <textarea
+                                        {...register('clinic_address')}
+                                        rows={3}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#50B9E8] focus:border-[#50B9E8] transition"
+                                        placeholder="Full clinic address including city, state, and PIN code"
+                                    />
+                                    {errors.clinic_address && (
+                                        <p className="text-sm text-red-600 mt-1">{errors.clinic_address.message}</p>
+                                    )}
+                                </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Phone Number <span className="text-red-500">*</span>
-                                </label>
-                                <input
+                                {/* Phone */}
+                                <Input
+                                    label="Phone Number"
                                     type="tel"
-                                    value={formData.phone_number}
-                                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                                    placeholder="e.g., +91 9876543210"
-                                    maxLength={20}
+                                    placeholder="e.g., +919876543210"
+                                    {...register('phone')}
+                                    error={errors.phone?.message}
+                                    helperText="Include country code (e.g., +91 for India)"
+                                    required
                                 />
                             </div>
+                        </div>
+
+                        {/* Professional Details Section */}
+                        <div className="border-b border-gray-200 pb-6">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                <svg className="w-6 h-6 text-[#50B9E8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Professional Details
+                            </h2>
+
+                            <div className="space-y-4">
+                                {/* Qualifications */}
+                                <Input
+                                    label="Qualifications"
+                                    placeholder="e.g., MBBS, MD (Psychiatry), DPM"
+                                    {...register('qualifications')}
+                                    error={errors.qualifications?.message}
+                                    helperText="Your medical degrees and certifications"
+                                    required
+                                />
+
+                                {/* Read-only fields */}
+                                {userInfo && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Full Name
+                                            </label>
+                                            <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                                                {userInfo.full_name}
+                                            </div>
+                                        </div>
+                                        {userInfo.medical_registration_number && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Medical Registration Number
+                                                </label>
+                                                <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                                                    {userInfo.medical_registration_number}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Digital Signature Section */}
+                        <div className="pb-6">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                <svg className="w-6 h-6 text-[#50B9E8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                                Digital Signature
+                            </h2>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Alternate Email (Optional)
+                                    Upload Your Signature <span className="text-red-600">*</span>
                                 </label>
-                                <input
-                                    type="email"
-                                    value={formData.alternate_email}
-                                    onChange={(e) => setFormData({ ...formData, alternate_email: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                                    placeholder="alternate@example.com"
-                                    maxLength={255}
-                                />
+                                <div className="flex items-start gap-4">
+                                    <div className="flex-1">
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/jpg,image/png"
+                                            {...register('digital_signature')}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#50B9E8] focus:border-[#50B9E8] transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#50B9E8] file:text-white hover:file:bg-[#0A4D8B]"
+                                        />
+                                        {errors.digital_signature && (
+                                            <p className="text-sm text-red-600 mt-1">
+                                                {errors.digital_signature.message as string}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            JPG, JPEG, or PNG. Max 5MB. This will be used on your reports.
+                                        </p>
+                                    </div>
+                                    {signaturePreview && (
+                                        <div className="w-48 h-24 border-2 border-gray-200 rounded-lg overflow-hidden flex-shrink-0 bg-white">
+                                            <img
+                                                src={signaturePreview}
+                                                alt="Signature preview"
+                                                className="w-full h-full object-contain"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Submit Button */}
-                    <div className="pt-4">
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-                        >
-                            {loading ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                    </svg>
-                                    Saving Profile...
-                                </span>
-                            ) : (
-                                'Complete Profile & Continue'
-                            )}
-                        </button>
-                    </div>
+                        {/* Submit Button */}
+                        <div className="pt-4">
+                            <Button
+                                type="submit"
+                                variant="primary"
+                                size="lg"
+                                isLoading={loading}
+                                className="w-full"
+                            >
+                                {loading ? 'Saving Profile...' : 'Save and Continue'}
+                            </Button>
+                        </div>
 
-                    {/* Info Box */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex gap-3">
-                            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                            </svg>
-                            <div className="text-sm text-blue-800">
-                                <p className="font-medium mb-1">Why do we need this information?</p>
-                                <p>This information helps us personalize your experience and is displayed on your profile and reports. You can update it anytime from your profile settings.</p>
+                        {/* Info Box */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex gap-3">
+                                <svg className="w-5 h-5 text-[#50B9E8] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                <div className="text-sm text-blue-800">
+                                    <p className="font-medium mb-1">Why do we need this information?</p>
+                                    <p>
+                                        This information will be displayed on all your clinical reports and prescriptions.
+                                        Your digital signature ensures document authenticity and legal compliance.
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </Card>
                 </form>
             </div>
         </div>
     );
 }
-

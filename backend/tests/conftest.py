@@ -19,8 +19,8 @@ os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32"
 os.environ["ENCRYPTION_KEY"] = "test-encryption-key-32-bytes-long!"
 os.environ["FIELD_ENCRYPTION_KEY"] = "test-field-encryption-key-32-long!"
 
-# Patch JSONB to use JSON for SQLite BEFORE importing models
-from sqlalchemy import JSON, TypeDecorator
+# Patch JSONB and ARRAY to use JSON for SQLite BEFORE importing models
+from sqlalchemy import JSON, TypeDecorator, String
 from sqlalchemy.dialects import postgresql
 import sys
 
@@ -35,8 +35,19 @@ class JSONBCompat(TypeDecorator):
         kwargs.pop('astext_type', None)
         super().__init__()
 
-# Replace JSONB with JSON-compatible version
+# Create an ARRAY replacement that works with SQLite (stores as JSON)
+class ARRAYCompat(TypeDecorator):
+    """ARRAY compatibility layer for SQLite - stores as JSON"""
+    impl = JSON
+    cache_ok = True
+    
+    def __init__(self, *args, **kwargs):
+        # Ignore PostgreSQL-specific arguments
+        super().__init__()
+
+# Replace JSONB and ARRAY with JSON-compatible versions
 postgresql.JSONB = JSONBCompat
+postgresql.ARRAY = ARRAYCompat
 
 from app.main import app
 from app.core.database import Base, get_db
@@ -97,7 +108,7 @@ def test_user(db: Session) -> dict:
     """
     Create a test user and return user data.
     """
-    from app.models.user import User
+    from app.models.user import User, UserProfile
     from app.core.encryption import HashingUtility
     import uuid
     
@@ -105,13 +116,22 @@ def test_user(db: Session) -> dict:
     user = User(
         id=user_id,
         email="test@example.com",
+        email_hash=User.hash_email("test@example.com"),
         password_hash=HashingUtility.hash_password("testpass123"),
         role="doctor",
         is_active=True,
+        is_verified=True
+    )
+    db.add(user)
+    
+    # Create user profile
+    user_profile = UserProfile(
+        user_id=user_id,
         first_name="Test",
         last_name="Doctor"
     )
-    db.add(user)
+    db.add(user_profile)
+    
     db.commit()
     db.refresh(user)
     

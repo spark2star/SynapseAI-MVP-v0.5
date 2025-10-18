@@ -5,6 +5,7 @@ Report schemas with automatic camelCase conversion.
 from app.schemas.base import CamelCaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from pydantic import Field
 
 
 class ReportResponse(CamelCaseModel):
@@ -184,3 +185,17 @@ class TemplateSummaryResponse(CamelCaseModel):
     template_type: str
     is_active: bool
     created_at: datetime
+
+
+class SignReportRequest(CamelCaseModel):
+    """Request to sign a report with password verification"""
+    password: str = Field(..., min_length=8, description="Doctor's password for authentication")
+
+
+class SignReportResponse(CamelCaseModel):
+    """Response after successfully signing a report"""
+    report_id: str
+    status: str
+    signed_at: datetime
+    signed_by: str
+    signature_hash: str

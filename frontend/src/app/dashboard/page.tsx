@@ -6,34 +6,38 @@ import { useAuthStore } from '@/store/authStore'
 import { apiService } from '@/services/api'
 import {
     UserGroupIcon,
-    CalendarIcon,
-    DocumentTextIcon,
-    CurrencyDollarIcon,
-    PlusIcon,
-    UserIcon,
-    ClockIcon,
-    ArrowUpIcon,
-    ArrowDownIcon,
-    ChartBarIcon,
     HeartIcon,
+    DocumentTextIcon,
     ArrowPathIcon
 } from '@heroicons/react/24/outline'
 import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
 import PatientSelectionModal from '@/components/consultation/PatientSelectionModal'
+import ClinicalIntakeQueue from '@/components/dashboard/ClinicalIntakeQueue'
+import NeedsAttentionCard from '@/components/dashboard/NeedsAttentionCard'
+import PatientSearchBar from '@/components/dashboard/PatientSearchBar'
+import StatCard from '@/components/dashboard/StatCard'
+import WeeklySessionsChart from '@/components/dashboard/WeeklySessionsChart'
 import { toast } from 'react-hot-toast'
 
-interface DashboardStats {
-    totalPatients: number
-    todayAppointments: number
-    patientsGettingBetter: number
-    patientsGettingWorse: number
+// Dashboard data interface matching backend response schema
+interface PendingIntakePatient {
+    id: string
+    full_name: string
+    registered_at: string
 }
 
-interface MonthlyData {
-    month: string
-    livesTouched: number
-    positiveProgress: number
-    needsAttention: number
+interface WeeklySession {
+    day: string
+    count: number
+}
+
+interface DashboardData {
+    pending_intake_patients: PendingIntakePatient[]
+    needs_attention_patients_count: number
+    pending_reports_count: number
+    active_patients_count: number
+    sessions_this_week: WeeklySession[]
 }
 
 interface Patient {
@@ -47,91 +51,86 @@ interface Patient {
     created_at: string
 }
 
+// Loading skeleton component
+function LoadingState() {
+    return (
+        <div className="space-y-8 animate-pulse">
+            {/* Immediate Priorities skeleton */}
+            <section>
+                <div className="h-6 w-48 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="h-64 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+                    <div className="h-64 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+                </div>
+            </section>
+
+            {/* Core Actions skeleton */}
+            <section>
+                <div className="h-6 w-48 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="h-32 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+                    <div className="h-32 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+                    <div className="h-32 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+                </div>
+            </section>
+
+            {/* Practice Insights skeleton */}
+            <section>
+                <div className="h-6 w-48 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="h-64 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+                    <div className="lg:col-span-2 h-64 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+                </div>
+            </section>
+        </div>
+    )
+}
+
+// Error state component
+function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
+    return (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="p-6 bg-red-100 dark:bg-red-900/30 rounded-full mb-6">
+                <svg
+                    className="h-16 w-16 text-red-600 dark:text-red-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                </svg>
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+                Failed to Load Dashboard
+            </h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md">
+                {error}
+            </p>
+            <Button variant="primary" onClick={onRetry}>
+                <ArrowPathIcon className="h-5 w-5 mr-2" />
+                Retry
+            </Button>
+        </div>
+    )
+}
+
 export default function DashboardPage() {
     const router = useRouter()
     const { user, profile } = useAuthStore()
-    // const doctorName = profile?.first_name && profile?.last_name
-    //     ? `${profile.first_name} ${profile.last_name}`
-    //     : user?.email?.split('@')[0] || 'Doctor';
     const doctorName = profile?.first_name && profile?.last_name
         ? `${profile.first_name} ${profile.last_name}`
-        : 'Doctor';
-    const [stats, setStats] = useState<DashboardStats>({
-        totalPatients: 0,
-        todayAppointments: 0,
-        patientsGettingBetter: 0,
-        patientsGettingWorse: 0
-    })
+        : 'Doctor'
 
-    const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
+    // State management
+    const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [showPatientSelection, setShowPatientSelection] = useState(false)
-
-    useEffect(() => {
-        const fetchDashboardData = async () => {
-            try {
-                const response = await apiService.getDashboardOverview();
-                if (response.status === 'success') {
-                    const data = response.data;
-
-                    // Update current stats
-                    setStats({
-                        totalPatients: data.total_patients,
-                        todayAppointments: data.total_consultations,
-                        patientsGettingBetter: data.patient_status.improving,
-                        patientsGettingWorse: data.patient_status.worse
-                    });
-
-                    // Generate 6 months of historical data based on current values
-                    const generateMonthlyData = () => {
-                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-                        const currentTotal = data.total_patients || 0;
-                        const currentImproving = data.patient_status?.improving || 0;
-                        const currentWorse = data.patient_status?.worse || 0;
-
-                        return months.map((month, index) => {
-                            // Simulate growth: start from 60% of current total and grow to 100%
-                            const progress = (index + 1) / months.length;
-                            const livesTouched = Math.max(1, Math.round(currentTotal * (0.6 + (progress * 0.4))));
-
-                            // Distribute improving/worse proportionally
-                            const positiveProgress = currentTotal > 0
-                                ? Math.round(livesTouched * (currentImproving / currentTotal))
-                                : 0;
-                            const needsAttention = currentTotal > 0
-                                ? Math.round(livesTouched * (currentWorse / currentTotal))
-                                : 0;
-
-                            return {
-                                month,
-                                livesTouched,
-                                positiveProgress,
-                                needsAttention
-                            };
-                        });
-                    };
-
-                    setMonthlyData(generateMonthlyData());
-
-                    console.log('✅ Dashboard data loaded successfully');
-                }
-            } catch (error) {
-                console.error('Failed to load dashboard data:', error);
-
-                // Fallback: Set minimal data to avoid crashes
-                setMonthlyData([
-                    { month: 'Jan', livesTouched: 5, positiveProgress: 1, needsAttention: 0 },
-                    { month: 'Feb', livesTouched: 6, positiveProgress: 1, needsAttention: 0 },
-                    { month: 'Mar', livesTouched: 7, positiveProgress: 1, needsAttention: 1 },
-                    { month: 'Apr', livesTouched: 8, positiveProgress: 2, needsAttention: 1 },
-                    { month: 'May', livesTouched: 9, positiveProgress: 2, needsAttention: 1 },
-                    { month: 'Jun', livesTouched: 10, positiveProgress: 2, needsAttention: 1 }
-                ]);
-            }
-        };
-
-        fetchDashboardData();
-    }, []);
-
 
     const currentDate = new Date().toLocaleDateString('en-US', {
         weekday: 'long',
@@ -140,22 +139,54 @@ export default function DashboardPage() {
         day: 'numeric'
     })
 
-    const handlePatientSelect = (patient: Patient) => {
-        // Navigate to patient detail page with follow-up flag
-        router.push(`/dashboard/patients/${patient.id}?followup=true`)
+    // Fetch dashboard data
+    const fetchDashboardData = async () => {
+        try {
+            setIsLoading(true)
+            setError(null)
+            const response = await apiService.getDashboardStats()
+
+            if (response.status === 'success') {
+                setDashboardData(response.data)
+                console.log('✅ Dashboard data loaded successfully')
+            } else {
+                throw new Error('Failed to load dashboard data')
+            }
+        } catch (err: any) {
+            console.error('Failed to load dashboard data:', err)
+            setError(err.message || 'Failed to load dashboard data. Please try again.')
+        } finally {
+            setIsLoading(false)
+        }
     }
 
-    const handleComingSoon = (featureName: string) => {
-        toast(`${featureName} feature is coming soon! 🚀`, {
-            icon: '⏳',
-            duration: 3000,
-            style: {
-                borderRadius: '12px',
-                background: '#f3f4f6',
-                color: '#374151',
-                border: '1px solid #d1d5db'
-            }
-        })
+    useEffect(() => {
+        fetchDashboardData()
+    }, [])
+
+    // Event handlers
+    const handleCompleteProfile = (patientId: string) => {
+        router.push(`/dashboard/patients/${patientId}/clinical-info`)
+    }
+
+    const handleNeedsAttentionClick = () => {
+        router.push('/dashboard/patients?filter=needs_attention')
+    }
+
+    const handlePatientSearch = (query: string) => {
+        router.push(`/dashboard/patients?search=${encodeURIComponent(query)}`)
+    }
+
+    const handleStartUnscheduledSession = () => {
+        setShowPatientSelection(true)
+    }
+
+    const handleReviewPendingReports = () => {
+        router.push('/dashboard/reports?filter=pending_review')
+    }
+
+    const handlePatientSelect = (patient: Patient) => {
+        router.push(`/dashboard/patients/${patient.id}?followup=true`)
     }
 
     return (
@@ -174,7 +205,7 @@ export default function DashboardPage() {
                                         Welcome back, Dr. {doctorName}
                                     </h1>
                                     <p className="text-sky-600 dark:text-sky-300 text-sm lg:text-base">
-                                        Your patient care overview for today
+                                        Your Clinical Command Center
                                     </p>
                                 </div>
                             </div>
@@ -189,349 +220,118 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Patient Care Overview */}
-                <div className="mb-8">
-                    <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-6 flex items-center gap-3">
-                        <div className="w-1 h-6 bg-gradient-to-b from-sky-500 to-blue-600 rounded-full"></div>
-                        Patient Care Overview
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {/* Total Patients */}
-                        <div className="group bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-sky-100/50 dark:border-slate-700/50 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Lives Touched</p>
-                                    <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{stats.totalPatients}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Under your care</p>
-                                </div>
-                                <div className="p-3 bg-gradient-to-br from-sky-100 to-sky-200 dark:from-sky-900/30 dark:to-sky-800/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                                    <UserGroupIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
-                                </div>
-                            </div>
-                        </div>
+                {/* Loading State */}
+                {isLoading && <LoadingState />}
 
-                        {/* Today's Sessions */}
-                        <div className="group bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-sky-100/50 dark:border-slate-700/50 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Today's Sessions</p>
-                                    <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{stats.todayAppointments}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Scheduled appointments</p>
-                                </div>
-                                <div className="p-3 bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                                    <CalendarIcon className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                                </div>
-                            </div>
-                        </div>
+                {/* Error State */}
+                {!isLoading && error && (
+                    <ErrorState error={error} onRetry={fetchDashboardData} />
+                )}
 
-                        {/* Positive Progress */}
-                        <div className="group bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100/50 dark:border-slate-700/50 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Positive Progress</p>
-                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.patientsGettingBetter}</p>
-                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">Improving outcomes</p>
-                                </div>
-                                <div className="p-3 bg-gradient-to-br from-emerald-100 to-green-200 dark:from-emerald-900/30 dark:to-green-800/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                                    <ArrowUpIcon className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                                </div>
+                {/* Dashboard Content */}
+                {!isLoading && !error && dashboardData && (
+                    <div className="space-y-8">
+                        {/* Immediate Priorities Section */}
+                        <section>
+                            <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-6 flex items-center gap-3">
+                                <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-orange-600 rounded-full"></div>
+                                Immediate Priorities
+                            </h2>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <ClinicalIntakeQueue
+                                    patients={dashboardData.pending_intake_patients}
+                                    onCompleteProfile={handleCompleteProfile}
+                                />
+                                <NeedsAttentionCard
+                                    count={dashboardData.needs_attention_patients_count}
+                                    onClick={handleNeedsAttentionClick}
+                                />
                             </div>
-                        </div>
+                        </section>
 
-                        {/* Needs Attention */}
-                        <div className="group bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-amber-100/50 dark:border-slate-700/50 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Needs Attention</p>
-                                    <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{stats.patientsGettingWorse}</p>
-                                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">Requires follow-up</p>
+                        {/* Core Actions Section */}
+                        <section>
+                            <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-6 flex items-center gap-3">
+                                <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-green-600 rounded-full"></div>
+                                Core Actions
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* Patient Search */}
+                                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-sky-100/50 dark:border-slate-700/50 p-6">
+                                    <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-4">
+                                        Find Patient
+                                    </h3>
+                                    <PatientSearchBar onSearch={handlePatientSearch} />
                                 </div>
-                                <div className="p-3 bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/30 dark:to-orange-800/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                                    <ArrowDownIcon className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+
+                                {/* Start Unscheduled Session */}
+                                <div
+                                    onClick={handleStartUnscheduledSession}
+                                    className="group bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-sky-100/50 dark:border-slate-700/50 p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer"
+                                >
+                                    <div className="flex flex-col items-center text-center h-full justify-center">
+                                        <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl mb-3 group-hover:bg-green-200 dark:group-hover:bg-green-800/40 transition-colors duration-300">
+                                            <ArrowPathIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                        </div>
+                                        <h3 className="font-semibold text-lg mb-1 text-slate-800 dark:text-slate-100">
+                                            Start Unscheduled Session
+                                        </h3>
+                                        <p className="text-slate-600 dark:text-slate-400 text-sm">
+                                            Begin consultation
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Review Pending Reports */}
+                                <div
+                                    onClick={handleReviewPendingReports}
+                                    className="group bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-sky-100/50 dark:border-slate-700/50 p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer"
+                                >
+                                    <div className="flex flex-col items-center text-center h-full justify-center relative">
+                                        <div className="p-3 bg-sky-100 dark:bg-sky-900/30 rounded-xl mb-3 group-hover:bg-sky-200 dark:group-hover:bg-sky-800/40 transition-colors duration-300">
+                                            <DocumentTextIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+                                        </div>
+                                        <h3 className="font-semibold text-lg mb-1 text-slate-800 dark:text-slate-100">
+                                            Review Pending Reports
+                                        </h3>
+                                        <p className="text-slate-600 dark:text-slate-400 text-sm">
+                                            Sign and finalize
+                                        </p>
+                                        {dashboardData.pending_reports_count > 0 && (
+                                            <div className="absolute -top-2 -right-2">
+                                                <Badge variant="warning">
+                                                    {dashboardData.pending_reports_count}
+                                                </Badge>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
+
+                        {/* Practice Insights Section */}
+                        <section>
+                            <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-6 flex items-center gap-3">
+                                <div className="w-1 h-6 bg-gradient-to-b from-sky-500 to-blue-600 rounded-full"></div>
+                                Practice Insights
+                            </h2>
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <StatCard
+                                    title="Active Patients"
+                                    value={dashboardData.active_patients_count}
+                                    icon={<UserGroupIcon />}
+                                    variant="info"
+                                />
+                                <div className="lg:col-span-2">
+                                    <WeeklySessionsChart sessions={dashboardData.sessions_this_week} />
+                                </div>
+                            </div>
+                        </section>
                     </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="mb-8">
-                    <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-6 flex items-center gap-3">
-                        <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-green-600 rounded-full"></div>
-                        Quick Actions
-                    </h2>
-                    <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-slate-700/50 p-6 lg:p-8">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-                            <div
-                                onClick={() => router.push('/dashboard/patients/new')}
-                                className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer"
-                            >
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="p-3 bg-sky-50 dark:bg-sky-900/30 rounded-xl mb-4 group-hover:bg-sky-100 dark:group-hover:bg-sky-800/40 transition-colors duration-300">
-                                        <UserIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-1 text-slate-800 dark:text-slate-100">New Patient</h3>
-                                    <p className="text-slate-600 dark:text-slate-400 text-sm">Register and onboard</p>
-                                </div>
-                            </div>
-
-                            <div
-                                onClick={() => setShowPatientSelection(true)}
-                                className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer"
-                            >
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-xl mb-4 group-hover:bg-green-100 dark:group-hover:bg-green-800/40 transition-colors duration-300">
-                                        <ArrowPathIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-1 text-slate-800 dark:text-slate-100">Follow-up Session</h3>
-                                    <p className="text-slate-600 dark:text-slate-400 text-sm">Continue patient care</p>
-                                </div>
-                            </div>
-
-                            <div
-                                onClick={() => handleComingSoon('AI Report Generation')}
-                                className="group bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-sky-200/50 dark:border-slate-600/50 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-slate-800/80 hover:border-sky-300/60 dark:hover:border-slate-500/60 transition-all duration-300 cursor-pointer"
-                            >
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="p-3 bg-sky-50 dark:bg-sky-900/30 rounded-xl mb-4 group-hover:bg-sky-100 dark:group-hover:bg-sky-800/40 transition-colors duration-300">
-                                        <DocumentTextIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-1 text-slate-800 dark:text-slate-100">AI Report</h3>
-                                    <p className="text-slate-600 dark:text-slate-400 text-sm">Generate insights</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Analytics & Insights */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-                    {/* Patient Progress Analytics */}
-                    <div className="lg:col-span-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-slate-700/50 p-6 lg:p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                                <div className="p-2 bg-gradient-to-br from-sky-100 to-blue-200 dark:from-sky-900/30 dark:to-blue-800/30 rounded-xl">
-                                    <ChartBarIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                                </div>
-                                Monthly Progress Overview
-                            </h3>
-                            <div className="text-right">
-                                <p className="text-2xl font-bold text-sky-600 dark:text-sky-400">
-                                    {monthlyData.length > 1 ? `+${monthlyData[monthlyData.length - 1].livesTouched - monthlyData[0].livesTouched}` : '+0'}
-                                </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Lives Growth</p>
-                            </div>
-                        </div>
-
-                        {/* Monthly Progress Line Chart */}
-                        <div className="space-y-6">
-                            <div className="relative h-64 border-b border-slate-200 dark:border-slate-600 pb-4">
-                                <svg className="w-full h-full" viewBox="0 0 400 200">
-                                    {/* Grid lines */}
-                                    <defs>
-                                        <pattern id="grid" width="40" height="20" patternUnits="userSpaceOnUse">
-                                            <path d="M 40 0 L 0 0 0 20" fill="none" stroke="rgb(148 163 184)" strokeWidth="1" opacity="0.8" />
-                                        </pattern>
-
-                                        {/* Gradients for area fills below lines */}
-                                        <linearGradient id="livesTouchedGradient" x1="0" x2="0" y1="0" y2="1">
-                                            <stop offset="0%" stopColor="rgb(14 165 233)" stopOpacity="0.4" />
-                                            <stop offset="40%" stopColor="rgb(14 165 233)" stopOpacity="0.15" />
-                                            <stop offset="100%" stopColor="rgb(14 165 233)" stopOpacity="0.02" />
-                                        </linearGradient>
-                                        <linearGradient id="positiveProgressGradient" x1="0" x2="0" y1="0" y2="1">
-                                            <stop offset="0%" stopColor="rgb(34 197 94)" stopOpacity="0.4" />
-                                            <stop offset="40%" stopColor="rgb(34 197 94)" stopOpacity="0.15" />
-                                            <stop offset="100%" stopColor="rgb(34 197 94)" stopOpacity="0.02" />
-                                        </linearGradient>
-                                        <linearGradient id="needsAttentionGradient" x1="0" x2="0" y1="0" y2="1">
-                                            <stop offset="0%" stopColor="rgb(245 158 11)" stopOpacity="0.4" />
-                                            <stop offset="40%" stopColor="rgb(245 158 11)" stopOpacity="0.15" />
-                                            <stop offset="100%" stopColor="rgb(245 158 11)" stopOpacity="0.02" />
-                                        </linearGradient>
-                                    </defs>
-                                    <rect width="100%" height="100%" fill="url(#grid)" />
-
-                                    {/* Area fills with gradients */}
-                                    {monthlyData.length > 1 && (
-                                        <>
-                                            {/* Lives Touched Area Fill */}
-                                            <path
-                                                d={`M 20,180 ${monthlyData.map((data, index) => {
-                                                    const x = (index / (monthlyData.length - 1)) * 360 + 20
-                                                    const maxValue = Math.max(...monthlyData.map(d => d.livesTouched))
-                                                    const y = 180 - ((data.livesTouched / maxValue) * 160)
-                                                    return `L ${x},${y}`
-                                                }).join(' ')} L 380,180 Z`}
-                                                fill="url(#livesTouchedGradient)"
-                                            />
-
-                                            {/* Positive Progress Area Fill */}
-                                            <path
-                                                d={`M 20,180 ${monthlyData.map((data, index) => {
-                                                    const x = (index / (monthlyData.length - 1)) * 360 + 20
-                                                    const maxValue = Math.max(...monthlyData.map(d => d.positiveProgress))
-                                                    const y = 180 - ((data.positiveProgress / maxValue) * 120)
-                                                    return `L ${x},${y}`
-                                                }).join(' ')} L 380,180 Z`}
-                                                fill="url(#positiveProgressGradient)"
-                                            />
-
-                                            {/* Needs Attention Area Fill */}
-                                            <path
-                                                d={`M 20,180 ${monthlyData.map((data, index) => {
-                                                    const x = (index / (monthlyData.length - 1)) * 360 + 20
-                                                    const maxValue = Math.max(...monthlyData.map(d => d.needsAttention))
-                                                    const y = 180 - ((data.needsAttention / maxValue) * 80)
-                                                    return `L ${x},${y}`
-                                                }).join(' ')} L 380,180 Z`}
-                                                fill="url(#needsAttentionGradient)"
-                                            />
-
-                                            {/* Lines on top of gradients */}
-                                            {/* Lives Touched Line */}
-                                            <path
-                                                d={`M ${monthlyData.map((data, index) => {
-                                                    const x = (index / (monthlyData.length - 1)) * 360 + 20
-                                                    const maxValue = Math.max(...monthlyData.map(d => d.livesTouched))
-                                                    const y = 180 - ((data.livesTouched / maxValue) * 160)
-                                                    return `${x},${y}`
-                                                }).join(' L ')}`}
-                                                fill="none"
-                                                stroke="rgb(14 165 233)"
-                                                strokeWidth="3"
-                                                className="drop-shadow-sm"
-                                            />
-
-                                            {/* Positive Progress Line */}
-                                            <path
-                                                d={`M ${monthlyData.map((data, index) => {
-                                                    const x = (index / (monthlyData.length - 1)) * 360 + 20
-                                                    const maxValue = Math.max(...monthlyData.map(d => d.positiveProgress))
-                                                    const y = 180 - ((data.positiveProgress / maxValue) * 120)
-                                                    return `${x},${y}`
-                                                }).join(' L ')}`}
-                                                fill="none"
-                                                stroke="rgb(34 197 94)"
-                                                strokeWidth="3"
-                                                className="drop-shadow-sm"
-                                            />
-
-                                            {/* Needs Attention Line */}
-                                            <path
-                                                d={`M ${monthlyData.map((data, index) => {
-                                                    const x = (index / (monthlyData.length - 1)) * 360 + 20
-                                                    const maxValue = Math.max(...monthlyData.map(d => d.needsAttention))
-                                                    const y = 180 - ((data.needsAttention / maxValue) * 80)
-                                                    return `${x},${y}`
-                                                }).join(' L ')}`}
-                                                fill="none"
-                                                stroke="rgb(245 158 11)"
-                                                strokeWidth="3"
-                                                className="drop-shadow-sm"
-                                            />
-                                        </>
-                                    )}
-
-                                    {/* Data Points */}
-                                    {monthlyData.map((data, index) => {
-                                        const x = (index / (monthlyData.length - 1)) * 360 + 20
-                                        const maxValue = Math.max(...monthlyData.map(d => d.livesTouched))
-                                        const y = 180 - ((data.livesTouched / maxValue) * 160)
-
-                                        return (
-                                            <g key={data.month}>
-                                                <circle cx={x} cy={y} r="6" fill="rgb(14 165 233)" className="drop-shadow-sm" />
-                                                <circle cx={x} cy={y} r="3" fill="white" />
-                                                <text x={x} y="195" textAnchor="middle" className="text-xs fill-slate-600 dark:fill-slate-400 font-medium">
-                                                    {data.month}
-                                                </text>
-                                                <text x={x} y={y - 10} textAnchor="middle" className="text-xs fill-slate-800 dark:fill-slate-200 font-bold">
-                                                    {data.livesTouched}
-                                                </text>
-                                            </g>
-                                        )
-                                    })}
-                                </svg>
-                            </div>
-
-                            {/* Legend */}
-                            <div className="flex items-center justify-center gap-8">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-0.5 bg-sky-500 rounded-full shadow-sm"></div>
-                                    <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">Lives Touched</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-0.5 bg-emerald-500 rounded-full shadow-sm"></div>
-                                    <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">Positive Progress</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-0.5 bg-amber-500 rounded-full shadow-sm"></div>
-                                    <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">Needs Attention</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Care Summary */}
-                    <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-slate-700/50 p-6 lg:p-8">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-8 flex items-center gap-3">
-                            <div className="p-2 bg-gradient-to-br from-sky-100 to-blue-200 dark:from-sky-900/30 dark:to-blue-800/30 rounded-xl">
-                                <HeartIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                            </div>
-                            Care Impact
-                        </h3>
-
-                        <div className="space-y-6">
-                            {/* Total Patients Highlight */}
-                            <div className="bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
-                                <div className="text-center">
-                                    <p className="text-4xl lg:text-5xl font-bold mb-2">{stats.totalPatients}</p>
-                                    <p className="text-sky-100 font-semibold">Lives Touched</p>
-                                </div>
-                            </div>
-
-                            {/* Key Metrics */}
-                            <div className="space-y-4">
-                                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-100/50 dark:border-emerald-800/50">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-600 dark:text-slate-400 text-sm font-medium">Recovery Rate</span>
-                                        <span className="text-emerald-600 dark:text-emerald-400 text-lg font-bold">
-                                            {Math.round((stats.patientsGettingBetter / stats.totalPatients) * 100)}%
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-sky-50 dark:bg-sky-900/20 rounded-xl p-4 border border-sky-100/50 dark:border-sky-800/50">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-600 dark:text-slate-400 text-sm font-medium">Today's Sessions</span>
-                                        <span className="text-sky-600 dark:text-sky-400 text-lg font-bold">{stats.todayAppointments}</span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 border border-purple-100/50 dark:border-purple-800/50">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-600 dark:text-slate-400 text-sm font-medium">Active Cases</span>
-                                        <span className="text-purple-600 dark:text-purple-400 text-lg font-bold">{stats.totalPatients - stats.patientsGettingWorse}</span>
-                                    </div>
-                                </div>
-
-                                {/* Monthly Growth */}
-                                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-indigo-100/50 dark:border-indigo-800/50">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-600 dark:text-slate-400 text-sm font-medium">Monthly Growth</span>
-                                        <span className="text-indigo-600 dark:text-indigo-400 text-lg font-bold">
-                                            +{monthlyData.length > 1 ? monthlyData[monthlyData.length - 1].livesTouched - monthlyData[monthlyData.length - 2].livesTouched : 0}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                )}
             </div>
 
-            {/* Patient Selection Modal for Follow-up */}
+            {/* Patient Selection Modal for Unscheduled Session */}
             <PatientSelectionModal
                 isOpen={showPatientSelection}
                 onClose={() => setShowPatientSelection(false)}
@@ -540,4 +340,3 @@ export default function DashboardPage() {
         </div>
     )
 }
-

@@ -1,11 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { XMarkIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
 import type { MedicationItem } from '@/types/report'
+import type { MedicationSuggestion } from '@/types'
 import apiService from '@/services/api'
 import PatientProgressSelector, { ProgressData } from '@/components/session/PatientProgressSelector'
 import { toast } from 'react-hot-toast'
+import { useDebounce } from 'use-debounce'
 
 interface SessionSummaryModalProps {
     isOpen: boolean
@@ -39,6 +41,54 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     const [progressMessage, setProgressMessage] = useState<string>('')
     const [error, setError] = useState<string | null>(null)
 
+    // Autocomplete state management
+    const [medicationQuery, setMedicationQuery] = useState('')
+    const [medicationSuggestions, setMedicationSuggestions] = useState<MedicationSuggestion[]>([])
+    const [showSuggestions, setShowSuggestions] = useState(false)
+    const [activeMedicationIndex, setActiveMedicationIndex] = useState<number | null>(null)
+
+    // Debounced query with 300ms delay
+    const [debouncedQuery] = useDebounce(medicationQuery, 300)
+
+    // Medication search effect
+    useEffect(() => {
+        const searchMedications = async () => {
+            if (debouncedQuery.length < 2) {
+                setMedicationSuggestions([])
+                setShowSuggestions(false)
+                return
+            }
+
+            const results = await apiService.searchMedications(debouncedQuery)
+
+            // Flatten medications with their dosages into MedicationSuggestion array
+            const suggestions: MedicationSuggestion[] = []
+            results.forEach(med => {
+                if (med.commonDosages && med.commonDosages.length > 0) {
+                    med.commonDosages.forEach(dosage => {
+                        suggestions.push({
+                            medication: med,
+                            dosage: dosage,
+                            displayText: `${med.name} ${dosage}`
+                        })
+                    })
+                } else {
+                    // No dosages available, show medication name only
+                    suggestions.push({
+                        medication: med,
+                        dosage: '',
+                        displayText: med.name
+                    })
+                }
+            })
+
+            setMedicationSuggestions(suggestions)
+            setShowSuggestions(suggestions.length > 0)
+        }
+
+        searchMedications()
+    }, [debouncedQuery])
+
     if (!isOpen) return null
 
     const handleAddMedication = () => {
@@ -55,6 +105,22 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         const updated = [...medicationPlan]
         updated[index] = { ...updated[index], [field]: value }
         setMedicationPlan(updated)
+    }
+
+    const handleSuggestionClick = (suggestion: MedicationSuggestion, index: number) => {
+        // Populate the active medication fields
+        const updated = [...medicationPlan]
+        updated[index] = {
+            ...updated[index],
+            drug_name: suggestion.medication.name,
+            dosage: suggestion.dosage
+        }
+        setMedicationPlan(updated)
+
+        // Clear autocomplete state and hide dropdown
+        setMedicationQuery('')
+        setShowSuggestions(false)
+        setMedicationSuggestions([])
     }
 
     const pollReportStatus = async (reportId: number, timeoutMs = 120000, intervalMs = 1500): Promise<'completed' | 'failed' | 'timeout'> => {
@@ -208,17 +274,49 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div>
+                                        <div className="relative">
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                 Drug Name <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 type="text"
-                                                value={med.drug_name}
-                                                onChange={(e) => handleMedicationChange(index, 'drug_name', e.target.value)}
+                                                value={activeMedicationIndex === index ? medicationQuery : med.drug_name}
+                                                onChange={(e) => {
+                                                    setActiveMedicationIndex(index)
+                                                    setMedicationQuery(e.target.value)
+                                                    handleMedicationChange(index, 'drug_name', e.target.value)
+                                                }}
+                                                onFocus={() => setActiveMedicationIndex(index)}
+                                                onBlur={() => {
+                                                    // Delay to allow click on suggestion
+                                                    setTimeout(() => setShowSuggestions(false), 200)
+                                                }}
                                                 placeholder="e.g., Sertraline"
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-white"
                                             />
+
+                                            {/* Autocomplete Dropdown */}
+                                            {showSuggestions && activeMedicationIndex === index && medicationSuggestions.length > 0 && (
+                                                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                                    {medicationSuggestions.map((suggestion, idx) => (
+                                                        <button
+                                                            key={`${suggestion.medication.id}-${suggestion.dosage}`}
+                                                            type="button"
+                                                            onClick={() => handleSuggestionClick(suggestion, index)}
+                                                            className="w-full text-left px-4 py-2 hover:bg-blue-50 dark:hover:bg-neutral-700 transition-colors border-b border-gray-100 dark:border-neutral-700 last:border-b-0"
+                                                        >
+                                                            <div className="font-medium text-gray-900 dark:text-white">
+                                                                {suggestion.displayText}
+                                                            </div>
+                                                            {suggestion.medication.genericName && (
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                    {suggestion.medication.genericName}
+                                                                </div>
+                                                            )}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div>

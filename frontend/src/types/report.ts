@@ -29,6 +29,9 @@ export interface ReportData {
     created_at: string
     transcription_length: number
     generated_content?: string
+    signed_at?: string | null
+    signed_by?: string | null
+    signature_hash?: string | null
 }
 
 export interface ReportResponse {

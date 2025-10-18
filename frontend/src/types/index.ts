@@ -23,6 +23,7 @@ export interface User {
     is_verified: boolean
     is_active: boolean
     password_reset_required?: boolean
+    profile_completed?: boolean
     created_at: string
     updated_at: string
 }
@@ -142,6 +143,21 @@ export interface PatientCreate {
     tags?: string
 }
 
+export interface Medication {
+    id: string
+    name: string
+    genericName: string | null
+    commonDosages: string[]
+    createdAt: string
+    updatedAt: string
+}
+
+export interface MedicationSuggestion {
+    medication: Medication
+    dosage: string
+    displayText: string
+}
+
 export interface LoginCredentials {
     email: string
     password: string
@@ -251,4 +267,29 @@ export interface Environment {
     API_URL: string
     APP_ENV: 'development' | 'staging' | 'production'
     APP_VERSION: string
+}
+
+// Dashboard types
+export interface PendingIntakePatient {
+    id: string
+    full_name: string
+    registered_at: string
+}
+
+export interface WeeklySession {
+    day: string  // "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+    count: number
+}
+
+export interface DashboardData {
+    pending_intake_patients: PendingIntakePatient[]
+    needs_attention_patients_count: number
+    pending_reports_count: number
+    active_patients_count: number
+    sessions_this_week: WeeklySession[]
+}
+
+export interface DashboardStatsResponse {
+    status: 'success'
+    data: DashboardData
 }

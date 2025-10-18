@@ -256,6 +256,31 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* Staff Management (Doctors Only) */}
+                {user?.role === 'doctor' && (
+                    <div className="medical-card">
+                        <div className="p-6">
+                            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Clinic Staff</h2>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                                    <div>
+                                        <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Staff Management</h3>
+                                        <p className="text-sm text-neutral-600 dark:text-neutral-400">Invite and manage receptionist team</p>
+                                    </div>
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={() => window.location.href = '/dashboard/settings/staff'}
+                                    >
+                                        Manage Staff
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Additional Security Settings */}
                 <div className="medical-card">
                     <div className="p-6">
