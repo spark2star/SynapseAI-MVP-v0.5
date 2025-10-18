@@ -97,7 +97,7 @@ app.add_middleware(
 if settings.ENVIRONMENT == "production":
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_ORIGINS
+        allowed_hosts=settings.ALLOWED_HOSTS
     )
 
 

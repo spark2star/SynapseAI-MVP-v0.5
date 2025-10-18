@@ -88,6 +88,17 @@ class Settings(BaseSettings):
     ALLOWED_METHODS: list[str] = ["*"]  # Or ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     ALLOWED_HEADERS: list[str] = ["*"]  # Or ["Content-Type", "Authorization", "Accept"]
 
+    # For TrustedHostMiddleware - hostnames only, no protocol
+    ALLOWED_HOSTS: List[str] = [
+    "localhost",
+    "127.0.0.1",
+    "synapseai.health",
+    "synapseai-mvp-v05-production.up.railway.app",
+    "handsome-forgiveness-production.up.railway.app",
+]
+
+
+
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
     RATE_LIMIT_PER_HOUR: int = 1000
