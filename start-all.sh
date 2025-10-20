@@ -173,7 +173,7 @@ start_backend() {
     
     # Install dependencies
     log "📦 Installing Python dependencies..."
-    pip install -q -r requirements.txt
+    pip install -r requirements.txt
     
     # Create .env file if it doesn't exist
     if [[ ! -f ".env" ]]; then
@@ -308,7 +308,7 @@ start_frontend() {
     
     # Install dependencies
     log "📦 Installing Node.js dependencies..."
-    npm install > /dev/null 2>&1 || warning "npm install had warnings"
+    npm install || warning "npm install had warnings"
     
     # Start frontend server
     log "🌐 Starting Next.js frontend on port 3000..."
