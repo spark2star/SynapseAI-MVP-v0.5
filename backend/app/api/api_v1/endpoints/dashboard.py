@@ -173,9 +173,10 @@ def _get_weekly_sessions(db: Session, doctor_id: str) -> List[Dict[str, Any]]:
         List of objects with day and count fields
     """
     try:
-        # Calculate date 7 days ago
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
-        seven_days_ago_str = seven_days_ago.isoformat()
+        from datetime import timezone
+        
+        # Calculate date 7 days ago (timezone-aware)
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
         
         # Get all sessions from last 7 days
         # Note: started_at is stored as ISO string, so we need to parse it
@@ -206,8 +207,13 @@ def _get_weekly_sessions(db: Session, doctor_id: str) -> List[Dict[str, Any]]:
         # Count sessions by day of week
         for session in sessions_query:
             try:
-                # Parse ISO format timestamp
-                session_date = datetime.fromisoformat(session.started_at.replace('Z', '+00:00'))
+                # Parse ISO format timestamp and make it timezone-aware
+                session_date_str = session.started_at.replace('Z', '+00:00')
+                session_date = datetime.fromisoformat(session_date_str)
+                
+                # If session_date is naive, make it UTC-aware
+                if session_date.tzinfo is None:
+                    session_date = session_date.replace(tzinfo=timezone.utc)
                 
                 # Check if within last 7 days
                 if session_date >= seven_days_ago:

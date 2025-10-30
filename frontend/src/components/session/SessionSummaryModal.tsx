@@ -127,8 +127,10 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         const start = Date.now()
         while (Date.now() - start < timeoutMs) {
             try {
-                const statusResp = await apiService.get(`/reports/${reportId}/status`)
-                const s = statusResp?.data?.status || statusResp?.status
+                // ✅ FIX: Call correct endpoint /reports/{reportId} instead of /reports/{reportId}/status
+                const statusResp = await apiService.get(`/reports/${reportId}`)
+                // ✅ FIX: Status is nested in response.data.data.status (ReportDetailResponse structure)
+                const s = statusResp?.data?.data?.status || statusResp?.data?.status || statusResp?.status
                 if (s === 'completed' || s === 'failed') return s
             } catch (_) { }
             await new Promise(r => setTimeout(r, intervalMs))
@@ -280,16 +282,23 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                                             </label>
                                             <input
                                                 type="text"
-                                                value={activeMedicationIndex === index ? medicationQuery : med.drug_name}
+                                                value={activeMedicationIndex === index && medicationQuery ? medicationQuery : med.drug_name}
                                                 onChange={(e) => {
                                                     setActiveMedicationIndex(index)
                                                     setMedicationQuery(e.target.value)
                                                     handleMedicationChange(index, 'drug_name', e.target.value)
                                                 }}
-                                                onFocus={() => setActiveMedicationIndex(index)}
+                                                onFocus={() => {
+                                                    setActiveMedicationIndex(index)
+                                                    // ✅ FIX: Initialize medicationQuery with current value when focusing
+                                                    setMedicationQuery(med.drug_name)
+                                                }}
                                                 onBlur={() => {
                                                     // Delay to allow click on suggestion
-                                                    setTimeout(() => setShowSuggestions(false), 200)
+                                                    setTimeout(() => {
+                                                        setShowSuggestions(false)
+                                                        setActiveMedicationIndex(null)
+                                                    }, 200)
                                                 }}
                                                 placeholder="e.g., Sertraline"
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-white"

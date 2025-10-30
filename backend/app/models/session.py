@@ -141,8 +141,9 @@ class Transcription(BaseModel):
     audio_segment_end = Column(Float, nullable=True)  # End time in seconds
     
     # Transcription content (encrypted)
-    transcript_text = Column(EncryptedType(10000), nullable=False)
-    original_transcript = Column(EncryptedType(10000), nullable=True)  # Before any processing
+    # Increased from 10000 to 50000 to accommodate encryption overhead
+    transcript_text = Column(EncryptedType(50000), nullable=False)
+    original_transcript = Column(EncryptedType(50000), nullable=True)  # Before any processing
     
     # Transcription segments with timing
     transcript_segments = Column(JSONB, nullable=True)  # Detailed segment data

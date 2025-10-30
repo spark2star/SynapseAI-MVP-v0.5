@@ -17,6 +17,7 @@ import { jsPDF } from 'jspdf'
 interface ReportData {
     report?: string  // Legacy
     generated_report?: string  // New format
+    generatedContent?: string  // Backend camelCase format
     session_id?: string
     session_type?: string
     model_used?: string
@@ -49,8 +50,8 @@ export default function MedicalReportDisplay({
     const [isExpanded, setIsExpanded] = useState(true)
     const [tags, setTags] = useState<string[]>([])
 
-    // Support both 'report' (legacy) and 'generated_report' (new format)
-    let reportContent = reportData?.generated_report || reportData?.report || ''
+    // Support multiple field names: generatedContent (backend camelCase), generated_report, report (legacy)
+    let reportContent = reportData?.generatedContent || reportData?.generated_report || reportData?.report || ''
 
     // If reportContent is an object, try to extract the report string
     if (typeof reportContent === 'object' && reportContent !== null) {
@@ -66,8 +67,23 @@ export default function MedicalReportDisplay({
             reportContent = parsed.report || parsed.generated_report || parsed.content || reportContent
             console.log('✅ Extracted report from JSON string')
         } catch (e) {
-            // Not valid JSON, use as is
-            console.log('⚠️ String looks like JSON but failed to parse, using as-is')
+            // Not valid JSON, try to extract report field using regex (for malformed JSON)
+            console.log('⚠️ String looks like JSON but failed to parse, attempting regex extraction')
+            try {
+                const match = reportContent.match(/"report"\s*:\s*"(.*?)(?:"\s*[,}]|$)/s)
+                if (match) {
+                    // Unescape JSON string
+                    reportContent = match[1]
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, '\\')
+                    console.log('✅ Extracted report using regex')
+                } else {
+                    console.log('⚠️ Could not extract report, using as-is')
+                }
+            } catch (extractError) {
+                console.log('⚠️ Regex extraction failed, using as-is')
+            }
         }
     }
 
@@ -78,7 +94,8 @@ export default function MedicalReportDisplay({
     }
 
     console.log('📄 Final report content type:', typeof reportContent)
-    console.log('📄 Final report preview:', reportContent.substring(0, 200))
+    console.log('📄 Final report preview (v2):', reportContent.substring(0, 200))
+    console.log('📄 First 50 chars as array:', Array.from(reportContent.substring(0, 50)).map(c => c.charCodeAt(0)))
 
     if (!reportData && !isGenerating) {
         return null
@@ -130,7 +147,12 @@ export default function MedicalReportDisplay({
 
     const formatReportSections = (reportText: any) => {
         const textToFormat = typeof reportText === 'string' ? reportText : (reportText ? JSON.stringify(reportText, null, 2) : '')
-        if (!textToFormat) return []
+        if (!textToFormat) {
+            console.log('⚠️ No text to format')
+            return []
+        }
+
+        console.log('📝 Text to format (first 200 chars):', textToFormat.substring(0, 200))
 
         // Handle escaped newlines from JSON strings
         let cleanedText = textToFormat.replace(/\\n/g, '\n').replace(/\\"/g, '"')
@@ -140,10 +162,18 @@ export default function MedicalReportDisplay({
             cleanedText = cleanedText.slice(1, -1)
         }
 
+        console.log('🧹 Cleaned text (first 200 chars):', cleanedText.substring(0, 200))
+        console.log('🔍 Looking for pattern: ##<space>')
+        console.log('🔍 Text contains "## "?', cleanedText.includes('## '))
+        console.log('🔍 Text contains "##"?', cleanedText.includes('##'))
+
         // Split BEFORE lines that start with "## ", preserving the header in each chunk
         const chunks = cleanedText.split(/\n(?=##\s+)/).filter(Boolean)
 
         console.log('🔍 Found', chunks.length, 'section chunks')
+        if (chunks.length > 0) {
+            console.log('📦 First chunk preview:', chunks[0].substring(0, 100))
+        }
 
         return chunks.map((chunk, index) => {
             const lines = chunk.trim().split('\n')

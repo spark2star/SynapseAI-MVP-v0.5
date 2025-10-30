@@ -6,6 +6,7 @@ Privacy by design implementation.
 
 import base64
 import hashlib
+import logging
 from typing import Optional, Union
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -16,6 +17,8 @@ import secrets
 import os
 
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class FieldEncryption:
@@ -74,12 +77,18 @@ class FieldEncryption:
         if ciphertext is None:
             return None
         
+        # Handle corrupted or invalid encrypted data gracefully
+        if not ciphertext or len(ciphertext) < 10:
+            logger.warning(f"Invalid encrypted data detected (length: {len(ciphertext) if ciphertext else 0}), returning None")
+            return None
+        
         try:
             encrypted_data = base64.urlsafe_b64decode(ciphertext.encode('utf-8'))
             decrypted_data = self.fernet.decrypt(encrypted_data)
             return decrypted_data.decode('utf-8')
         except Exception as e:
-            raise ValueError(f"Failed to decrypt data: {str(e)}")
+            logger.error(f"Failed to decrypt data: {str(e)}, returning None for corrupted data")
+            return None
 
 
 class DatabaseEncryption:

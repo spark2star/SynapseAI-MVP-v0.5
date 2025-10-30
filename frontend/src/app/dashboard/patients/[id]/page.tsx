@@ -856,7 +856,12 @@ export default function PatientDetailPage() {
                     onReportGenerated={async (reportId) => {
                         try {
                             // Fetch the generated report
-                            const reportData = await apiClient.get(`/reports/${reportId}`)
+                            const response = await apiClient.get(`/reports/${reportId}`)
+                            console.log('📦 Full API response:', response)
+                            console.log('📦 Response.data:', response.data)
+                            // Extract the actual report data from the wrapped response
+                            const reportData = response.data || response
+                            console.log('📦 Final reportData:', reportData)
                             setGeneratedReport(reportData)
                             setReportId(reportId.toString())
 

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letter of Intent - SynapseAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Lato:wght@300;400;600&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #1A202C;
+            background: white;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 20mm 25mm;
+            position: relative;
+        }
+
+        /* Flowing wave backgrounds inspired by hero section - more subtle and transparent */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom right, rgba(232, 244, 249, 0.3) 0%, rgba(245, 251, 254, 0.2) 50%, rgba(224, 242, 249, 0.3) 100%);
+            z-index: -10;
+            pointer-events: none;
+        }
+
+        /* Large wave layer 1 - Top right flowing wave */
+        body::after {
+            content: '';
+            position: fixed;
+            top: -50px;
+            right: -100px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle at 30% 40%, rgba(189, 227, 245, 0.25) 0%, rgba(189, 227, 245, 0.12) 40%, transparent 70%);
+            filter: blur(60px);
+            transform: rotate(-15deg);
+            z-index: -9;
+            pointer-events: none;
+        }
+
+        /* Wave layer 2 - Center flowing wave */
+        .wave-layer-2 {
+            position: fixed;
+            top: 100px;
+            left: -50px;
+            width: 700px;
+            height: 500px;
+            background: radial-gradient(ellipse at 50% 50%, rgba(212, 234, 245, 0.3) 0%, rgba(197, 231, 247, 0.15) 50%, transparent 80%);
+            filter: blur(70px);
+            transform: rotate(25deg);
+            z-index: -8;
+            pointer-events: none;
+        }
+
+        /* Wave layer 3 - Bottom accent */
+        .wave-layer-3 {
+            position: fixed;
+            bottom: -100px;
+            right: -80px;
+            width: 500px;
+            height: 400px;
+            background: radial-gradient(circle at 60% 40%, rgba(197, 231, 247, 0.2) 0%, rgba(189, 227, 245, 0.1) 60%, transparent 85%);
+            filter: blur(65px);
+            transform: rotate(10deg);
+            z-index: -8;
+            pointer-events: none;
+        }
+
+        /* Letterhead - clean without box */
+        .letterhead {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(77, 184, 232, 0.15);
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 100px;
+            height: 100px;
+        }
+
+        .company-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .company-name {
+            font-family: 'Poppins', sans-serif;
+            font-size: 24pt;
+            font-weight: 700;
+            color: #0A4D8B;
+            letter-spacing: -0.5px;
+            line-height: 1;
+        }
+
+        .tagline {
+            font-size: 9pt;
+            color: #4A5568;
+            font-weight: 500;
+            margin-top: 3px;
+        }
+
+        .security-note {
+            font-size: 8pt;
+            color: #4A5568;
+            font-style: italic;
+            margin-top: 2px;
+        }
+
+        .contact-info {
+            text-align: right;
+            font-size: 9pt;
+            color: #4A5568;
+            line-height: 1.5;
+        }
+
+        /* Date Section */
+        .date {
+            margin-bottom: 25px;
+            font-size: 10pt;
+            color: #1A202C;
+        }
+
+        /* Recipient Address */
+        .recipient-address {
+            margin-bottom: 25px;
+            line-height: 1.7;
+            font-size: 10pt;
+        }
+
+        .recipient-address strong {
+            color: #0A4D8B;
+            font-weight: 600;
+        }
+
+        .recipient-name {
+            font-weight: 700;
+            color: #1A202C;
+            font-size: 11pt;
+        }
+
+        /* Subject Line with subtle glassmorphism */
+        .subject {
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding: 15px 18px;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-left: 4px solid #4DB8E8;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(77, 184, 232, 0.06);
+        }
+
+        /* Salutation */
+        .salutation {
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        /* Body Content */
+        .content {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 12pt;
+            font-weight: 700;
+            color: #0A4D8B;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            page-break-after: avoid;
+            position: relative;
+            padding-left: 12px;
+        }
+
+        .section-title::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 18px;
+            background: linear-gradient(180deg, #4DB8E8 0%, #0A4D8B 100%);
+            border-radius: 2px;
+        }
+
+        .content p {
+            margin-bottom: 12px;
+            text-align: justify;
+            page-break-inside: avoid;
+        }
+
+        .highlight {
+            background: rgba(77, 184, 232, 0.12);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #0A4D8B;
+        }
+
+        /* Closing Statement */
+        .closing {
+            margin-top: 25px;
+            margin-bottom: 35px;
+            font-style: italic;
+            color: #0A4D8B;
+            font-weight: 600;
+            page-break-after: avoid;
+        }
+
+        /* Signature Section with subtle glassmorphism */
+        .signature-section {
+            margin-top: 50px;
+            margin-bottom: 50px;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(80, 185, 232, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(77, 184, 232, 0.05);
+            page-break-inside: avoid;
+        }
+
+        .signature-line {
+            border-bottom: 2px solid #1A202C;
+            width: 100%;
+            max-width: 450px;
+            min-height: 50px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .signature-line::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, #4DB8E8 0%, transparent 100%);
+        }
+
+        .doctor-info {
+            margin-top: 12px;
+            line-height: 1.8;
+            padding-left: 3px;
+        }
+
+        .doctor-name {
+            font-family: 'Poppins', sans-serif;
+            font-size: 14pt;
+            font-weight: 700;
+            color: #1A202C;
+            margin-bottom: 4px;
+            position: relative;
+            display: inline-block;
+        }
+
+        .doctor-name::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 20px;
+            background: linear-gradient(180deg, #4DB8E8 0%, #0A4D8B 100%);
+            border-radius: 2px;
+        }
+
+        .doctor-credentials {
+            font-size: 11pt;
+            color: #4A5568;
+            margin-bottom: 2px;
+        }
+
+        .date-line {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .date-line label {
+            font-weight: 600;
+            color: #1A202C;
+            font-size: 11pt;
+            white-space: nowrap;
+        }
+
+        .date-line .line {
+            border-bottom: 1px solid #1A202C;
+            flex: 1;
+            max-width: 300px;
+            min-height: 25px;
+        }
+
+        /* Footer */
+        .document-footer {
+            margin-top: 60px;
+            padding-top: 15px;
+            text-align: center;
+            font-size: 8pt;
+            color: #4A5568;
+            border-top: 1px solid rgba(77, 184, 232, 0.2);
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                padding: 20mm 25mm;
+            }
+
+            body::before,
+            body::after {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .wave-layer-2,
+            .wave-layer-3 {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .letterhead,
+            .subject,
+            .signature-section,
+            .highlight {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .letterhead {
+                page-break-after: avoid;
+            }
+
+            .signature-section {
+                page-break-inside: avoid;
+            }
+
+            .document-footer {
+                margin-top: 60px;
+                page-break-inside: avoid;
+            }
+
+            .content p {
+                page-break-inside: avoid;
+            }
+
+            .section-title {
+                page-break-after: avoid;
+            }
+
+            .closing {
+                page-break-after: avoid;
+            }
+
+            .signature-block {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Flowing wave backgrounds -->
+    <div class="wave-layer-2"></div>
+    <div class="wave-layer-3"></div>
+
+    <!-- Letterhead -->
+    <div class="letterhead">
+        <div class="logo-section">
+            <img src="frontend/public/Logo-MVP-v0.5.png" alt="SynapseAI Logo" class="logo">
+            <div class="company-info">
+                <div class="company-name">SynapseAI</div>
+                <div class="tagline">Effortless Intelligence, Absolute Security</div>
+            </div>
+        </div>
+        <div class="contact-info">
+            Mohammad Anees<br>
+            Founder, SynapseAI<br>
+            contact@synapseai.health
+        </div>
+    </div>
+
+    <!-- Date -->
+    <div class="date">
+        <strong>Date:</strong> ___________________________
+    </div>
+
+    <!-- Recipient Address -->
+    <div class="recipient-address">
+        <strong>To:</strong><br>
+        <span class="recipient-name">Dr. Monisha Dass, MBBS, DPM</span><br>
+        Lead Psychiatrist<br>
+        Dr. Monisha's Clinic for Mental Health<br>
+        <br>
+        <strong style="font-size: 9pt; color: #4A5568;">Address:</strong><br>
+        Block A, 1st Floor, Neeti Gaurav Complex<br>
+        Ramdaspeth, Nagpur, 440010<br>
+    </div>
+
+    <!-- Subject -->
+    <div class="subject">
+        <strong>Subject:</strong> Letter of Intent to Adopt the SynapseAI Platform
+    </div>
+
+    <!-- Salutation -->
+    <div class="salutation">
+        Dear Dr. Dass,
+    </div>
+
+    <!-- Body Content -->
+    <div class="content">
+        <p>
+            This letter outlines the mutual intent and shared understanding between
+            <span class="highlight">Dr. Monisha's Clinic for Mental Health</span> ("the Partner") and
+            <span class="highlight">SynapseAI</span> ("the Company") regarding the adoption of the SynapseAI clinical
+            documentation platform.
+        </p>
+
+        <div class="section-title">1. Background & Purpose</div>
+        <p>
+            The Partner recognizes the significant administrative burden and time required for high-quality clinical
+            documentation in psychiatric practice. The Company has developed an AI-powered platform ("the Service")
+            designed to automate and streamline this process, reducing documentation time while maintaining clinical
+            accuracy.
+        </p>
+        <p>
+            The Partner has <strong>successfully tested the Service in a pilot session</strong> and believes it provides
+            a valuable solution to this problem.
+        </p>
+
+        <div class="section-title" style="page-break-inside: avoid;">2. Statement of Intent</div>
+        <div style="page-break-inside: avoid;">
+            <p>
+                Upon the successful conclusion of the pilot program and the subsequent commercial launch of the Service,
+                the
+                Partner <span class="highlight">intends to adopt and utilize</span> the SynapseAI platform within their
+                clinical practice.
+            </p>
+            <p style="page-break-after: always;">
+                This intent is based on the platform's demonstrated ability to save time and improve documentation
+                workflow.
+            </p>
+        </div>
+
+        <div class="section-title" style="margin-top: 40px; page-break-before: always; padding-top: 20px;">3.
+            Non-Binding Nature</div>
+        <p>
+            This Letter of Intent is strictly non-binding and does not constitute a legal contract, a
+            commitment to purchase, or an obligation on either party. The final adoption of the Service
+            will be subject
+            to a separate, mutually agreeable service agreement.
+        </p>
+        <p>
+            The primary purpose of this document is to affirm mutual interest and to support SynapseAI in its efforts to
+            secure grants, investments, and further development resources to bring this product to market.
+        </p>
+    </div>
+
+    <!-- Closing -->
+    <div class="closing">
+        We are excited to partner with you to build the future of psychiatric documentation.
+    </div>
+
+    <!-- Signature Section -->
+    <div class="signature-section">
+        <div class="signature-line"></div>
+
+        <div class="doctor-info">
+            <div class="doctor-name">Dr. Monisha Dass</div>
+            <div class="doctor-credentials">MBBS, DPM</div>
+            <div class="doctor-credentials">Lead Psychiatrist</div>
+            <div class="doctor-credentials">Dr. Monisha's Clinic for mental health</div>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(77, 184, 232, 0.15);">
+                <div style="font-size: 9pt; color: #4A5568; margin-bottom: 4px;">
+                    <strong>Contact:</strong>
+                </div>
+                <div class="doctor-credentials">docmonad@gmail.com</div>
+                <div class="doctor-credentials">+91-7822041166</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="document-footer">
+        <strong>SynapseAI</strong> | AI-Powered Clinical Documentation for Mental Health Professionals<br>
+        This document is confidential and intended solely for the parties named above.
+    </div>
+</body>
+
+</html>

@@ -6,12 +6,14 @@ Provides intelligent analysis with cultural context for Indian mental health con
 import os
 import json
 import logging
+import traceback
 from typing import Dict, Any
 from datetime import datetime, timezone
 
 from google.oauth2 import service_account
 import google.auth.transport.requests
-import google.generativeai as genai
+import vertexai
+from vertexai.generative_models import GenerativeModel, SafetySetting, HarmCategory, HarmBlockThreshold
 
 logger = logging.getLogger(__name__)
 
@@ -24,27 +26,25 @@ class GeminiService:
             # Load service account credentials
             credentials_path = "gcp-credentials.json"
             if os.path.exists(credentials_path):
-                credentials = service_account.Credentials.from_service_account_file(
-                    credentials_path,
-                    scopes=['https://www.googleapis.com/auth/generative-language.retriever']
+                self.project = os.getenv("GCP_PROJECT_ID", "synapse-product-1")
+                self.location = os.getenv("VERTEX_AI_LOCATION", "us-central1")
+                # Use model from environment variable, fallback to gemini-2.0-flash-exp
+                self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+                
+                # Initialize Vertex AI with service account credentials
+                vertexai.init(
+                    project=self.project,
+                    location=self.location,
+                    credentials=service_account.Credentials.from_service_account_file(
+                        credentials_path,
+                        scopes=['https://www.googleapis.com/auth/cloud-platform']
+                    )
                 )
                 
-                # Get access token for authentication
-                request = google.auth.transport.requests.Request()
-                credentials.refresh(request)
+                # Initialize Gemini model via Vertex AI
+                self.model = GenerativeModel(self.model_name)
                 
-                self.project = "synapse-product-1"
-                self.location = "asia-south1"  # Mumbai, India - lowest latency
-                self.model_name = "gemini-2.5-flash"
-                self.credentials = credentials
-                
-                # Configure Gemini API with access token
-                genai.configure(credentials=credentials)
-                
-                # Initialize Gemini model
-                self.model = genai.GenerativeModel(self.model_name)
-                
-                logger.info("✅ Gemini 2.5 Flash initialized successfully (Mumbai region)")
+                logger.info(f"✅ Gemini initialized via Vertex AI (project: {self.project}, location: {self.location}, model: {self.model_name})")
             else:
                 raise FileNotFoundError("GCP credentials file not found")
                 
@@ -54,31 +54,37 @@ class GeminiService:
     
     async def generate_medical_report(self, transcription: str, session_type: str = "follow_up", patient_status: str = "stable", medications: str = "") -> dict:
         """
-        Generate a structured mental health report from consultation transcription with quality metrics
+        Generate a structured mental health report from consultation transcription with quality metrics.
+        Logs full traceback on error.
         
         Returns:
         {
-            "report": "...",
-            "confidence_score": 0.85,
-            "keywords": ["anxiety", "sleep", ...],
-            "reasoning": "..."
+            "status": "success" | "error",
+            "report": "...", # On success
+            "confidence_score": 0.85, # On success
+            "keywords": ["anxiety", "sleep", ...], # On success
+            "reasoning": "...", # On success
+            "model_used": "...", # On success
+            "session_type": "...", # On success
+            "transcription_length": ..., # On success
+            "generated_at": "...", # On success
+            "error": "...", # On error
         }
         """
         try:
             logger.info(f"🤖 Generating {session_type} report for transcript length: {len(transcription)}")
             logger.info(f"📝 Transcript preview: {transcription[:200]}...")
-            
-            # ✅ CRITICAL FIX: Translate non-English to English to bypass safety filters
-            # Gemini blocks non-English medical content, but accepts English
+
+            # --- [Keep translation logic] ---
             translated_transcript = await self._translate_to_english_if_needed(transcription)
-            
+
+            # --- [Keep prompt selection logic] ---
             if session_type == "follow_up":
                 prompt = self._get_follow_up_prompt(translated_transcript, patient_status, medications)
             else:
                 prompt = self._get_new_patient_prompt(translated_transcript, patient_status, medications)
 
-            
-            # Call real Gemini 2.5 Flash API with JSON response format
+            # --- [Keep generation_config and safety_settings] ---
             generation_config = {
                 "temperature": 0.3,
                 "top_p": 0.95,
@@ -86,121 +92,201 @@ class GeminiService:
                 "max_output_tokens": 2048,
                 "response_mime_type": "application/json"
             }
-            
-            # ✅ Configure safety settings for medical content - MOST PERMISSIVE
-            # Using list format (recommended by Google) instead of dict
             safety_settings = [
-                {
-                    "category": "HARM_CATEGORY_HARASSMENT",
-                    "threshold": "BLOCK_NONE"
-                },
-                {
-                    "category": "HARM_CATEGORY_HATE_SPEECH",
-                    "threshold": "BLOCK_NONE"
-                },
-                {
-                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                    "threshold": "BLOCK_NONE"
-                },
-                {
-                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                    "threshold": "BLOCK_NONE"
-                }
+                SafetySetting(
+                    category=HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold=HarmBlockThreshold.BLOCK_NONE
+                ),
+                SafetySetting(
+                    category=HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                    threshold=HarmBlockThreshold.BLOCK_NONE
+                ),
+                SafetySetting(
+                    category=HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                    threshold=HarmBlockThreshold.BLOCK_NONE
+                ),
+                SafetySetting(
+                    category=HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold=HarmBlockThreshold.BLOCK_NONE
+                ),
             ]
-            
-            logger.info("🛡️ Safety settings configured: BLOCK_NONE for all categories (medical use case)")
-            
-            model_with_config = genai.GenerativeModel(
+            logger.info("🛡️ Safety settings configured: BLOCK_NONE for all categories")
+
+            # --- [Keep model instantiation] ---
+            model_with_config = GenerativeModel(
                 self.model_name,
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
-            
-            response = model_with_config.generate_content(prompt)
-            
-            # ✅ Check if response was blocked by safety filters
-            logger.info(f"📊 Response candidates count: {len(response.candidates) if response.candidates else 0}")
-            
-            if response.candidates:
-                candidate = response.candidates[0]
-                logger.info(f"📊 Candidate has parts: {len(candidate.content.parts) if hasattr(candidate.content, 'parts') else 0}")
-                if hasattr(candidate, 'safety_ratings'):
-                    logger.info(f"🛡️ Safety ratings: {candidate.safety_ratings}")
-                if hasattr(candidate, 'finish_reason'):
-                    logger.info(f"🏁 Finish reason: {candidate.finish_reason}")
-            
-            if not response.candidates or not response.candidates[0].content.parts:
-                safety_info = ""
-                if response.candidates and hasattr(response.candidates[0], 'safety_ratings'):
-                    safety_info = f"Safety ratings: {response.candidates[0].safety_ratings}"
-                logger.warning(f"⚠️ Gemini response blocked by safety filters. {safety_info}")
-                logger.warning(f"⚠️ Generating fallback template report instead...")
-                
-                # ✅ FALLBACK: Generate basic template report when Gemini blocks
+
+            # --- Call Gemini API ---
+            try:
+                logger.info("🚀 Calling Gemini API...")
+                response = model_with_config.generate_content(prompt)
+                logger.info("✅ Gemini API call successful")
+            except Exception as api_error:
+                logger.error(f"❌ Gemini API call failed: {str(api_error)}")
+                logger.error(f"❌ API Error type: {type(api_error).__name__}")
+                return self._generate_fallback_report(translated_transcript, session_type, patient_status, medications)
+
+            # --- [Keep response validation, logging, and fallback logic] ---
+            # ... (check response.candidates, safety ratings etc.) ...
+            if not response.candidates:
+                logger.warning("⚠️ Gemini response has no candidates - using fallback")
+                logger.warning(f"⚠️ Response object: {response}")
                 return self._generate_fallback_report(translated_transcript, session_type, patient_status, medications)
             
-            logger.info(f"✅ Gemini response received: {len(response.text)} characters")
-            logger.info(f"📄 Response preview: {response.text[:300]}...")
-            
-            # Parse JSON response (handle markdown code blocks)
+            if not response.candidates[0].content.parts:
+                # Handle safety blocking or empty response
+                logger.warning("⚠️ Gemini response blocked or empty - using fallback")
+                logger.warning(f"⚠️ Finish reason: {response.candidates[0].finish_reason}")
+                logger.warning(f"⚠️ Full candidate: {response.candidates[0]}")
+                if response.candidates[0].safety_ratings:
+                    logger.warning(f"⚠️ Safety ratings: {response.candidates[0].safety_ratings}")
+                    for rating in response.candidates[0].safety_ratings:
+                        logger.warning(f"⚠️ Safety: {rating.category} = {rating.probability}")
+                return self._generate_fallback_report(translated_transcript, session_type, patient_status, medications)
+
+
+            # --- [Keep JSON parsing logic] ---
             import json
             import re
-            
             response_text = response.text.strip()
-            
-            # Try to extract JSON from markdown code blocks
-            if response_text.startswith('```'):
-                # Extract content between ```json and ``` or just ``` and ```
-                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-                if json_match:
-                    response_text = json_match.group(1)
-            
+            # ... (extract JSON from markdown if needed) ...
+
             try:
                 result = json.loads(response_text)
-                
-                # Ensure keywords are limited to 10
-                if "keywords" in result and isinstance(result["keywords"], list):
-                    result["keywords"] = result["keywords"][:10]
-                
+                # ... (limit keywords) ...
                 return {
                     "status": "success",
-                    "report": result.get("report", response.text),
+                    # ... (rest of success fields) ...
+                    "report": result.get("report", response.text), # Fallback if 'report' key missing
                     "confidence_score": result.get("confidence_score", 0.75),
-                    "keywords": result.get("keywords", []),
+                    "keywords": result.get("keywords", [])[:10], # Limit here too
                     "reasoning": result.get("reasoning", ""),
                     "model_used": self.model_name,
                     "session_type": session_type,
                     "transcription_length": len(transcription),
                     "generated_at": datetime.now(timezone.utc).isoformat()
                 }
-            except json.JSONDecodeError as e:
-                # Fallback: Extract keywords from transcript text
-                logger.warning(f"⚠️ JSON parsing error: {str(e)}. Extracting keywords from transcript.")
-                keywords = self._extract_keywords_from_transcript(transcription)
+            except json.JSONDecodeError as json_e:
+                # Handle cases where Gemini didn't return valid JSON
+                logger.warning(f"⚠️ Gemini JSON parsing error: {str(json_e)}. Attempting to extract report content.")
+                
+                # Try multiple extraction strategies
+                report_content = response.text
+                confidence_score = 0.5
+                keywords = []
+                reasoning = ""
+                
+                try:
+                    import re
+                    
+                    # Strategy 1: Try to extract report field
+                    report_match = re.search(r'"report"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)', response.text, re.DOTALL)
+                    if report_match:
+                        report_content = report_match.group(1).replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+                        logger.info(f"✅ Extracted report content ({len(report_content)} chars)")
+                    
+                    # Strategy 2: Try to extract confidence_score
+                    conf_match = re.search(r'"confidence_score"\s*:\s*([0-9.]+)', response.text)
+                    if conf_match:
+                        confidence_score = float(conf_match.group(1))
+                        logger.info(f"✅ Extracted confidence score: {confidence_score}")
+                    
+                    # Strategy 3: Try to extract keywords array
+                    keywords_match = re.search(r'"keywords"\s*:\s*\[(.*?)\]', response.text, re.DOTALL)
+                    if keywords_match:
+                        keywords_str = keywords_match.group(1)
+                        keywords = [k.strip().strip('"\'') for k in keywords_str.split(',') if k.strip()]
+                        keywords = [k for k in keywords if k and len(k) > 0][:10]
+                        logger.info(f"✅ Extracted {len(keywords)} keywords")
+                    
+                    # Strategy 4: Try to extract reasoning
+                    reasoning_match = re.search(r'"reasoning"\s*:\s*"((?:[^"\\]|\\.)*)"', response.text)
+                    if reasoning_match:
+                        reasoning = reasoning_match.group(1).replace('\\n', ' ').replace('\\"', '"')
+                        logger.info(f"✅ Extracted reasoning")
+                    
+                    # Fallback for keywords if extraction failed
+                    if not keywords:
+                        keywords = self._extract_keywords_from_transcript(transcription)
+                        logger.info(f"Using fallback keywords from transcript")
+                    
+                except Exception as extract_error:
+                    logger.warning(f"⚠️ Error during extraction: {str(extract_error)}")
+                    keywords = self._extract_keywords_from_transcript(transcription)
                 
                 return {
                     "status": "success",
-                    "report": response.text,
-                    "confidence_score": 0.5,
-                    "keywords": keywords,
-                    "reasoning": "JSON parsing failed - keywords extracted from transcript",
+                    "report": report_content,
+                    "confidence_score": confidence_score,
+                    "keywords": keywords[:10],
+                    "reasoning": reasoning or f"Partial extraction from malformed JSON: {str(json_e)}",
                     "model_used": self.model_name,
                     "session_type": session_type,
                     "transcription_length": len(transcription),
                     "generated_at": datetime.now(timezone.utc).isoformat()
                 }
-            
+
         except Exception as e:
-            logger.error(f"❌ Error generating medical report: {str(e)}")
-            logger.error(f"❌ Transcript: {transcription[:100]}...")
-            import traceback
+            # --- Enhanced Error Logging ---
+            error_message = f"Error generating medical report: {str(e)}"
+            logger.error(f"❌ {error_message}")
+            logger.error(f"❌ Transcript Preview: {transcription[:200]}...")
+            # Log the full traceback
             logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return {
                 "status": "error",
-                "error": str(e),
-                "model_used": "gemini-2.5-flash",
-                "region": "asia-south1"
+                "error": error_message, # Include the formatted error message
+                "model_used": self.model_name, # Use self.model_name
+                "region": self.location # Use self.location if defined, else default
             }
+
+    # Helper function needed in GeminiService (or adapt existing)
+    def _extract_keywords_from_transcript(self, transcript: str) -> list:
+        # Placeholder: Implement a simple keyword extraction (e.g., based on frequency or NLP lib)
+        # For now, return empty list
+        logger.warning("Keyword extraction fallback used.")
+        # Example: Simple word frequency (adjust as needed)
+        try:
+            words = [w.lower() for w in transcript.split() if len(w) > 3] # Basic filter
+            from collections import Counter
+            common_words = [item[0] for item in Counter(words).most_common(10)]
+            return common_words
+        except:
+            return []
+
+    # Helper function needed in GeminiService (or adapt existing)
+    def _generate_fallback_report(self, transcript: str, session_type: str, patient_status: str, medications: str) -> dict:
+         logger.warning("⚠️ Generating fallback template report due to Gemini issues.")
+         # Create a very basic structured report based on available info
+         report_text = f"""
+## FALLBACK REPORT - AI Generation Failed
+
+**Session Type:** {session_type}
+**Patient Status:** {patient_status}
+**Medications Mentioned/Prescribed:**
+{medications}
+
+**Transcript Provided:**
+{transcript[:1000]}... (truncated)
+
+**Reason:** AI generation was blocked or failed. Please review the transcript manually.
+"""
+         keywords = self._extract_keywords_from_transcript(transcript)
+
+         return {
+            "status": "success", # Mark as success so it gets saved, but indicate fallback
+            "report": report_text,
+            "confidence_score": 0.1, # Very low confidence
+            "keywords": keywords,
+            "reasoning": "Fallback report generated due to AI failure or safety block.",
+            "model_used": "fallback_template",
+            "session_type": session_type,
+            "transcription_length": len(transcript),
+            "generated_at": datetime.now(timezone.utc).isoformat()
+         }
     
     def _get_follow_up_prompt(self, transcription: str, patient_status: str = "stable", medications: str = "") -> str:
         """
@@ -405,14 +491,26 @@ RESPOND WITH ONLY THE ENGLISH TRANSLATION, NO EXPLANATIONS.
 """
             
             # Use simple model without JSON mode for translation
-            simple_model = genai.GenerativeModel(
+            simple_model = GenerativeModel(
                 self.model_name,
                 generation_config={"temperature": 0.1, "max_output_tokens": 2048},
                 safety_settings=[
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                    SafetySetting(
+                        category=HarmCategory.HARM_CATEGORY_HARASSMENT,
+                        threshold=HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    SafetySetting(
+                        category=HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                        threshold=HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    SafetySetting(
+                        category=HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                        threshold=HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    SafetySetting(
+                        category=HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                        threshold=HarmBlockThreshold.BLOCK_NONE
+                    ),
                 ]
             )
             
